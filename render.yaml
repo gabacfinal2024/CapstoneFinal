@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: agriresq-backend
+    runtime: python
+    buildCommand: pip install -r agriresq_core/requirements.txt
+    startCommand: gunicorn --chdir agriresq_core agriresq_backend.wsgi:application
