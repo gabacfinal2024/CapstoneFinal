@@ -1,4 +1,5 @@
 from django.urls import path, include
+from rest_framework.permissions import AllowAny
 from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView, LoginView, LogoutView, MeView,
@@ -9,7 +10,12 @@ from .views import (
 )
 from . import device_views as dv
 
-router = DefaultRouter()
+class PublicAPIRootRouter(DefaultRouter):
+    class APIRootView(DefaultRouter.APIRootView):
+        permission_classes = [AllowAny]
+
+
+router = PublicAPIRootRouter()
 router.register(r'inventory', CropBatchViewSet, basename='inventory')
 router.register(r'batches', CropBatchViewSet, basename='batches')
 router.register(r'marketplace', MarketplaceViewSet, basename='marketplace')
