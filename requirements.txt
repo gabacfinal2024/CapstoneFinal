@@ -8,5 +8,5 @@ Pillow>=10.0
 # freshness CNN (ML/deploy)
 numpy>=1.26
 onnxruntime>=1.18
-# only for the optional EMQX listener: python manage.py mqtt_listen
-# paho-mqtt>=1.6
+# EMQX listener: python manage.py mqtt_listen
+paho-mqtt>=1.6
