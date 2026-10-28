@@ -1,0 +1,19 @@
+.skeleton {
+  display: block;
+  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+.skeleton-card { display: flex; flex-direction: column; gap: 10px; }
+.skeleton-card__top { display: flex; gap: 12px; align-items: center; }
+.skeleton-card__text { flex: 1; display: flex; flex-direction: column; gap: 8px; }

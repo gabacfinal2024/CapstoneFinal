@@ -1,0 +1,109 @@
+.batch-card {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 12px;
+  transition: transform 0.15s;
+}
+
+.batch-card:active {
+  transform: scale(0.99);
+}
+
+.batch-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.batch-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.batch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.batch-header h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 20px;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+.status-badge.status-green { background: var(--fresh); }
+.status-badge.status-amber { background: var(--at-risk); }
+.status-badge.status-red { background: var(--spoiled); }
+
+.batch-meta {
+  font-size: 13px;
+  color: var(--gray-600);
+  margin: 4px 0 8px;
+}
+
+.batch-harvest {
+  font-size: 11px;
+  color: var(--gray-600);
+  margin-bottom: 6px;
+}
+
+.card-storage {
+  font-size: 11px;
+  line-height: 15px;
+  height: 15px;
+  margin: 0 0 6px;
+  color: var(--primary);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-storage.is-empty { color: var(--gray-600); font-weight: 400; }
+
+.batch-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-light);
+}
+
+.batch-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.batch-actions .btn {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+  min-width: auto;
+}
+
+.batch-actions .btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--gray-300);
+}
+
+.batch-actions .btn-danger {
+  background: #f8f0f0;
+  color: var(--spoiled);
+  border: 1px solid rgba(244,67,54,0.12);
+}

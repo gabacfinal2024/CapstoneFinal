@@ -1,0 +1,34 @@
+{
+  "labels": [
+    "cucumber_fresh",
+    "cucumber_at-risk",
+    "cucumber_rotten",
+    "carrot_fresh",
+    "carrot_at-risk",
+    "carrot_rotten",
+    "eggplant_fresh",
+    "eggplant_at-risk",
+    "eggplant_rotten",
+    "none"
+  ],
+  "input_size": 288,
+  "resize_short": 308,
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "model": "efficientnet_b0.ra_in1k",
+  "thresholds": {
+    "none_prob": 0.2,
+    "crop_prob": 0.3,
+    "crop_ambiguity": 0.5
+  },
+  "test_acc": 0.9120879120879121,
+  "test_macro_f1": 0.8439210680200429
+}

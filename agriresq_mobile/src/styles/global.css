@@ -1,0 +1,197 @@
+:root {
+  --primary: #155e52;
+  --primary-dark: #0D3F38;
+  --primary-light: #238275;
+  --mint: #73C8B0;
+  --mint-light: #DDF3EA;
+  --accent: #E8893D;
+  --accent-yellow: #F5C451;
+  --fresh: #3B9B67;
+  --at-risk: #E8893D;
+  --spoiled: #D9574A;
+  --white: #FFFFFF;
+  --gray-50: #F4F7F4;
+  --gray-100: #E3EBE6;
+  --gray-200: #D2DED7;
+  --gray-300: #B0BEC5;
+  --gray-600: #546E7A;
+  --gray-800: #263B36;
+  --shadow: 0 8px 24px rgba(21, 94, 82, 0.09);
+  --radius: 14px;
+  --radius-sm: 9px;
+  --nav-height: 72px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #EAF1EC;
+  color: var(--gray-800);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+}
+
+.app-shell {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--gray-50);
+  position: relative;
+  box-shadow: 0 0 40px rgba(0,0,0,0.08);
+}
+
+.page {
+  padding: 20px 18px calc(var(--nav-height) + var(--safe-bottom) + 20px);
+  min-height: 100vh;
+}
+
+.page-no-nav {
+  padding: 16px;
+  min-height: 100vh;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn-primary {
+  background: var(--white);
+  color: var(--primary);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--white);
+  border: 2px solid rgba(255,255,255,0.8);
+}
+
+.btn-green {
+  background: var(--primary);
+  color: var(--white);
+  width: 100%;
+}
+
+.btn-green:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* compact icon button */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+}
+.icon-btn:active { transform: scale(0.98); }
+.icon-btn.green { background: rgba(76,175,80,0.08); border-color: rgba(76,175,80,0.18); color: var(--fresh); }
+.icon-btn.danger { background: rgba(244,67,54,0.06); border-color: rgba(244,67,54,0.12); color: var(--spoiled); }
+
+.input-group {
+  margin-bottom: 14px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-600);
+  margin-bottom: 6px;
+}
+
+.input-group input,
+.input-group textarea,
+.input-group select {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid var(--gray-100);
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  background: var(--white);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.input-group input:focus {
+  border-color: var(--primary-light);
+}
+
+.card {
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 16px;
+  border: 1px solid rgba(21, 94, 82, 0.06);
+  box-shadow: var(--shadow);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-green { background: var(--fresh); }
+.status-amber { background: var(--at-risk); }
+.status-red { background: var(--spoiled); }
+
+.error-text {
+  color: var(--spoiled);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.section-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+/* .btn-outline is white-on-green for the splash screen; on the light app pages it must be dark */
+.app-shell .btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 1.5px solid var(--gray-300);
+}

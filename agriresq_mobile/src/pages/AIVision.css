@@ -1,0 +1,18 @@
+.ai-vision .dev-subtitle { margin-bottom: 16px; }
+.ai-picker { margin-bottom: 12px; }
+.ai-scan { margin: 12px 0 8px; }
+
+.ai-settings-link {
+  min-height: 44px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 16px;
+}
+
+.ai-empty { text-align: center; }
+.ai-empty p { margin-bottom: 12px; color: var(--gray-600); }

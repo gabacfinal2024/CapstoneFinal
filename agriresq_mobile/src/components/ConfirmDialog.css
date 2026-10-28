@@ -1,0 +1,46 @@
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  z-index: 1200;
+}
+
+.confirm-card {
+  width: 320px;
+  max-width: 92%;
+  padding: 18px;
+  border-radius: 12px;
+}
+
+.confirm-card { position: relative; }
+
+.confirm-close {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: var(--gray-600);
+  cursor: pointer;
+}
+.confirm-close:active { transform: scale(0.98); }
+
+.confirm-card h3 {
+  margin-bottom: 8px;
+  color: var(--primary);
+}
+
+.confirm-message {
+  color: var(--gray-600);
+  margin-bottom: 12px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}

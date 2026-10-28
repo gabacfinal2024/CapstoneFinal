@@ -1,0 +1,146 @@
+.auth-page {
+  animation: auth-fade-in 450ms ease-out both;
+  background: var(--gray-50);
+  padding-top: 24px;
+}
+
+.auth-header {
+  padding: 0 16px 20px;
+}
+
+.back-link {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 500;
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.auth-header h2 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.auth-header p {
+  color: var(--gray-600);
+  margin-top: 4px;
+}
+
+.auth-form {
+  animation: form-rise 550ms cubic-bezier(.22, 1, .36, 1) 100ms both;
+  margin: 0 16px;
+}
+
+.auth-form .btn-green {
+  transition: transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.auth-form .btn-green:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(21, 94, 82, 0.2);
+}
+
+@keyframes auth-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes form-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-page,
+  .auth-form {
+    animation: none;
+  }
+}
+
+.role-options {
+  display: flex;
+  gap: 10px;
+}
+
+.role-chip {
+  flex: 1;
+  padding: 12px;
+  border: 2px solid var(--gray-100);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.role-chip input { display: none; }
+
+.role-chip.active {
+  border-color: var(--primary);
+  background: rgba(0, 77, 64, 0.08);
+  color: var(--primary);
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--gray-600);
+}
+
+.auth-footer a {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.auth-page--bulua {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.6)),
+    url('../assets/bulua-stall.jpg') center / cover no-repeat;
+  background-attachment: local; /* photo scrolls with the content */
+}
+
+/* header text readable over the photo */
+.auth-page--bulua .auth-header,
+.auth-page--bulua .auth-header h2,
+.auth-page--bulua .auth-header p,
+.auth-page--bulua .back-link {
+  color: #fff;
+}
+
+/* form card stays readable */
+.auth-page--bulua .auth-form.card {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(6px);
+}
+
+/* desktop: show as a phone-shaped card on a dark backdrop */
+@media (min-width: 500px) {
+  body:has(.auth-page--bulua) {
+    background: #111;
+  }
+
+  body:has(.auth-page--bulua) #root {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-page--bulua {
+    min-height: 0;
+    height: min(900px, 100vh);
+    margin: auto;
+    border-radius: 32px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow-y: auto; /* Register is taller, so it scrolls inside the "phone" */
+  }
+}
+.auth-note { margin: 0; font-size: 13px; line-height: 1.4; color: #4b5563; background: #ecfdf5; border-radius: 10px; padding: 10px 12px; }

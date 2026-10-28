@@ -1,0 +1,13 @@
+class,precision,recall,f1,support
+cucumber_fresh,0.908,0.986,0.945,70
+cucumber_at-risk,1.000,0.964,0.982,28
+cucumber_rotten,0.779,0.957,0.859,92
+carrot_fresh,0.774,0.973,0.862,74
+carrot_at-risk,0.200,0.500,0.286,4
+carrot_rotten,0.761,0.864,0.810,59
+eggplant_fresh,0.867,0.937,0.900,111
+eggplant_at-risk,0.905,0.827,0.865,81
+eggplant_rotten,0.978,1.000,0.989,45
+none,0.995,0.895,0.942,619
+macro avg,0.817,0.890,0.844,1183
+weighted avg,0.926,0.912,0.916,1183

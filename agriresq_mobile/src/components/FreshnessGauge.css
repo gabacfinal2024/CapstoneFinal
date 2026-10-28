@@ -1,0 +1,49 @@
+.freshness-gauge {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.gauge-ring {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.gauge-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.gauge-percent {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.gauge-info h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.gauge-days {
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+.gauge-basis-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

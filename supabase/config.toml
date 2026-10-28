@@ -1,0 +1,15 @@
+project_id = "yyrmuaocpnrlkeedwpzx"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = [
+  "http://localhost:5173/login",
+  "http://localhost:5174/login",
+  "http://localhost/login",
+  "capacitor://localhost/login",
+]
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true

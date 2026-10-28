@@ -1,0 +1,13 @@
+.env
+.env.local
+*.pyc
+__pycache__/
+node_modules/
+dist/
+db.sqlite3
+/include/secrets.h
+.venv/
+agriresq_core/media/
+
+/iot/sensor_node/include/secrets.h
+/iot/sensor_node/.pio

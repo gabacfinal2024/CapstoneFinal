@@ -1,0 +1,9 @@
+{
+  "appId": "com.agriresq.app",
+  "appName": "AgriResQ",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}

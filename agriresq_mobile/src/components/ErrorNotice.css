@@ -1,0 +1,21 @@
+.error-notice { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.error-notice__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; word-break: break-word; }
+.error-notice__text small { color: #7d3a33; font-size: 12px; }
+
+.error-notice__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid #E5A9A2;
+  border-radius: 10px;
+  background: var(--white);
+  color: #9B2C21;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.error-notice__btn:disabled { opacity: 0.6; }

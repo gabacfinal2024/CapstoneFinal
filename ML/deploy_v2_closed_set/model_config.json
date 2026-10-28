@@ -1,0 +1,28 @@
+{
+  "labels": [
+    "cucumber_fresh",
+    "cucumber_at-risk",
+    "cucumber_rotten",
+    "carrot_fresh",
+    "carrot_at-risk",
+    "carrot_rotten",
+    "eggplant_fresh",
+    "eggplant_at-risk",
+    "eggplant_rotten"
+  ],
+  "input_size": 288,
+  "resize_short": 308,
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "model": "efficientnet_b0.ra_in1k",
+  "test_acc": 0.9574468085106383,
+  "test_macro_f1": 0.9300154793311037
+}

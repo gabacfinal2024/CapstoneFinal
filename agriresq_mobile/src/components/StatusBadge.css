@@ -1,0 +1,25 @@
+.status-badge-ui {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  border-radius: 20px;
+  color: white;
+  white-space: nowrap;
+}
+
+.status-badge-ui.size-sm { font-size: 11px; padding: 3px 10px; }
+.status-badge-ui.size-md { font-size: 12px; padding: 5px 12px; }
+.status-badge-ui.size-lg { font-size: 14px; padding: 6px 14px; }
+
+.status-badge-ui.status-green { background: var(--fresh); }
+.status-badge-ui.status-amber { background: var(--at-risk); }
+.status-badge-ui.status-red { background: var(--spoiled); }
+.status-badge-ui.status-grey { background: var(--gray-600); }
+
+.status-dot-inline {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.9);
+}

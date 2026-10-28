@@ -1,0 +1,88 @@
+.devices-header {
+  gap: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.devices-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: var(--white);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.devices-list { display: flex; flex-direction: column; gap: 12px; }
+
+.device-card { display: block; }
+
+.device-card__top { display: flex; align-items: center; gap: 12px; }
+
+.device-card__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--mint-light);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.device-card__name { flex: 1; min-width: 0; }
+.device-card__name strong { display: block; font-size: 15px; }
+.device-card__name span { display: block; font-size: 12px; color: var(--gray-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.device-card__stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0 10px;
+}
+
+.device-card__env { display: flex; gap: 12px; font-size: 13px; color: var(--gray-800); }
+.device-card__env span { display: inline-flex; align-items: center; gap: 4px; }
+
+.device-card__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--gray-100);
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.device-card__foot span { display: inline-flex; align-items: center; gap: 5px; }
+
+.small { font-size: 12px; }
+
+.devices-empty { text-align: center; padding: 24px 18px; }
+.devices-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  background: var(--mint-light);
+  color: var(--primary);
+}
+.devices-empty h3 { color: var(--primary); margin-bottom: 10px; }
+.devices-empty ol { text-align: left; font-size: 13px; color: var(--gray-600); padding-left: 18px; margin-bottom: 16px; line-height: 1.6; }
+
+.devices-actions { display: flex; align-items: center; gap: 8px; }
+.devices-add { min-height: 44px; }
+
+.device-card__scan { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.device-card__ago { font-size: 11px; color: var(--gray-600); }
+
+.devices-header > div:first-child { min-width: 0; }
+.devices-actions { flex-shrink: 0; }
+.device-card__stats { gap: 8px; flex-wrap: wrap; }

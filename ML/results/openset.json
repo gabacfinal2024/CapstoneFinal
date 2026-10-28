@@ -1,0 +1,162 @@
+{
+  "t_none": 0.2,
+  "t_crop": 0.3,
+  "val_accept_targets": 0.9910554561717353,
+  "val_reject_negatives": 0.9961240310077519,
+  "test_accept_targets": 0.9929078014184397,
+  "test_reject_seen_negatives": 0.9922480620155039,
+  "n_seen_negatives": 258,
+  "test_reject_unseen_negatives": 0.8919667590027701,
+  "n_unseen_negatives": 361,
+  "test_closed_set_9class_acc": 0.9343971631205674,
+  "test_end_to_end_10class_acc": 0.9315300084530854,
+  "test_auroc_none_vs_target": 0.9974850765934532,
+  "test_reject_by_category": {
+    "apple": {
+      "n": 10,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "banana": {
+      "n": 24,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "bean": {
+      "n": 12,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "beetroot": {
+      "n": 8,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "bitter_gourd": {
+      "n": 15,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "bottle_gourd": {
+      "n": 18,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "broccoli": {
+      "n": 13,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "cabbage": {
+      "n": 19,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "capsicum": {
+      "n": 17,
+      "rejected": 0.9411764705882353,
+      "unseen": false
+    },
+    "cauliflower": {
+      "n": 99,
+      "rejected": 0.98989898989899,
+      "unseen": true
+    },
+    "cucumber_leaf": {
+      "n": 19,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "esp32_scene": {
+      "n": 2,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "mango": {
+      "n": 99,
+      "rejected": 0.797979797979798,
+      "unseen": true
+    },
+    "object3d": {
+      "n": 17,
+      "rejected": 0.9411764705882353,
+      "unseen": false
+    },
+    "okra": {
+      "n": 67,
+      "rejected": 1.0,
+      "unseen": true
+    },
+    "orange": {
+      "n": 15,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "potato": {
+      "n": 13,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "strawberry": {
+      "n": 96,
+      "rejected": 0.8125,
+      "unseen": true
+    },
+    "synthetic_blob": {
+      "n": 6,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "synthetic_cardboard": {
+      "n": 5,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "synthetic_clutter": {
+      "n": 2,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "synthetic_dark": {
+      "n": 3,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "synthetic_light": {
+      "n": 5,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "synthetic_solid": {
+      "n": 3,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "synthetic_wall": {
+      "n": 10,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "texture": {
+      "n": 10,
+      "rejected": 1.0,
+      "unseen": false
+    },
+    "tomato": {
+      "n": 12,
+      "rejected": 1.0,
+      "unseen": false
+    }
+  },
+  "test_accept_by_class": {
+    "cucumber_fresh": 0.9857142857142858,
+    "cucumber_at-risk": 1.0,
+    "cucumber_rotten": 0.9782608695652174,
+    "carrot_fresh": 1.0,
+    "carrot_at-risk": 1.0,
+    "carrot_rotten": 1.0,
+    "eggplant_fresh": 0.990990990990991,
+    "eggplant_at-risk": 1.0,
+    "eggplant_rotten": 1.0
+  }
+}

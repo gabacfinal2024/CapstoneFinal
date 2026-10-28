@@ -1,0 +1,500 @@
+{
+  "model": "efficientnet_b0.ra_in1k",
+  "size": 288,
+  "labels": [
+    "cucumber_fresh",
+    "cucumber_at-risk",
+    "cucumber_rotten",
+    "carrot_fresh",
+    "carrot_at-risk",
+    "carrot_rotten",
+    "eggplant_fresh",
+    "eggplant_at-risk",
+    "eggplant_rotten",
+    "none"
+  ],
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 0.6131222530709746,
+      "val_acc": 0.9436964504283966,
+      "val_macro_f1": 0.9298018719741871
+    },
+    {
+      "epoch": 2,
+      "loss": 0.5933221489051138,
+      "val_acc": 0.9461444308445532,
+      "val_macro_f1": 0.9126259227559951
+    },
+    {
+      "epoch": 3,
+      "loss": 0.5869212539543008,
+      "val_acc": 0.9363525091799265,
+      "val_macro_f1": 0.9239092573020289
+    },
+    {
+      "epoch": 4,
+      "loss": 0.5797362657779819,
+      "val_acc": 0.9534883720930233,
+      "val_macro_f1": 0.9212602918508008
+    },
+    {
+      "epoch": 5,
+      "loss": 0.5748677122201158,
+      "val_acc": 0.9498164014687882,
+      "val_macro_f1": 0.9174216029632778
+    }
+  ],
+  "test_n": 1183,
+  "test_acc": 0.9120879120879121,
+  "test_macro_f1": 0.8439210680200429,
+  "test_state_acc": 0.9129332206255283,
+  "test_state_macro_f1": 0.8939423518222456,
+  "test_team_n": 30,
+  "test_team_acc": 0.9,
+  "test_by_source": {
+    "apple": {
+      "n": 10,
+      "acc": 1.0
+    },
+    "banana": {
+      "n": 24,
+      "acc": 1.0
+    },
+    "bean": {
+      "n": 12,
+      "acc": 1.0
+    },
+    "beetroot": {
+      "n": 8,
+      "acc": 1.0
+    },
+    "bitter_gourd": {
+      "n": 15,
+      "acc": 1.0
+    },
+    "bottle_gourd": {
+      "n": 18,
+      "acc": 1.0
+    },
+    "brinjalfruitx": {
+      "n": 128,
+      "acc": 0.9765625
+    },
+    "broccoli": {
+      "n": 13,
+      "acc": 1.0
+    },
+    "cabbage": {
+      "n": 19,
+      "acc": 1.0
+    },
+    "capsicum": {
+      "n": 17,
+      "acc": 0.9411764705882353
+    },
+    "car_goodbad": {
+      "n": 6,
+      "acc": 1.0
+    },
+    "cauliflower": {
+      "n": 99,
+      "acc": 0.9696969696969697
+    },
+    "cdr": {
+      "n": 69,
+      "acc": 1.0
+    },
+    "cuc_goodbad": {
+      "n": 24,
+      "acc": 1.0
+    },
+    "cucumber_leaf": {
+      "n": 19,
+      "acc": 1.0
+    },
+    "esp32_scene": {
+      "n": 2,
+      "acc": 1.0
+    },
+    "fv12000": {
+      "n": 205,
+      "acc": 0.926829268292683
+    },
+    "mango": {
+      "n": 99,
+      "acc": 0.7070707070707071
+    },
+    "object3d": {
+      "n": 17,
+      "acc": 0.9411764705882353
+    },
+    "okra": {
+      "n": 67,
+      "acc": 1.0
+    },
+    "orange": {
+      "n": 15,
+      "acc": 1.0
+    },
+    "potato": {
+      "n": 13,
+      "acc": 1.0
+    },
+    "strawberry": {
+      "n": 96,
+      "acc": 0.6770833333333334
+    },
+    "synthetic_blob": {
+      "n": 6,
+      "acc": 1.0
+    },
+    "synthetic_cardboard": {
+      "n": 5,
+      "acc": 1.0
+    },
+    "synthetic_clutter": {
+      "n": 2,
+      "acc": 1.0
+    },
+    "synthetic_dark": {
+      "n": 3,
+      "acc": 1.0
+    },
+    "synthetic_light": {
+      "n": 5,
+      "acc": 1.0
+    },
+    "synthetic_solid": {
+      "n": 3,
+      "acc": 1.0
+    },
+    "synthetic_wall": {
+      "n": 10,
+      "acc": 1.0
+    },
+    "talong_rf": {
+      "n": 104,
+      "acc": 0.8269230769230769
+    },
+    "team": {
+      "n": 28,
+      "acc": 0.8928571428571429
+    },
+    "texture": {
+      "n": 10,
+      "acc": 1.0
+    },
+    "tomato": {
+      "n": 12,
+      "acc": 1.0
+    }
+  },
+  "test_by_category": {
+    "apple": {
+      "n": 10,
+      "acc": 1.0
+    },
+    "banana": {
+      "n": 24,
+      "acc": 1.0
+    },
+    "bean": {
+      "n": 12,
+      "acc": 1.0
+    },
+    "beetroot": {
+      "n": 8,
+      "acc": 1.0
+    },
+    "bitter_gourd": {
+      "n": 15,
+      "acc": 1.0
+    },
+    "bottle_gourd": {
+      "n": 18,
+      "acc": 1.0
+    },
+    "broccoli": {
+      "n": 13,
+      "acc": 1.0
+    },
+    "cabbage": {
+      "n": 19,
+      "acc": 1.0
+    },
+    "capsicum": {
+      "n": 17,
+      "acc": 0.9411764705882353
+    },
+    "cauliflower": {
+      "n": 99,
+      "acc": 0.9696969696969697
+    },
+    "cucumber_leaf": {
+      "n": 19,
+      "acc": 1.0
+    },
+    "esp32_scene": {
+      "n": 2,
+      "acc": 1.0
+    },
+    "mango": {
+      "n": 99,
+      "acc": 0.7070707070707071
+    },
+    "object3d": {
+      "n": 17,
+      "acc": 0.9411764705882353
+    },
+    "okra": {
+      "n": 67,
+      "acc": 1.0
+    },
+    "orange": {
+      "n": 15,
+      "acc": 1.0
+    },
+    "potato": {
+      "n": 13,
+      "acc": 1.0
+    },
+    "strawberry": {
+      "n": 96,
+      "acc": 0.6770833333333334
+    },
+    "synthetic_blob": {
+      "n": 6,
+      "acc": 1.0
+    },
+    "synthetic_cardboard": {
+      "n": 5,
+      "acc": 1.0
+    },
+    "synthetic_clutter": {
+      "n": 2,
+      "acc": 1.0
+    },
+    "synthetic_dark": {
+      "n": 3,
+      "acc": 1.0
+    },
+    "synthetic_light": {
+      "n": 5,
+      "acc": 1.0
+    },
+    "synthetic_solid": {
+      "n": 3,
+      "acc": 1.0
+    },
+    "synthetic_wall": {
+      "n": 10,
+      "acc": 1.0
+    },
+    "texture": {
+      "n": 10,
+      "acc": 1.0
+    },
+    "tomato": {
+      "n": 12,
+      "acc": 1.0
+    }
+  },
+  "confusion": [
+    [
+      69,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      27,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      2,
+      0,
+      88,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0,
+      72,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      2,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      8,
+      0,
+      51,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      104,
+      5,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      14,
+      67,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      45,
+      0
+    ],
+    [
+      4,
+      0,
+      24,
+      11,
+      8,
+      14,
+      2,
+      1,
+      1,
+      554
+    ]
+  ],
+  "report": {
+    "cucumber_fresh": {
+      "precision": 0.9078947368421053,
+      "recall": 0.9857142857142858,
+      "f1-score": 0.9452054794520548,
+      "support": 70.0
+    },
+    "cucumber_at-risk": {
+      "precision": 1.0,
+      "recall": 0.9642857142857143,
+      "f1-score": 0.9818181818181818,
+      "support": 28.0
+    },
+    "cucumber_rotten": {
+      "precision": 0.7787610619469026,
+      "recall": 0.9565217391304348,
+      "f1-score": 0.8585365853658536,
+      "support": 92.0
+    },
+    "carrot_fresh": {
+      "precision": 0.7741935483870968,
+      "recall": 0.972972972972973,
+      "f1-score": 0.8622754491017964,
+      "support": 74.0
+    },
+    "carrot_at-risk": {
+      "precision": 0.2,
+      "recall": 0.5,
+      "f1-score": 0.2857142857142857,
+      "support": 4.0
+    },
+    "carrot_rotten": {
+      "precision": 0.7611940298507462,
+      "recall": 0.864406779661017,
+      "f1-score": 0.8095238095238095,
+      "support": 59.0
+    },
+    "eggplant_fresh": {
+      "precision": 0.8666666666666667,
+      "recall": 0.9369369369369369,
+      "f1-score": 0.9004329004329005,
+      "support": 111.0
+    },
+    "eggplant_at-risk": {
+      "precision": 0.9054054054054054,
+      "recall": 0.8271604938271605,
+      "f1-score": 0.864516129032258,
+      "support": 81.0
+    },
+    "eggplant_rotten": {
+      "precision": 0.9782608695652174,
+      "recall": 1.0,
+      "f1-score": 0.989010989010989,
+      "support": 45.0
+    },
+    "none": {
+      "precision": 0.9946140035906643,
+      "recall": 0.8949919224555735,
+      "f1-score": 0.9421768707482994,
+      "support": 619.0
+    },
+    "accuracy": 0.9120879120879121,
+    "macro avg": {
+      "precision": 0.8166990322254806,
+      "recall": 0.8902990844984096,
+      "f1-score": 0.8439210680200429,
+      "support": 1183.0
+    },
+    "weighted avg": {
+      "precision": 0.9259721596033774,
+      "recall": 0.9120879120879121,
+      "f1-score": 0.915503499190924,
+      "support": 1183.0
+    }
+  }
+}

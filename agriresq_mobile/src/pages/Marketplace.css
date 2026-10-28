@@ -1,0 +1,75 @@
+.market-header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.market-header p {
+  color: var(--gray-600);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.search-bar input {
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  box-shadow: var(--shadow);
+  font-size: 15px;
+  margin-bottom: 16px;
+  outline: none;
+}
+
+.search-bar { display: grid; grid-template-columns: 1fr; gap: 0; }
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.sort-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+.sort-select select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  font-size: 14px;
+}
+
+.tab {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: none;
+  background: var(--white);
+  color: var(--gray-600);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--primary);
+  color: var(--white);
+}
+
+.listing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+}
+
+@media (max-width: 360px) {
+  .listing-grid { grid-template-columns: 1fr; }
+}

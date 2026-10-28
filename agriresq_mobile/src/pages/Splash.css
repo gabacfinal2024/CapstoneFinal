@@ -1,0 +1,129 @@
+.splash {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--primary) 0%, var(--primary-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  color: var(--white);
+  text-align: center;
+}
+
+.splash-content {
+  animation: splash-rise 700ms cubic-bezier(.22, 1, .36, 1) both;
+  padding: 32px 24px;
+  width: 100%;
+}
+
+.logo-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.logo-icon {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: contain;
+  animation: leaf-bob 3.5s ease-in-out 750ms infinite;
+}
+
+.splash h1 {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin: 0;
+  line-height: 1;
+}
+
+.splash p {
+  font-size: 15px;
+  opacity: 0.9;
+  line-height: 1.5;
+  margin-bottom: 48px;
+}
+
+.splash-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.splash-actions .btn {
+  animation: action-rise 600ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+.splash-actions .btn:first-child {
+  animation-delay: 300ms;
+}
+
+.splash-actions .btn:last-child {
+  animation-delay: 400ms;
+}
+
+.splash-actions .btn svg {
+  transition: transform 180ms ease;
+}
+
+.splash-actions .btn:first-child:hover svg {
+  transform: translateX(3px);
+}
+
+@keyframes splash-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes action-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes leaf-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(-3deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-content,
+  .logo-icon,
+  .splash-actions .btn {
+    animation: none;
+  }
+}
+.splash--bulua {
+  width: 100%;
+  max-width: 430px;           /* phone width */
+  min-height: 100vh;
+  min-height: 100dvh;         /* fixes the mobile browser address-bar jump */
+  margin: 0 auto;
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.6)),
+    url('../assets/bulua-stall.jpg') center / cover no-repeat;
+}
+
+/* on desktop, show it as a phone-shaped card on a dark backdrop */
+@media (min-width: 500px) {
+  body:has(.splash--bulua) {
+    background: #111;
+  }
+
+  .splash--bulua {
+    min-height: 0;
+    height: min(900px, 100vh);
+    margin: auto;
+    border-radius: 32px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  }
+
+  body:has(.splash--bulua) #root {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

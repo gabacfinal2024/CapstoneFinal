@@ -1,0 +1,120 @@
+.batch-detail .back-link {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.detail-hero {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+}
+
+.detail-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.detail-title-row h1 {
+  font-size: 22px;
+  margin-bottom: 0;
+}
+
+.discount-text { color: var(--at-risk); }
+
+.prediction-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+}
+
+.pred-time { color: var(--gray-300); font-size: 11px; margin-left: auto; }
+
+.batch-detail h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 16px;
+}
+
+.detail-section {
+  margin-top: 16px;
+}
+
+.batch-privacy-note { margin: 8px 2px 0; font-size: 12px; line-height: 1.4; color: var(--gray-600); }
+
+.detail-section h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: 12px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.info-grid span {
+  display: block;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.info-grid strong {
+  font-size: 15px;
+  color: var(--gray-800);
+}
+
+.timeline {
+  display: flex;
+  justify-content: space-between;
+  position: relative;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: var(--gray-100);
+}
+
+.timeline-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--gray-300);
+  z-index: 1;
+}
+
+.timeline-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gray-100);
+  border: 3px solid var(--white);
+}
+
+.timeline-step.done {
+  color: var(--primary);
+}
+
+.timeline-step.done .timeline-dot {
+  background: var(--fresh);
+}
