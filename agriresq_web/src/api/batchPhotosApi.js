@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 import { BACKEND_URL } from './deviceApi'
 
 /** Camera pictures taken of one batch, newest first. Throws a readable Error when the backend is offline. */
-export async function batchPhotos(productId, timeoutMs = 15000) {
+export async function batchPhotos(productId, timeoutMs = 60000) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('Not signed in. Please log in again.')
 

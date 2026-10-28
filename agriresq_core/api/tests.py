@@ -16,3 +16,12 @@ class APIRootPermissionTests(TestCase):
         response = self.client.get('/api/dashboard/', HTTP_ACCEPT='application/json')
 
         self.assertEqual(response.status_code, 401)
+
+    def test_deployed_frontend_origin_is_allowed_by_cors(self):
+        response = self.client.get(
+            '/api/devices/',
+            HTTP_ACCEPT='application/json',
+            HTTP_ORIGIN='https://capstonefinal-o9ek.onrender.com',
+        )
+
+        self.assertEqual(response['Access-Control-Allow-Origin'], 'https://capstonefinal-o9ek.onrender.com')

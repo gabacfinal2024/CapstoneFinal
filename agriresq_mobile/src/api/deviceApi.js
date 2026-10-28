@@ -9,7 +9,7 @@ async function authHeader() {
   return { Authorization: `Bearer ${session.access_token}` }
 }
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -33,7 +33,7 @@ async function readError(res) {
 }
 
 /** Authenticated call to the Django IoT hub. Returns parsed JSON (or null for 204). */
-async function request(path, { method = 'GET', body, timeoutMs = 15000 } = {}) {
+async function request(path, { method = 'GET', body, timeoutMs = 60000 } = {}) {
   const headers = await authHeader()
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   let res
@@ -71,7 +71,7 @@ export const deviceApi = {
   // ── Evidence behind the days-to-spoil estimate (any signed-in user) ──
   /** { studies[], parameters[], engine{}, limits } */
   async referenceShelfLife() {
-    return strip(await request('/api/reference/shelf-life/', { timeoutMs: 15000 }))
+    return strip(await request('/api/reference/shelf-life/'))
   },
 
   // ── Pairing (smart-home style setup) ─────────────

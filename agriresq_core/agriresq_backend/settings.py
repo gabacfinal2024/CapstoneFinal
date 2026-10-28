@@ -49,6 +49,7 @@ CORS_ALLOWED_ORIGINS = [
     'https://localhost',
     'capacitor://localhost',
     'ionic://localhost',
+    'https://capstonefinal-o9ek.onrender.com',
 ]
 CORS_ALLOWED_ORIGINS.extend(
     origin.strip()

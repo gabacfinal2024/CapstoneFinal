@@ -1,17 +1,17 @@
 import { supabase } from '../lib/supabase'
 
 // Django IoT hub (see docs/IOT_DEVICE_API.md)
-// Opened from another computer or phone (http://<laptop-IP>:5173)? The backend runs on that same machine, whatever
-// IP the router gave it today, so follow the page's host. On the laptop itself (localhost) use the configured URL.
+// In local development, a phone or another computer may open the Vite server through the laptop's LAN IP,
+// so the Django backend is available on that same host at port 8000. Production must use VITE_BACKEND_URL.
 const pageHost = typeof window !== 'undefined' ? window.location.hostname : ''
-const fromLaptop = pageHost && !['localhost', '127.0.0.1', ''].includes(pageHost)
+const fromLaptop = import.meta.env.DEV && pageHost && !['localhost', '127.0.0.1', ''].includes(pageHost)
 export const BACKEND_URL = (fromLaptop
   ? `${window.location.protocol}//${pageHost}:8000`
   : import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
 // ESP32-CAM setup hotspot address
 export const SETUP_URL = 'http://192.168.4.1'
 
-async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+async function fetchWithTimeout(url, options = {}, timeoutMs = 60000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
