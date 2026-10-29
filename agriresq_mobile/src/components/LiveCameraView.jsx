@@ -7,12 +7,11 @@ const SNAPSHOT_INTERVAL_MS = 1500
 const URL_REFRESH_MS = 8 * 60 * 1000 // signed URLs last 10 min
 
 /**
- * Live ESP32-CAM view proxied through Django.
- * Tries the MJPEG stream first; if that fails it polls single snapshots.
+ * Live ESP32-CAM frames are relayed through Django so cloud-hosted apps never
+ * need a direct network connection to the camera.
  */
 export default function LiveCameraView({ deviceId, online = true }) {
   const [urls, setUrls] = useState(null)
-  const [mode, setMode] = useState('stream') // 'stream' | 'snapshot'
   const [snapSrc, setSnapSrc] = useState('')
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
@@ -33,8 +32,7 @@ export default function LiveCameraView({ deviceId, online = true }) {
   }, [deviceId, online, reloadKey])
 
   useEffect(() => {
-    // stop polling once the view has given up (error) and while the tab is hidden
-    if (mode !== 'snapshot' || !urls?.snapshot_url || error) return undefined
+    if (!urls?.snapshot_url || error) return undefined
     const tick = () => {
       if (document.hidden) return
       const sep = urls.snapshot_url.includes('?') ? '&' : '?'
@@ -43,11 +41,20 @@ export default function LiveCameraView({ deviceId, online = true }) {
     tick()
     const t = setInterval(tick, SNAPSHOT_INTERVAL_MS)
     return () => clearInterval(t)
-  }, [mode, urls, error])
+  }, [urls, error])
+
+  useEffect(() => {
+    if (!error) return undefined
+    const timer = setTimeout(() => {
+      snapFailures.current = 0
+      setError('')
+      setReloadKey((key) => key + 1)
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [error])
 
   const retry = () => {
     snapFailures.current = 0
-    setMode('stream')
     setError('')
     setReloadKey((k) => k + 1)
   }
@@ -72,15 +79,7 @@ export default function LiveCameraView({ deviceId, online = true }) {
         </div>
       )}
       {!error && !urls && <div className="live-view__overlay"><p>Connecting to camera…</p></div>}
-      {!error && urls && mode === 'stream' && (
-        <img
-          key={`stream-${reloadKey}`}
-          src={urls.stream_url}
-          alt="Live camera"
-          onError={() => setMode('snapshot')}
-        />
-      )}
-      {!error && urls && mode === 'snapshot' && snapSrc && (
+      {!error && urls && snapSrc && (
         <img
           src={snapSrc}
           alt="Camera snapshot"
@@ -91,7 +90,7 @@ export default function LiveCameraView({ deviceId, online = true }) {
           }}
         />
       )}
-      {urls && !error && <span className="live-view__badge"><span className="live-dot" /> {mode === 'stream' ? 'LIVE' : 'SNAPSHOT'}</span>}
+      {urls && !error && <span className="live-view__badge"><span className="live-dot" /> LIVE</span>}
     </div>
   )
 }

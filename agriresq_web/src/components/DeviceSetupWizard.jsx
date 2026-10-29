@@ -239,7 +239,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
                 <p className="text-xs text-slate-500">
                   Hotspot not showing? Power the camera off and on 3 times within 10 seconds to put it back in setup mode.
                   If this page can't reach it, open <a className="text-[#2A6B48] font-bold underline" href={SETUP_URL} target="_blank" rel="noreferrer">{SETUP_URL}</a> in
-                  a new tab and enter the pairing code <strong className="font-mono">{pairing.code}</strong> and server <strong className="font-mono">{pairing.server_url}</strong> there.
+                  a new tab and enter the pairing code <strong className="font-mono">{pairing.code}</strong> and server <strong className="font-mono">{pairing.server_url}</strong> there. Use the backend server address, not the camera setup address {SETUP_URL}.
                 </p>
               </div>
             </div>

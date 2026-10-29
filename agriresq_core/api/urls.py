@@ -50,6 +50,7 @@ urlpatterns = [
     path('devices/pairing/<str:code>/', dv.PairingStatusView.as_view(), name='device-pairing-status'),
     path('devices/claim/', dv.DeviceClaimView.as_view(), name='device-claim'),
     path('devices/heartbeat/', dv.DeviceHeartbeatView.as_view(), name='device-heartbeat'),
+    path('devices/live-frame/', dv.DeviceLiveFrameView.as_view(), name='device-live-frame'),
     path('devices/upload-scan/', dv.DeviceUploadScanView.as_view(), name='device-upload-scan'),
     path('devices/reading/', dv.DeviceReadingView.as_view(), name='device-reading'),
     path('devices/<int:pk>/', dv.DeviceDetailView.as_view(), name='device-detail'),

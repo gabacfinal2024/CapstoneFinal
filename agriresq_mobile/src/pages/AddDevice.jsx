@@ -294,7 +294,7 @@ export default function AddDevice() {
             <p className="fallback-note">
               Not working? While connected to the camera's Wi-Fi, open <strong>{pairing.setup_url || 'http://192.168.4.1'}</strong> in your
               browser and enter your Wi-Fi details and the pairing code <strong className="mono">{pairing.code}</strong> there.
-              The server address to enter is <strong className="mono">{pairing.server_url}</strong>.
+              The server address to enter is <strong className="mono">{pairing.server_url}</strong> (not <strong className="mono">{pairing.setup_url || 'http://192.168.4.1'}</strong>, which is only the camera setup page).
             </p>
           </div>
         )}

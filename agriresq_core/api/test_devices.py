@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 from django.core.management import call_command
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from PIL import Image
@@ -54,6 +55,7 @@ class DeviceFlowTests(TestCase):
         shutil.rmtree(MEDIA, ignore_errors=True)
 
     def setUp(self):
+        cache.clear()
         self.app = APIClient()
         self.app.credentials(HTTP_AUTHORIZATION='Bearer test-session')
         self.cam = APIClient()
@@ -69,6 +71,14 @@ class DeviceFlowTests(TestCase):
         self.assertEqual(r.status_code, 201, r.content)
         self.cam.credentials(HTTP_X_DEVICE_TOKEN=r.json()['device_token'])
         return code, r.json()
+
+    def test_pairing_uses_configured_public_server_url(self):
+        with override_settings(DEVICE_SERVER_URL='https://agriresq.onrender.com'):
+            with as_user(OPERATOR):
+                response = self.app.post('/api/devices/pairing/', {'name': 'Stall camera'}, format='json')
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()['server_url'], 'https://agriresq.onrender.com')
 
     def upload(self, data, source='MANUAL'):
         r = self.cam.generic('POST', '/api/devices/upload-scan/', data, content_type='image/jpeg',
@@ -92,6 +102,7 @@ class DeviceFlowTests(TestCase):
         r = self.cam.post('/api/devices/heartbeat/', {'rssi': -55, 'fw': '1.1.1', 'uptime_s': 12}, format='json')
         self.assertEqual(r.status_code, 200)
         self.assertIsNone(r.json()['command'])
+        self.assertFalse(r.json()['live_view'])
         self.assertFalse(r.json()['config']['auto_scan'])          # schedule mode: the server drives the scans
 
         with as_user(OPERATOR):
@@ -149,6 +160,32 @@ class DeviceFlowTests(TestCase):
         self.pair_and_claim()
         self.pair_and_claim()
         self.assertEqual(Device.objects.count(), 1)
+
+    def test_live_frames_are_relayed_only_while_an_operator_views_them(self):
+        self.pair_and_claim()
+        device = Device.objects.get()
+        frame = solid()
+
+        with as_user(OPERATOR):
+            live = self.app.get(f'/api/devices/{device.id}/live/', HTTP_X_FORWARDED_PROTO='https')
+            self.assertIn('snapshot_url', live.json())
+            self.assertTrue(live.json()['snapshot_url'].startswith('https://'))
+
+        heartbeat = self.cam.post('/api/devices/heartbeat/', {}, format='json')
+        self.assertTrue(heartbeat.json()['live_view'])
+
+        uploaded = self.cam.generic('POST', '/api/devices/live-frame/', frame, content_type='image/jpeg')
+        self.assertEqual(uploaded.status_code, 204, uploaded.content)
+
+        snapshot_url = live.json()['snapshot_url']
+        snapshot_path = '/' + snapshot_url.split('/', 3)[3]
+        snapshot = APIClient().get(snapshot_path)
+        self.assertEqual(snapshot.status_code, 200)
+        self.assertEqual(snapshot['Content-Type'], 'image/jpeg')
+        self.assertEqual(snapshot.content, frame)
+
+        self.assertEqual(self.cam.generic('POST', '/api/devices/live-frame/', b'not a jpeg',
+                                          content_type='image/jpeg').status_code, 400)
 
     # ── open-set detection: only eggplant, cucumber and carrot ─────────────
 

@@ -36,8 +36,10 @@ Only `STALL_OPERATOR` accounts may use them. Other accounts get 403.
 | `GET /api/devices/<id>/readings/?limit=60` | – | `Reading[]` newest first |
 | `GET /api/devices/<id>/live/` | – | `{stream_url, snapshot_url, expires_at}`: signed URLs (10 min) usable directly in `<img src>` |
 
-Live view: `<img src={stream_url}>` (MJPEG proxied through Django, so it also works in the APK).
-If the stream fails, refresh `snapshot_url` (append `&t=Date.now()`) every 1–2 s.
+Live view: refresh `snapshot_url` (append `&t=Date.now()`) every 1–2 s. Each request asks the camera
+to temporarily send frames to Django. This push relay works when the backend is hosted in the cloud:
+Render does not need to open a connection to a camera behind a stall router. The ESP32 uploads frames
+only while an app is viewing it; frames expire from the backend cache after 10 seconds.
 
 ### Objects
 ```ts
@@ -92,6 +94,8 @@ All endpoints send `Access-Control-Allow-Origin: *`.
 
 ### App wizard flow
 1. **Online:** `POST /api/devices/pairing/` returns the code and `server_url`.
+   The `server_url` is the Django backend address. Do not enter `http://192.168.4.1` as the server; that address belongs to the camera's setup page.
+   For the Render deployment, configure `DEVICE_SERVER_URL=https://agriresq.onrender.com`; do not append port `8000` to a public Render URL.
 2. Tell the operator: power the camera, open phone Wi-Fi settings, join **AgriResQ-XXXX** (password
    `agriresq`), then come back.
 3. **On the device hotspot:** `GET 192.168.4.1/networks`, the operator picks the stall Wi-Fi and enters the
@@ -110,11 +114,14 @@ to setup mode. If the saved Wi-Fi can't be reached for 60 s, the camera also ope
 | Method & path | Auth | Body | Response |
 |---|---|---|---|
 | `POST /api/devices/claim/` | pairing code | `{code, mac, fw, ip, wifi_ssid}` | `{device_id, device_token, config}` |
-| `POST /api/devices/heartbeat/` | `X-Device-Token` | `{ip, rssi, fw, uptime_s, wifi_ssid}` | `{config, command}` |
+| `POST /api/devices/heartbeat/` | `X-Device-Token` | `{ip, rssi, fw, uptime_s, wifi_ssid}` | `{config, command, live_view}` |
+| `POST /api/devices/live-frame/` | `X-Device-Token` | raw JPEG (max 256 KB, `Content-Type: image/jpeg`) | 204 |
 | `POST /api/devices/upload-scan/` | `X-Device-Token` | raw JPEG (`Content-Type: image/jpeg`), `X-Scan-Source: AUTO\|MANUAL` | `Scan` |
 | `POST /api/devices/reading/` | `X-Device-Token` | `{temperature_c, humidity_rh}` | `Reading` |
 
-`config = {crop_type, auto_scan, scan_interval_s, dht_pin, flash_on_scan, heartbeat_s}`. In `schedule` mode the
+`live_view` is true while an authenticated app is requesting frames. When true, a camera sends a JPEG to
+`/api/devices/live-frame/` every 2 seconds; it stops after the viewing lease expires. Sensor-only nodes
+ignore this flag. `config = {crop_type, auto_scan, scan_interval_s, dht_pin, flash_on_scan, heartbeat_s}`. In `schedule` mode the
 server itself sends `scan_now` at each capture time (and an emergency snapshot after >35 °C for 2 h), so the
 camera's own interval timer is only used in `interval` mode (`auto_scan` in the config is false otherwise).
 `command` = `null` or one of `scan_now | reboot | forget_wifi | unpair`.

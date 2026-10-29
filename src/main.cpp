@@ -89,6 +89,8 @@ String setupMessage = "Waiting for Wi-Fi details from the AgriResQ app.";
 DHT *dht = NULL;
 int dhtActivePin = -1;
 uint32_t lastHeartbeat = 0, lastScan = 0, lastDht = 0, lastWifiOk = 0, lastSetupRetry = 0;
+uint32_t lastLiveFrame = 0;
+bool liveViewRequested = false;
 
 // ───────────────────────────── helpers ─────────────────────────────
 
@@ -302,6 +304,16 @@ esp_err_t networksHandler(httpd_req_t *req) {
   return sendJson(req, body);
 }
 
+bool targetsSetupAccessPoint(String server) {
+  int schemeEnd = server.indexOf("://");
+  if (schemeEnd >= 0) server.remove(0, schemeEnd + 3);
+  int pathStart = server.indexOf('/');
+  if (pathStart >= 0) server.remove(pathStart);
+  int portStart = server.indexOf(':');
+  if (portStart >= 0) server.remove(portStart);
+  return server == WiFi.softAPIP().toString();
+}
+
 esp_err_t provisionHandler(httpd_req_t *req) {
   if (req->content_len == 0 || req->content_len > 1024)
     return sendJson(req, "{\"ok\":false,\"error\":\"bad request\"}", "400 Bad Request");
@@ -320,9 +332,15 @@ esp_err_t provisionHandler(httpd_req_t *req) {
   while (server.endsWith("/") || server.endsWith(".")) server.remove(server.length() - 1);  // stray "." / "/" from typing
   code.trim();
   code.toUpperCase();
-  if (ssid.isEmpty() || server.isEmpty() || code.length() < 4)
-    return sendJson(req, "{\"ok\":false,\"error\":\"ssid, server and code are required\"}", "400 Bad Request");
+  if (ssid.isEmpty() || server.isEmpty())
+    return sendJson(req, "{\"ok\":false,\"error\":\"Wi-Fi name and server address are required\"}", "400 Bad Request");
+  if (code.length() != 6)
+    return sendJson(req, "{\"ok\":false,\"error\":\"Pairing codes are six characters. Copy the full code from the app.\"}",
+                    "400 Bad Request");
   if (!server.startsWith("http://") && !server.startsWith("https://")) server = "http://" + server;
+  if (targetsSetupAccessPoint(server))
+    return sendJson(req, "{\"ok\":false,\"error\":\"This is the camera setup address, not the AgriResQ server. Enter the server address shown in the AgriResQ app.\"}",
+                    "400 Bad Request");
   provSsid = ssid; provPass = pass; provServer = server; provCode = code;
   setupState = "connecting";
   setupMessage = "Connecting to " + ssid + "...";
@@ -347,10 +365,11 @@ border-radius:8px;font-size:15px}button{margin-top:16px;width:100%;padding:12px;
 background:#2A6B48;color:#fff;font-size:16px;font-weight:600}#msg{margin-top:12px;font-size:14px}</style></head>
 <body><div class="card"><h1>AgriResQ Camera Setup</h1>
 <p>Easiest: use <b>Add device</b> in the AgriResQ app. Or enter the details from the app here.</p>
+<p><b>Important:</b> The server address is the backend address shown in the app, not this setup page's address (192.168.4.1).</p>
 <label>Stall Wi-Fi (2.4 GHz)</label><select id="ssid"><option>Scanning...</option></select>
 <input id="ssid2" placeholder="or type the Wi-Fi name" style="margin-top:6px">
 <label>Wi-Fi password</label><input id="pass" type="password">
-<label>Pairing code (from the app)</label><input id="code" maxlength="8" style="text-transform:uppercase">
+<label>Pairing code (6 characters from the app)</label><input id="code" maxlength="6" style="text-transform:uppercase">
 <label>Server address (from the app)</label><input id="server" placeholder="http://192.168.1.4:8000">
 <button onclick="go()">Connect camera</button><div id="msg"></div></div>
 <script>
@@ -458,6 +477,28 @@ void doScan(const char *source) {
   handleServerAuthFailure(code);
 }
 
+void uploadLiveFrame() {
+  if (!cameraOk) return;
+  camera_fb_t *fb = captureFresh(false);
+  if (!fb) return;
+  HTTPClient http;
+  http.setTimeout(8000);
+  if (!http.begin(cfgServer + "/api/devices/live-frame/")) {
+    esp_camera_fb_return(fb);
+    return;
+  }
+  http.addHeader("Content-Type", "image/jpeg");
+  http.addHeader("X-Device-Token", cfgToken);
+  int code = http.POST(fb->buf, fb->len);
+  if (code != 204) {
+    String resp = code > 0 ? http.getString() : http.errorToString(code);
+    Serial.printf("Live frame: HTTP %d %s\n", code, resp.substring(0, 80).c_str());
+  }
+  http.end();
+  esp_camera_fb_return(fb);
+  handleServerAuthFailure(code);
+}
+
 bool discoverServer();
 
 void heartbeat() {
@@ -482,6 +523,7 @@ void heartbeat() {
   JsonDocument doc;
   if (deserializeJson(doc, resp)) return;
   applyConfig(doc["config"]);
+  liveViewRequested = doc["live_view"] | false;
   String cmd = doc["command"] | "";
   if (cmd.isEmpty()) return;
   Serial.printf("Command: %s\n", cmd.c_str());
@@ -557,8 +599,11 @@ void runProvisioning() {
   String resp;
   int code = postJson("/api/devices/claim/", body, resp, false);
   JsonDocument doc;
-  if (code != 201 || deserializeJson(doc, resp) || !doc["device_token"].is<const char *>()) {
+  DeserializationError parseError = deserializeJson(doc, resp);
+  if (code != 201 || parseError || !doc["device_token"].is<const char *>()) {
     String detail = doc["detail"] | "";
+    if (detail.isEmpty()) detail = doc["error"] | "";
+    if (detail.isEmpty() && !resp.isEmpty()) detail = resp.substring(0, 160);
     setupState = "claim_failed";
     setupMessage = code <= 0 ? "Joined Wi-Fi but cannot reach the AgriResQ server at " + provServer +
                                    ". Is the server running on the same network?"
@@ -610,6 +655,10 @@ void normalLoop() {
   if (now - lastHeartbeat >= conf.heartbeatS * 1000UL) {
     lastHeartbeat = now;
     heartbeat();
+  }
+  if (liveViewRequested && now - lastLiveFrame >= 2000) {
+    lastLiveFrame = now;
+    uploadLiveFrame();
   }
   if (conf.autoScan && now - lastScan >= conf.scanIntervalS * 1000UL) {
     lastScan = millis();

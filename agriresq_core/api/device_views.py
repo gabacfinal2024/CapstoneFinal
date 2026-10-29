@@ -7,10 +7,12 @@ Device endpoints    – X-Device-Token (or the pairing code for /claim/)
 import json
 import re
 import socket
+import time
 import urllib.request
 from datetime import timedelta
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core import signing
 from django.db import transaction
 from django.http import HttpResponse, StreamingHttpResponse
@@ -36,6 +38,9 @@ from .views import ImageParser
 
 PAIRING_TTL = timedelta(minutes=20)
 LIVE_TTL_S = 600
+LIVE_VIEW_LEASE_S = 20
+LIVE_FRAME_TTL_S = 10
+LIVE_FRAME_MAX_BYTES = 256 * 1024
 SIGN_SALT = 'device-live'
 CROPS = {c for c, _ in CROP_TYPES}
 TIME_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
@@ -325,6 +330,7 @@ class DeviceReadingsView(OperatorView):
 class DeviceLiveView(OperatorView):
     def get(self, request, pk):
         device = self.get_device(request, pk)
+        cache.set(f'device-live-active:{device.id}', True, timeout=LIVE_VIEW_LEASE_S)
         sig = signing.dumps({'d': device.id}, salt=SIGN_SALT)
         base = request.build_absolute_uri(f'/api/devices/{device.id}/')
         return Response({
@@ -350,12 +356,11 @@ def device_snapshot(request, pk):
     device = _signed_device(request, pk)
     if not device:
         return HttpResponse('Link expired', status=403)
-    if not device.ip:
-        return HttpResponse('Camera offline', status=503)
-    try:
-        jpeg = fetch_from_device(device, '/capture')
-    except OSError:
-        return HttpResponse('Camera not reachable', status=503)
+    cache.set(f'device-live-active:{device.id}', True, timeout=LIVE_VIEW_LEASE_S)
+    frame = cache.get(f'device-live-frame:{device.id}')
+    if not frame:
+        return HttpResponse('Waiting for the camera to send a live frame.', status=503)
+    _, jpeg = frame
     resp = HttpResponse(jpeg, content_type='image/jpeg')
     resp['Cache-Control'] = 'no-store'
     return resp
@@ -487,7 +492,29 @@ class DeviceHeartbeatView(DeviceView):
                    uptime_s=int(d.get('uptime_s', 0) or 0),
                    wifi_ssid=str(d.get('wifi_ssid', device.wifi_ssid))[:64],
                    pending_command='')
-        return Response({'config': device.config(), 'command': command})
+        return Response({
+            'config': device.config(),
+            'command': command,
+            'live_view': bool(cache.get(f'device-live-active:{device.id}', False)),
+        })
+
+
+class DeviceLiveFrameView(DeviceView):
+    parser_classes = [ImageParser]
+
+    def post(self, request):
+        frame = request.data
+        if not isinstance(frame, bytes) or len(frame) < 4 or len(frame) > LIVE_FRAME_MAX_BYTES:
+            raise ValidationError({'frame': 'A JPEG frame between 4 bytes and 256 KB is required.'})
+        if not frame.startswith(b'\xff\xd8') or not frame.endswith(b'\xff\xd9'):
+            raise ValidationError({'frame': 'The live frame is not a valid JPEG.'})
+        device = request.auth
+        cache.set(
+            f'device-live-frame:{device.id}',
+            (time.time(), frame),
+            timeout=LIVE_FRAME_TTL_S,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class DeviceUploadScanView(DeviceView):

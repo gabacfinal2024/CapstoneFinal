@@ -72,7 +72,7 @@ function CameraTile({ device, now, selected, onSelect }) {
           <Eye size={22} /> Showing in the main viewer
         </div>
       ) : (
-        <LiveCameraView deviceId={device.id} online={device.online} preferSnapshot snapshotMs={3000} compact
+        <LiveCameraView deviceId={device.id} online={device.online} snapshotMs={3000} compact
                         offlineText={offlineNote(device, now)} />
       )}
       <div className="p-3 space-y-1.5">

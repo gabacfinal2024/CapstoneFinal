@@ -7,7 +7,6 @@ const MAX_REFRESH_MS = 9 * 60 * 1000 // signed URLs last 10 min
 const REFRESH_MARGIN_MS = 60 * 1000 // renew this long before they expire
 const MIN_REFRESH_MS = 20 * 1000
 const URL_RETRY_MS = 8000 // backend unreachable: try again
-const STREAM_RETRY_MS = 15000 // stream dropped, running on snapshots: try the stream again
 const ERROR_RETRY_MS = 10000 // nothing works: automatic reconnect
 
 function withParam(url, key, value) {
@@ -15,13 +14,10 @@ function withParam(url, key, value) {
 }
 
 /**
- * Live view of one ESP32-CAM, proxied through Django (works from any network the backend can see).
+ * Live view of one ESP32-CAM, relayed through Django from frames the camera uploads on demand.
  *
- * - MJPEG stream first; if the browser can't keep it open, it falls back to refreshing snapshots
- *   and keeps retrying the stream in the background.
+ * - Refreshing signed snapshots keeps the camera's short live-view upload lease active.
  * - The signed live URL is renewed shortly before `expires_at`.
- * - `preferSnapshot` (grid tiles) never opens a stream, which keeps the number of open browser
- *   connections low when many cameras are shown at once.
  * - When `online` flips the component restarts itself, so a camera that comes online starts
  *   streaming without a page reload.
  *
@@ -32,11 +28,11 @@ export default function LiveCameraView(props) {
 }
 
 function LiveCameraInner({
-  deviceId, online, scanning = false, overlay = null, preferSnapshot = false,
+  deviceId, online, scanning = false, overlay = null,
   snapshotMs = 1500, compact = false, offlineText = '', className = 'aspect-video w-full',
 }) {
   const [urls, setUrls] = useState(null)
-  const [mode, setMode] = useState(preferSnapshot ? 'snapshot' : 'stream') // stream | snapshot | error
+  const [mode, setMode] = useState('snapshot') // snapshot | error
   const [tick, setTick] = useState(0)
   const [snapshotFailures, setSnapshotFailures] = useState(0)
   const [error, setError] = useState('')
@@ -72,20 +68,19 @@ function LiveCameraInner({
 
   usePolling(() => setTick((t) => t + 1), snapshotMs, deviceId, online && mode === 'snapshot')
 
-  // Auto-reconnect: after a failure, come back to the preferred mode on our own.
+  // Live frames are relayed through the backend, so snapshots keep the camera's upload lease alive.
   useEffect(() => {
-    if (!online || mode === 'stream') return undefined
-    if (mode === 'snapshot' && preferSnapshot) return undefined
+    if (!online || mode !== 'error') return undefined
     const t = setTimeout(() => {
-      setMode(preferSnapshot ? 'snapshot' : 'stream')
+      setMode('snapshot')
       setSnapshotFailures(0)
       setGeneration((g) => g + 1)
-    }, mode === 'error' ? ERROR_RETRY_MS : STREAM_RETRY_MS)
+    }, ERROR_RETRY_MS)
     return () => clearTimeout(t)
-  }, [mode, online, preferSnapshot])
+  }, [mode, online])
 
   const retry = () => {
-    setMode(preferSnapshot ? 'snapshot' : 'stream')
+    setMode('snapshot')
     setSnapshotFailures(0)
     setGeneration((g) => g + 1)
   }
@@ -114,16 +109,6 @@ function LiveCameraInner({
     )
   } else if (!urls) {
     body = <div className="text-slate-500 text-sm animate-pulse">Connecting to camera…</div>
-  } else if (mode === 'stream') {
-    body = (
-      <img
-        key={`stream-${generation}-${urls.stream_url}`}
-        src={urls.stream_url}
-        alt="ESP32-CAM live stream"
-        className="w-full h-full object-contain"
-        onError={() => setMode('snapshot')}
-      />
-    )
   } else {
     body = (
       <img
@@ -146,7 +131,7 @@ function LiveCameraInner({
       {online && urls && mode !== 'error' && (
         <span className="absolute top-2 right-2 flex items-center gap-1.5 text-[10px] font-bold text-white bg-black/60 px-2 py-1 rounded-full">
           <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-          {mode === 'stream' ? 'LIVE' : 'SNAPSHOT'}
+          LIVE
         </span>
       )}
       {scanning && (

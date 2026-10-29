@@ -4,3 +4,6 @@ services:
     runtime: python
     buildCommand: pip install -r agriresq_core/requirements.txt
     startCommand: gunicorn --chdir agriresq_core agriresq_backend.wsgi:application
+    envVars:
+      - key: DEVICE_SERVER_URL
+        value: https://agriresq.onrender.com
