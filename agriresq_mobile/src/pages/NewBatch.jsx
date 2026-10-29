@@ -121,30 +121,32 @@ export default function NewBatch() {
   /** Step 4–5: Save product + freshness to Supabase → listings */
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (!imageFile) {
+      setError('A product photo is required. Capture one with the ESP32-CAM or upload a clear photo first.')
+      return
+    }
+    if (!analysis) {
+      setError('Analyze the product photo and confirm that a supported vegetable is recognized before saving.')
+      return
+    }
+    const detectedCrop = String(analysis.detected_crop || '').toUpperCase()
+    if (analysis.detected !== true || isNoVegetable(analysis) || !detectedCrop) {
+      setError(`${analysis.message || NO_VEGETABLE_TEXT}. A supported vegetable must be clearly recognized before saving.`)
+      return
+    }
+    if (analysis.crop_mismatch || detectedCrop !== form.crop_type) {
+      setError('The AI-recognized vegetable does not match the selected crop. Correct the crop or retake and analyze the photo again.')
+      return
+    }
+    if (analysis.low_confidence) {
+      setError('The AI could not identify freshness confidently from this photo. Retake and analyze it with one supported vegetable clearly visible.')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
-      // Every uploaded photo must be recognized as the selected crop before a product is saved/listed.
-      let freshness = null
-      if (imageFile) {
-        freshness = analysis
-        if (!freshness && imageFile) {
-          freshness = await api.analyzeFreshness(imageFile, form.crop_type)
-          setAnalysis(freshness)
-        }
-        if (freshness && isNoVegetable(freshness)) {
-          setError(`${freshness.message || NO_VEGETABLE_TEXT}. Retake the photo and make sure one supported vegetable is clearly visible.`)
-          return
-        }
-        if (freshness?.crop_mismatch) {
-          setError('The AI recognized a different vegetable than the one selected. Change the crop to the detected vegetable or retake the photo.')
-          return
-        }
-        if (freshness?.low_confidence) {
-          setError('The AI could not identify freshness confidently from this photo. Retake it with one supported vegetable clearly visible.')
-          return
-        }
-      }
+      const freshness = analysis
       // The operator's own photo, shrunk and stored so every buyer can see it (never the annotated
       // analysis image, and never a backend-relative path that only works on the laptop).
       let imageUrl = ''
@@ -235,9 +237,11 @@ export default function NewBatch() {
   }
 
   const noVeg = !!analysis && isNoVegetable(analysis)
-  const mismatch = !!analysis && !noVeg && !!analysis.crop_mismatch
+  const detectedCrop = String(analysis?.detected_crop || '').toUpperCase()
+  const mismatch = !!analysis && !noVeg && (!!analysis.crop_mismatch || (detectedCrop && detectedCrop !== form.crop_type))
   const lowConfidence = !!analysis && !noVeg && !mismatch && !!analysis.low_confidence
-  const rejectedPhoto = noVeg || mismatch || lowConfidence
+  const unrecognized = !!analysis && !noVeg && (!analysis.detected || !detectedCrop)
+  const rejectedPhoto = noVeg || mismatch || lowConfidence || unrecognized
   const usable = analysis && !rejectedPhoto ? analysis : null
 
   const previewStatus = usable
@@ -254,7 +258,7 @@ export default function NewBatch() {
       <div className="page page-no-nav auth-page">
         <Link to="/home" className="back-link">← Back</Link>
         <h2 className="page-heading">Add Product</h2>
-        <p className="flow-hint">ESP32-CAM capture → AI freshness analysis → save to database → listings</p>
+        <p className="flow-hint">Capture with the ESP32-CAM or upload a photo → confirm AI vegetable recognition → save and list</p>
 
         <form className="card auth-form new-batch-form" onSubmit={handleSubmit}>
           <div className="flow-steps card inner-card">
@@ -292,7 +296,7 @@ export default function NewBatch() {
           </div>
 
           <div className="input-group">
-            <label>Product Image (ESP32-CAM / Camera)</label>
+            <label>Required Product Photo (ESP32-CAM / Upload)</label>
             <div className="camera-actions">
               <button type="button" className="btn btn-outline-dark" onClick={handleCaptureClick}>
                 Capture with Camera
@@ -313,6 +317,7 @@ export default function NewBatch() {
               style={{ display: 'none' }}
             />
             <input type="file" accept="image/*" onChange={handleImage} />
+            {!imageFile && <p className="field-hint">A photo must be captured or uploaded and pass AI vegetable analysis before this product can be saved.</p>}
             {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
           </div>
 
@@ -403,8 +408,8 @@ export default function NewBatch() {
           </div>
 
           {error && <p className="error-text">{error}</p>}
-          <button type="submit" className="btn btn-green" disabled={loading || analyzing || rejectedPhoto}>
-            {loading ? 'Saving to database...' : rejectedPhoto ? 'Retake or correct the photo to list' : 'Save Product & Show in Listings'}
+          <button type="submit" className="btn btn-green" disabled={loading || analyzing || !imageFile || !analysis || rejectedPhoto}>
+            {loading ? 'Saving to database...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo to list' : 'Save Product & Show in Listings'}
           </button>
           {listingMissing && (
             <div className="card warning-block" style={{ marginTop: 12 }}>

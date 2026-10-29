@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import BatchDetail from './pages/BatchDetail';
 import NewBatch from './pages/NewBatch';
 import Marketplace from './pages/Marketplace';
+import SavedListings from './pages/SavedListings';
 import ProduceDetail from './pages/ProduceDetail';
 import Messages from './pages/Messages';
 import Chat from './pages/Chat';
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/batch/new" element={<PrivateRoute><NewBatch /></PrivateRoute>} />
           <Route path="/batch/:id" element={<PrivateRoute><BatchDetail /></PrivateRoute>} />
           <Route path="/marketplace" element={<PrivateRoute><Marketplace /></PrivateRoute>} />
+          <Route path="/saved-listings" element={<PrivateRoute><SavedListings /></PrivateRoute>} />
           <Route path="/produce/:id" element={<PrivateRoute><ProduceDetail /></PrivateRoute>} />
           <Route path="/messages" element={<PrivateRoute><Messages /></PrivateRoute>} />
           <Route path="/chat/:id" element={<PrivateRoute><Chat /></PrivateRoute>} />

@@ -62,6 +62,20 @@ database notifications and Realtime delivery. The app shows an unread badge and 
 correct conversation; browser alerts can be enabled from the Notifications page when supported. Each chat
 also shows the listing photo, crop, quantity, listed price, and pickup location, with a link to the listing.
 
+High-temperature sensor alerts are generated when a new DHT22 reading exceeds
+`IOT_TEMP_ALERT_THRESHOLD` (30 °C by default), with a one-hour cooldown. Apply the latest
+`supabase/005_notification_triggers.sql` to add the device link column; tapping an IoT alert opens that
+device's live sensor page.
+
+Adding a product requires a captured or uploaded photo and a successful AI result recognizing the
+selected supported vegetable. Missing photos, unrecognized vegetables, crop mismatches, and low-confidence
+analysis block saving and listing.
+
+Rescue buyers who save a listing receive an in-app `PRICE_DROP` notification when its active batch price
+is reduced. The `005_notification_triggers.sql` migration creates the saved-listings table and database
+trigger; apply it before relying on buyer bookmarks and price alerts. Buyers can open the **Saved** tab in
+the bottom navigation to view active saved listings, follow their listing links, or remove bookmarks.
+
 Product photos are analyzed before a product is saved. Photos with no recognized supported vegetable,
 a crop mismatch, or low-confidence freshness analysis are rejected; retake the photo or correct the crop
 before saving the product to listings.

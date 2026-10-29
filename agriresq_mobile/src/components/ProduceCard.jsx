@@ -8,12 +8,13 @@ import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
 import './ProduceCard.css'
 
-export default function ProduceCard({ listing }) {
+export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [confirmFinalize, setConfirmFinalize] = useState(false)
   const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const product = listing.products || listing.batch || listing.crop_batch
   const crop = product?.crop_type
@@ -35,15 +36,26 @@ export default function ProduceCard({ listing }) {
     }
   }
   const save = async () => {
+    setSaving(true)
     try {
       await api.saveListing(listing.id)
       setNote('Saved to your bookmarks')
     } catch (err) {
-      console.warn(err)
-      const saved = JSON.parse(localStorage.getItem('saved_listings') || '[]')
-      if (!saved.includes(listing.id)) saved.push(listing.id)
-      localStorage.setItem('saved_listings', JSON.stringify(saved))
-      setNote('Saved on this phone')
+      setNote(`Could not save listing: ${err.message || err}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+  const unsave = async () => {
+    setSaving(true)
+    try {
+      await api.removeSavedListing(listing.id)
+      setNote('Removed from saved listings')
+      onUnsave?.(listing.id)
+    } catch (err) {
+      setNote(`Could not remove saved listing: ${err.message || err}`)
+    } finally {
+      setSaving(false)
     }
   }
   const doRemove = async () => {
@@ -88,7 +100,11 @@ export default function ProduceCard({ listing }) {
                 <button type="button" title="Remove Batch" className="icon-btn danger" onClick={stop(() => setConfirmRemove(true))}>🗑</button>
               </>
             )}
-            {!isOwner && <button type="button" className="btn btn-outline btn-sm" onClick={stop(save)}>🔖 Save</button>}
+            {user?.role === 'RESCUE_BUYER' && (
+              <button type="button" className="btn btn-outline btn-sm" onClick={stop(isSaved ? unsave : save)} disabled={saving}>
+                {saving ? 'Please wait…' : isSaved ? 'Remove saved' : '🔖 Save'}
+              </button>
+            )}
           </div>
           {note && <p className="card-note">{note}</p>}
         </div>

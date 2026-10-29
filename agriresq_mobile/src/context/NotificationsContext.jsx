@@ -42,12 +42,26 @@ export function NotificationsProvider({ children }) {
     setToast(n)
     if (canNotify() && Notification.permission === 'granted' && document.hidden) {
       try {
-        new Notification(n.title, { body: n.message, tag: `agriresq-${n.id}` })
+        const notification = new Notification(n.title, { body: n.message, tag: `agriresq-${n.id}` })
+        notification.onclick = () => {
+          window.focus()
+          if (n.notification_type === 'IOT_ALERT' && n.device_id) navigate(`/devices/${n.device_id}`)
+          else if (n.notification_type === 'NEW_MESSAGE' && n.thread_id) navigate(`/chat/${n.thread_id}`)
+          else if ((n.notification_type === 'MARKETPLACE' || n.notification_type === 'PRICE_DROP') && n.product_id) {
+            api.getListingByProduct(n.product_id)
+              .then((listing) => navigate(listing?.id ? `/produce/${listing.id}` : '/marketplace'))
+              .catch((err) => {
+                console.error('Could not open listing from notification', err)
+                navigate('/marketplace')
+              })
+          }
+          else navigate('/notifications')
+        }
       } catch {
         /* some browsers only allow this from a service worker */
       }
     }
-  }, [])
+  }, [navigate])
 
   const refresh = useCallback(async () => {
     if (!userId) return
@@ -93,7 +107,10 @@ export function NotificationsProvider({ children }) {
     if (n.notification_type === 'NEW_MESSAGE') {
       return navigate(n.thread_id ? `/chat/${n.thread_id}` : '/messages')
     }
-    if (n.notification_type === 'MARKETPLACE' && n.product_id) {
+    if (n.notification_type === 'IOT_ALERT') {
+      return navigate(n.device_id ? `/devices/${n.device_id}` : '/devices')
+    }
+    if ((n.notification_type === 'MARKETPLACE' || n.notification_type === 'PRICE_DROP') && n.product_id) {
       try {
         const listing = await api.getListingByProduct(n.product_id)
         if (listing?.id) return navigate(`/produce/${listing.id}`)

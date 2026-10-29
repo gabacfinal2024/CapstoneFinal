@@ -389,7 +389,7 @@ export const api = {
     const userId = await getSessionUserId()
     const { data, error } = await supabase
       .from('notifications')
-      .select('id, notification_type, title, message, product_id, thread_id, is_read, created_at')
+      .select('id, notification_type, title, message, product_id, thread_id, device_id, is_read, created_at')
       .eq('user_id', userId)
       .eq('is_read', false)
       .order('id', { ascending: false })
@@ -437,6 +437,40 @@ export const api = {
     const { data, error } = await supabase.from('saved_listings').upsert({ listing_id: listingId, user_id: userId }, { onConflict: 'listing_id,user_id' }).select().single()
     if (error) throw new Error(error.message || error)
     return data
+  },
+
+  async savedListings() {
+    const userId = await getSessionUserId()
+    const { data: saved, error: savedError } = await supabase
+      .from('saved_listings')
+      .select('listing_id, saved_at')
+      .eq('user_id', userId)
+      .order('saved_at', { ascending: false })
+    if (savedError) throw new Error(savedError.message)
+    if (!saved?.length) return []
+
+    const { data: listings, error: listingsError } = await supabase
+      .from('marketplace_listings')
+      .select(LISTING_SELECT)
+      .in('id', saved.map((item) => item.listing_id))
+      .eq('listing_status', 'ACTIVE')
+      .gt('expires_at', new Date().toISOString())
+    if (listingsError) throw new Error(listingsError.message)
+
+    const savedAt = new Map(saved.map((item) => [String(item.listing_id), item.saved_at]))
+    return (listings || [])
+      .map((listing) => ({ ...listing, saved_at: savedAt.get(String(listing.id)) }))
+      .sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at))
+  },
+
+  async removeSavedListing(listingId) {
+    const userId = await getSessionUserId()
+    const { error } = await supabase
+      .from('saved_listings')
+      .delete()
+      .eq('listing_id', listingId)
+      .eq('user_id', userId)
+    if (error) throw new Error(error.message)
   },
 
   // ── Chat ──────────────────────────────────────────

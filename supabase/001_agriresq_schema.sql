@@ -89,11 +89,20 @@ CREATE TABLE IF NOT EXISTS marketplace_listings (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Rescue buyers can save listings and receive targeted price-drop alerts.
+CREATE TABLE IF NOT EXISTS saved_listings (
+  listing_id BIGINT NOT NULL REFERENCES marketplace_listings(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (listing_id, user_id)
+);
+
 -- In-app notifications
 CREATE TABLE IF NOT EXISTS notifications (
   id BIGSERIAL PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   product_id BIGINT REFERENCES products(id) ON DELETE SET NULL,
+  device_id BIGINT,
   notification_type TEXT NOT NULL CHECK (notification_type IN (
     'STATUS_CHANGE', 'IOT_ALERT', 'ORDER_UPDATE', 'NEW_MESSAGE', 'MARKETPLACE', 'PRICE_DROP'
   )),
@@ -192,6 +201,7 @@ ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE spoilage_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sensor_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE iot_nodes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE saved_listings ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users read/update own
 CREATE POLICY profiles_select ON profiles FOR SELECT USING (true);
@@ -207,6 +217,10 @@ CREATE POLICY listings_operator ON marketplace_listings FOR ALL USING (auth.uid(
 
 -- Notifications: own only
 CREATE POLICY notif_own ON notifications FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY saved_listings_own ON saved_listings FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- Chat: participants only
 CREATE POLICY chat_thread_participant ON chat_threads FOR ALL

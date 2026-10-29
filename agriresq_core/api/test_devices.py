@@ -374,6 +374,18 @@ class DeviceFlowTests(TestCase):
         self.assertLess(days_hot, Decimal('4.9'))
         self.assertLess(days_hot, days_cool)
 
+    def test_high_temperature_alert_links_to_live_device(self):
+        self.pair_and_claim(kind='SENSOR')
+        device = Device.objects.get()
+        with mock.patch.object(device_services, 'has_service_key', return_value=True), \
+                mock.patch.object(device_services, 'supabase_insert') as insert:
+            device_services._alerts(device, timezone.now(), Decimal('37'), Decimal('55'))
+
+        insert.assert_called_once()
+        self.assertEqual(insert.call_args.args[0], 'notifications')
+        self.assertEqual(insert.call_args.args[1]['notification_type'], 'IOT_ALERT')
+        self.assertEqual(insert.call_args.args[1]['device_id'], device.id)
+
     def test_sustained_heat_queues_an_emergency_snapshot(self):
         self.pair_and_claim()
         device = Device.objects.get()

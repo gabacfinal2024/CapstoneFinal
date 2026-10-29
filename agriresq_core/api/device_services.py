@@ -225,6 +225,7 @@ def _alerts(device, now, t_f, rh_f):
         try:
             supabase_insert('notifications', {
                 'user_id': device.operator_id, 'product_id': device.product_id, 'notification_type': 'IOT_ALERT',
+                'device_id': device.id,
                 'title': 'High Temperature Alert',
                 'message': f'{device.name}: {t_f:.1f}°C, {rh_f:.0f}% RH at {where}. Produce will spoil faster; '
                            f'move it to shade or cool storage.'})

@@ -1,8 +1,8 @@
-import { Bell, MessageCircle, ShoppingBasket, X } from 'lucide-react'
+import { Bell, MessageCircle, ShoppingBasket, TrendingDown, X } from 'lucide-react'
 import { useNotifications } from '../context/NotificationsContext'
 import './NotificationToast.css'
 
-const ICONS = { NEW_MESSAGE: MessageCircle, MARKETPLACE: ShoppingBasket }
+const ICONS = { NEW_MESSAGE: MessageCircle, MARKETPLACE: ShoppingBasket, PRICE_DROP: TrendingDown }
 
 // Banner that slides in at the top when something new arrives (new batch listed, new message ...)
 export default function NotificationToast() {
