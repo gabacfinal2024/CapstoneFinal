@@ -20,16 +20,19 @@ phones can reach it too).
 ### DHT22 sensor-node setup
 
 1. In **Devices → Add device**, choose **ESP32 sensor node (DHT22)** and create a pairing code.
-2. Keep the ESP32 connected to the laptop. Open the PlatformIO serial monitor at 115200 baud and wait
-   for the node to join the same 2.4 GHz Wi-Fi as Django.
-3. Enter `pair CODE` (replace `CODE` with the code shown in the app) and press Enter. The app waits for
-   the sensor to claim the pairing code.
-4. The node reports DHT22 readings on GPIO 4 every 30 seconds. Live temperature, relative humidity and
+2. Run the local apps with `start_agriresq.bat`. Keep the ESP32 connected to the laptop, open the
+   PlatformIO serial monitor at 115200 baud, and join the same 2.4 GHz Wi-Fi as the laptop.
+3. Enter `server <server_url>` from the wizard, then `pair CODE`, pressing Enter after each. This points
+   the sensor at the exact local backend used by the laptop dashboard.
+4. Keep the dashboard and sensor pointed at the same backend so their readings appear in that dashboard.
+5. The node reports DHT22 readings on GPIO 4 every 30 seconds. Live temperature, relative humidity and
    calculated VPD appear on the device page; the backend rejects values outside physical sensor ranges.
 
-The sensor firmware is in `iot/sensor_node`. Its ignored `include/secrets.h` must contain the local Wi-Fi
-credentials and the Django server's reachable LAN URL before upload. The app cannot configure the node
-over USB; it guides code pairing while the serial monitor is open.
+The sensor firmware is in `iot/sensor_node`. Its ignored `include/secrets.h` contains the local Wi-Fi
+credentials. The serial monitor's `server <URL>` command saves the laptop backend address supplied by
+the pairing wizard, so the sensor can follow a changed laptop IP without reflashing. This firmware
+uses the local laptop backend over HTTP; the hosted HTTPS API is not supported by the sensor yet. The
+app cannot provision Wi-Fi over USB.
 
 ## 1. Operator endpoints (app → Django)
 
@@ -113,7 +116,9 @@ All endpoints send `Access-Control-Allow-Origin: *`.
 
 ### App wizard flow
 1. **Online:** `POST /api/devices/pairing/` returns the code and `server_url`.
-   The `server_url` is the Django backend address. Do not enter `http://192.168.4.1` as the server; that address belongs to the camera's setup page.
+   The `server_url` is the Django backend address used by the app. A sensor node must set this same
+   address with its serial `server <URL>` command. Do not use `http://192.168.4.1`; that belongs to the
+   camera's setup page.
    For the Render deployment, configure `DEVICE_SERVER_URL=https://agriresq.onrender.com`; do not append port `8000` to a public Render URL.
 2. Tell the operator: power the camera, open phone Wi-Fi settings, join **AgriResQ-XXXX** (password
    `agriresq`), then come back.

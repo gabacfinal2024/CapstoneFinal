@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone, Thermometer } from 'lucide-react'
 import { deviceApi, deviceSetup, signalLabel } from '../api/deviceApi'
+import { BACKEND_URL } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import ErrorNotice from '../components/ErrorNotice'
 import '../styles/devices.css'
@@ -70,6 +71,10 @@ export default function AddDevice() {
   // ── Step 0: create a pairing code (online) ──
   const startPairing = async (e) => {
     e.preventDefault()
+    if (details.kind === 'SENSOR' && BACKEND_URL.startsWith('https://')) {
+      fail('The sensor firmware currently connects to a local laptop backend over Wi-Fi. Start the local AgriResQ apps with start_agriresq.bat, then open http://localhost:5173 on the laptop to pair the sensor.')
+      return
+    }
     setBusy(true)
     clearError()
     try {
@@ -252,7 +257,7 @@ export default function AddDevice() {
 
         {step < 3 && (
           <div className="notice warn wifi-band-note">
-            <strong>Use 2.4 GHz Wi-Fi (not 5 GHz).</strong> The camera cannot join 5 GHz networks. If your router has two names,
+            <strong>Use 2.4 GHz Wi-Fi (not 5 GHz).</strong> The {isSensorSetup ? 'sensor node' : 'camera'} cannot join 5 GHz networks. If your router has two names,
             pick the one <em>without</em> “5G” in it.
           </div>
         )}
@@ -383,12 +388,16 @@ export default function AddDevice() {
           <div className="card wizard-card">
             <div className="wizard-icon"><Thermometer size={28} /></div>
             <h3>Pair the sensor from its laptop serial monitor</h3>
-            <p className="wizard-text">Keep the ESP32 connected to the laptop. Open the PlatformIO serial monitor at <strong>115200 baud</strong>, wait for the node to join the same 2.4 GHz Wi-Fi as the AgriResQ server, then enter this command and press Enter:</p>
+            <p className="wizard-text">Keep the ESP32 connected to the laptop. Open the PlatformIO serial monitor at <strong>115200 baud</strong>. Enter both commands, pressing Enter after each, so the node sends readings to the same backend this app uses:</p>
             <div className="pairing-code">
-              <span>Type this in the serial monitor</span>
+              <span>Backend address for this app</span>
+              <strong className="mono" style={{ fontSize: '0.9rem', overflowWrap: 'anywhere' }}>{`server ${pairing.server_url}`}</strong>
+            </div>
+            <div className="pairing-code">
+              <span>Pair the sensor</span>
               <strong className="mono">pair {pairing.code}</strong>
             </div>
-            <p className="field-hint">The sensor firmware must already be flashed and configured for your Wi-Fi and the server address shown to the node. It reads DHT22 on GPIO 4 by default and uploads a new reading every 30 seconds. Keep this page open while it pairs.</p>
+            <p className="field-hint">The sensor and laptop must use the same 2.4 GHz Wi-Fi, and Django must stay running on the laptop. This sensor firmware uses the local laptop backend over HTTP. The sensor samples every 30 seconds; readings refresh automatically on the device page. Keep this page open while it pairs.</p>
             {!timedOut ? (
               <div className="notice info"><Loader2 className="spin" size={14} /> {pairingProgress || 'Waiting for the sensor to register…'}</div>
             ) : (

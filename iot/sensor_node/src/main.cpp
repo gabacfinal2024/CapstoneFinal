@@ -10,11 +10,11 @@
  *          (most DHT22 breakout boards already have it).
  *
  * First start:
- *   1. copy include/secrets.h.example to include/secrets.h and fill in Wi-Fi and the hub address
+ *   1. copy include/secrets.h.example to include/secrets.h and fill in Wi-Fi
  *   2. pio run -t upload, then pio device monitor (115200)
- *   3. in the AgriResQ app: Devices > Add camera, enter a name and the crop, copy the 6-letter code
- *   4. type   pair CODE   in the serial monitor.  The node remembers the pairing across restarts.
- * Serial commands: pair CODE | unpair | status | read | help
+ *   3. in the AgriResQ app: Devices > Add device > Sensor, copy the server URL and 6-letter code
+ *   4. type   server URL   then   pair CODE   in the serial monitor.
+ * Serial commands: server URL | pair CODE | unpair | status | read | help
  */
 #include <Arduino.h>
 #include <DHT.h>
@@ -247,7 +247,21 @@ void handleSerial() {
   String line = Serial.readStringUntil('\n');
   line.trim();
   if (line.isEmpty()) return;
-  if (line.startsWith("pair ")) {
+  if (line.startsWith("server ")) {
+    String nextServer = line.substring(7);
+    nextServer.trim();
+    while (nextServer.endsWith("/")) nextServer.remove(nextServer.length() - 1);
+    if (!nextServer.startsWith("http://") ||
+        nextServer.length() > 200 || nextServer.indexOf(' ') >= 0) {
+      Serial.println("This firmware uses the local laptop backend. Use: server http://<laptop-LAN-IP>:8000");
+    } else if (!token.isEmpty() && nextServer != server) {
+      Serial.println("This node is already paired. Remove it from the old account, type unpair, then set the new server.");
+    } else {
+      server = nextServer;
+      savePrefs();
+      Serial.printf("Server saved: %s\n", server.c_str());
+    }
+  } else if (line.startsWith("pair ")) {
     pendingCode = line.substring(5);
     lastClaim = 0;
     Serial.println("Pairing...");
@@ -259,11 +273,11 @@ void handleSerial() {
     float t, h;
     if (readDht(t, h)) Serial.printf("%.1f C  %.1f %%RH\n", t, h);
   } else if (line == "status") {
-    Serial.printf("Wi-Fi %s  IP %s  hub %s  paired %s  last %.1f C %.1f %%RH\n",
+    Serial.printf("Wi-Fi %s  IP %s  server %s  paired %s  last %.1f C %.1f %%RH\n",
                   WiFi.status() == WL_CONNECTED ? "up" : "down", WiFi.localIP().toString().c_str(), server.c_str(),
                   token.isEmpty() ? "no" : "yes", lastT, lastH);
   } else {
-    Serial.println("Commands: pair CODE | unpair | status | read");
+    Serial.println("Commands: server URL | pair CODE | unpair | status | read");
   }
 }
 
@@ -275,7 +289,7 @@ void setup() {
   loadPrefs();
   connectWifi();
   if (token.isEmpty() && pendingCode.isEmpty()) {
-    Serial.println("Not paired. Create a code in the app (Devices > Add camera), then type: pair CODE");
+    Serial.println("Not paired. In Devices > Add device > Sensor, type the shown server URL, then pair CODE.");
   }
 }
 

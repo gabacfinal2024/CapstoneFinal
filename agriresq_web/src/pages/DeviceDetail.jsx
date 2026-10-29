@@ -123,7 +123,7 @@ function DeviceDetailView({ id }) {
     } catch (err) {
       setReadingError(err.message)
     }
-  }, 10000, id, sensor)
+  }, 5000, id, sensor)
 
   const operate = canOperate(device)
   const manage = canManage(device)
@@ -408,10 +408,15 @@ function DeviceDetailView({ id }) {
 
           {sensor && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <h2 className="text-lg font-bold text-slate-800 mb-1">Live sensor readings</h2>
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <h2 className="text-lg font-bold text-slate-800">Live sensor readings</h2>
+                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${device.online && reading && !readingStale ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                  {device.online && reading && !readingStale ? 'LIVE' : 'WAITING'}
+                </span>
+              </div>
               <p className="text-xs text-slate-500 mb-3">
                 {latestReading
-                  ? `Updated ${new Date(latestReading.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
+                  ? `Auto-refreshes every 5 seconds · Last reading ${new Date(latestReading.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
                   : 'Waiting for the first DHT22 reading. The node reports every 30 seconds.'}
               </p>
               {readingError && <p role="alert" className="mb-3 rounded-lg bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">Could not refresh sensor readings: {readingError}</p>}

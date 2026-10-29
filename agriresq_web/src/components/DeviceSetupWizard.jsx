@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Thermometer, Wifi, WifiOff, X,
 } from 'lucide-react'
-import { DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
+import { BACKEND_URL, DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
 import { useNow, usePolling } from '../hooks/usePolling'
 
 const STEPS = ['Details', 'Join camera Wi-Fi', 'Choose stall Wi-Fi', 'Connecting', 'Reconnect', 'Done']
@@ -73,6 +73,10 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
 
   // Step 0 → create a pairing code (needs the normal internet/LAN connection)
   const createPairing = async () => {
+    if (details.kind === 'SENSOR' && BACKEND_URL.startsWith('https://')) {
+      setError('The sensor firmware currently connects to a local laptop backend over Wi-Fi. Start the local AgriResQ apps with start_agriresq.bat, then open http://localhost:5173 and pair the sensor there.')
+      return
+    }
     setBusy(true)
     setError('')
     try {
@@ -231,7 +235,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
                 <p className="text-xs text-slate-400">Scans eggplant, cucumber, and carrot.</p>
               )}
               {sensorSetup
-                ? <p className="text-xs text-slate-400">The node uses the Wi-Fi and server settings already flashed to its firmware.</p>
+                ? <p className="text-xs text-slate-400">The pairing step shows the exact server address for this dashboard. Set it in the sensor's serial monitor so readings appear here.</p>
                 : <p className="text-xs text-slate-400">You can change these later in the device settings.</p>}
             </div>
           )}
@@ -314,14 +318,18 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
               <div className="space-y-4 text-sm text-slate-600">
                 <div className="flex gap-3 p-4 rounded-2xl bg-sky-50 border border-sky-100">
                   <Thermometer className="text-sky-700 shrink-0" size={22} />
-                  <p><strong>Keep the ESP32 connected to this computer.</strong> Open the PlatformIO serial monitor at 115200 baud. Confirm it joined the same 2.4 GHz Wi-Fi as the AgriResQ server, then type this command and press Enter:</p>
+                  <p><strong>Keep the ESP32 connected to this computer.</strong> Open the PlatformIO serial monitor at 115200 baud. Enter both commands below, pressing Enter after each, so the node uploads to the same backend as this dashboard:</p>
                 </div>
                 <p className="text-center rounded-xl bg-slate-50 border border-slate-100 p-4">
-                  <span className="block text-xs text-slate-500">Serial monitor command</span>
+                  <span className="block text-xs text-slate-500">First set the backend address</span>
+                  <strong className="block font-mono text-sm break-all mt-1">{`server ${pairing?.server_url || ''}`}</strong>
+                </p>
+                <p className="text-center rounded-xl bg-slate-50 border border-slate-100 p-4">
+                  <span className="block text-xs text-slate-500">Then pair the sensor</span>
                   <strong className="font-mono text-2xl tracking-widest">{`pair ${pairing?.code || ''}`}</strong>
                 </p>
                 <p className="text-xs text-slate-500">
-                  The sensor firmware must already be flashed with the correct Wi-Fi and server URL. It reads a DHT22 on GPIO 4 by default and posts new measurements every 30 seconds. Keep this page open while it registers.
+                  The node and laptop must use the same 2.4 GHz Wi-Fi, and Django must stay running on the laptop. This sensor firmware uses the local laptop backend over HTTP. The sensor samples every 30 seconds and readings refresh automatically here. Keep this page open while it registers.
                 </p>
                 <p className="flex items-center justify-center gap-2 text-sm text-[#2A6B48] font-semibold">
                   <Loader2 size={16} className="animate-spin" /> Waiting for the sensor to register…

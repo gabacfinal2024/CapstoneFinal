@@ -44,6 +44,15 @@ If the saved Wi-Fi disappears for 60 s, the hotspot comes back by itself.
 camera broadcasts "where is the server?" on the network; the backend (UDP 41234) answers with its current address, signed
 with the camera's own token, and the camera saves it. Keep the backend running (`runserver 0.0.0.0:8000`).
 
+## 2a. Add the DHT22 sensor node
+
+1. In the laptop dashboard, open **Devices → Add device**, choose **ESP32 sensor node (DHT22)**, and create a pairing code.
+2. Keep the sensor connected by USB. Open the PlatformIO serial monitor at 115200 baud and ensure it joins the same 2.4 GHz Wi-Fi as the selected backend.
+3. Use the local laptop dashboard (run `start_agriresq.bat`, then open `http://localhost:5173`). In the wizard, enter the displayed `server <URL>` command, then `pair <CODE>`, pressing Enter after each.
+4. Keep Django running on the laptop. The sensor uploads a DHT22 reading every 30 seconds; the laptop's device page refreshes its readings every five seconds.
+
+The sensor and dashboard must use the **same backend**. If the sensor posts to a local Django server while the browser is using the hosted API, each writes to a different database and the dashboard cannot show those readings. This sensor firmware currently supports the local laptop backend over HTTP; hosted HTTPS support is not enabled. To move a sensor between local backends, remove it from the old dashboard, type `unpair`, set the new `server <URL>`, and pair it with a new code.
+
 ## 3. What happens on each scan
 Camera JPEG → Django runs the CNN → one of four outcomes:
 

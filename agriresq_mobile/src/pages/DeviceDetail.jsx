@@ -164,7 +164,7 @@ function DeviceDetailPage({ id }) {
   usePolling(() => Promise.all([loadDevice(), loadHistory()]), REFRESH_MS)
   usePolling(loadMonitors, 15000)
   // only a sensor node has readings (a camera has none); the stall's heat-unit rate comes from the stall climate
-  usePolling(loadReadings, 10000, { enabled: sensor })
+  usePolling(loadReadings, 5000, { enabled: sensor })
   const { stalls } = useStallConditions({ enabled: sensor })
   const chuRate = sensor ? stallChuRate(stalls, device) : null
 
@@ -362,7 +362,8 @@ function DeviceDetailPage({ id }) {
 
         {sensor ? (
           <section className="dev-section card">
-            <h3>Stall sensor (DHT22)</h3>
+            <h3>Live stall sensor (DHT22)</h3>
+            <p className="field-hint">Readings refresh automatically every 5 seconds; the sensor samples every 30 seconds.</p>
             {readingError && <p className="notice error" role="alert">Could not refresh sensor readings: {readingError}</p>}
             <SensorPanel reading={device.latest_reading} readings={readings} dhtPin={device.dht_pin} chuRate={chuRate} />
           </section>
