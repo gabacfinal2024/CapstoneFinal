@@ -53,6 +53,18 @@ with the camera's own token, and the camera saves it. Keep the backend running (
 
 The sensor, camera and dashboard must use the **same backend**. Production builds default to the hosted API; local development keeps using the laptop backend. A laptop is needed only to flash or update the sensor firmware; pairing and Wi-Fi setup are done from the phone.
 
+## 2b. Chat notifications and listing photo checks
+
+Each chat message creates a `NEW_MESSAGE` notification for the other participant. When the sender changes,
+the recipient changes too, so both rescue buyers and stall operators receive in-app alerts. Apply
+`supabase/005_notification_triggers.sql` in the Supabase SQL editor to enable database notifications and
+Realtime delivery. The app shows an unread badge and a toast; browser alerts can be enabled from the
+Notifications page when supported.
+
+Product photos are analyzed before a product is saved. Photos with no recognized supported vegetable,
+a crop mismatch, or low-confidence freshness analysis are rejected; retake the photo or correct the crop
+before saving the product to listings.
+
 ## 3. What happens on each scan
 Camera JPEG → Django runs the CNN → one of four outcomes:
 

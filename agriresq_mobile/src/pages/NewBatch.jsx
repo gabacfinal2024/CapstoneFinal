@@ -33,7 +33,6 @@ export default function NewBatch() {
   const [publishError, setPublishError] = useState('')
   const [lastBatchId, setLastBatchId] = useState(null)
   const [camLoading, setCamLoading] = useState(false)
-  const [skipAi, setSkipAi] = useState(false) // operator chose to save without the AI check
 
   useEffect(() => {
     // ESP32-CAM devices registered through the AgriResQ IoT hub (Django)
@@ -48,7 +47,6 @@ export default function NewBatch() {
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
     setAnalysis(null)
-    setSkipAi(false)
     setError('')
   }
 
@@ -69,7 +67,6 @@ export default function NewBatch() {
       setImageFile(file)
       setImagePreview(URL.createObjectURL(file))
       setAnalysis(null)
-      setSkipAi(false)
       if (!form.iot_node_id) set('iot_node_id', String(cam.id))
       if (cam.crop_type && cam.crop_type !== form.crop_type) set('crop_type', cam.crop_type)
     } catch (err) {
@@ -84,7 +81,6 @@ export default function NewBatch() {
     setImageFile(null)
     setImagePreview(null)
     setAnalysis(null)
-    setSkipAi(false)
     setError('')
     fileInputRef.current?.click()
   }
@@ -93,7 +89,6 @@ export default function NewBatch() {
     // the AI result depends on the selected crop, so a new crop needs a new analysis
     set('crop_type', crop)
     setAnalysis(null)
-    setSkipAi(false)
   }
 
   const getFreshnessDistribution = (percent) => {
@@ -129,20 +124,24 @@ export default function NewBatch() {
     setLoading(true)
     setError('')
     try {
-      // Only a detected, non-mismatched scan may set freshness. "Save without AI check" uses manual defaults.
+      // Every uploaded photo must be recognized as the selected crop before a product is saved/listed.
       let freshness = null
-      if (!skipAi) {
+      if (imageFile) {
         freshness = analysis
         if (!freshness && imageFile) {
           freshness = await api.analyzeFreshness(imageFile, form.crop_type)
           setAnalysis(freshness)
         }
         if (freshness && isNoVegetable(freshness)) {
-          setError(`${freshness.message || NO_VEGETABLE_TEXT}. Retake the photo, or choose "Save without AI check".`)
+          setError(`${freshness.message || NO_VEGETABLE_TEXT}. Retake the photo and make sure one supported vegetable is clearly visible.`)
           return
         }
         if (freshness?.crop_mismatch) {
-          setError('The AI sees a different vegetable than the crop you selected. Use the detected crop, or choose "save without AI check".')
+          setError('The AI recognized a different vegetable than the one selected. Change the crop to the detected vegetable or retake the photo.')
+          return
+        }
+        if (freshness?.low_confidence) {
+          setError('The AI could not identify freshness confidently from this photo. Retake it with one supported vegetable clearly visible.')
           return
         }
       }
@@ -237,7 +236,9 @@ export default function NewBatch() {
 
   const noVeg = !!analysis && isNoVegetable(analysis)
   const mismatch = !!analysis && !noVeg && !!analysis.crop_mismatch
-  const usable = analysis && !noVeg && !mismatch ? analysis : null
+  const lowConfidence = !!analysis && !noVeg && !mismatch && !!analysis.low_confidence
+  const rejectedPhoto = noVeg || mismatch || lowConfidence
+  const usable = analysis && !rejectedPhoto ? analysis : null
 
   const previewStatus = usable
     ? worseStatus(usable.freshness_status, statusFromDays(Math.min(Number(usable.days_to_spoil ?? 99), daysLeftSinceHarvest(form.crop_type, form.harvest_datetime).days)))
@@ -315,43 +316,42 @@ export default function NewBatch() {
             {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
           </div>
 
-          {imageFile && !analysis && !skipAi && (
+          {imageFile && !analysis && (
             <button type="button" className="btn btn-green" onClick={() => runAnalysis()} disabled={analyzing}>
               {analyzing ? 'Analyzing freshness...' : 'Analyze Freshness (AI)'}
             </button>
           )}
 
-          {skipAi && (
-            <div className="notice warn">
-              AI check skipped: this product will be saved as <strong>Fresh</strong> with default shelf life.{' '}
-              <button type="button" className="link-btn" onClick={() => setSkipAi(false)}>Undo</button>
-            </div>
-          )}
-
-          {noVeg && !skipAi && (
+          {noVeg && (
             <div className="analysis-result card inner-card analysis-none">
               <div className="analysis-none__icon"><ScanSearch size={26} /></div>
               <h4>{analysis.message || NO_VEGETABLE_TEXT}</h4>
               <p>{NO_VEGETABLE_HINT}</p>
+              <p className="error-text">This photo cannot be listed. Retake it with one supported vegetable clearly visible.</p>
               <button type="button" className="btn btn-green" onClick={retakePhoto}>Retake photo</button>
-              <button type="button" className="link-btn center" onClick={() => { setSkipAi(true); setError('') }}>Save without AI check</button>
             </div>
           )}
 
-          {mismatch && !skipAi && (
+          {mismatch && (
             <div className="analysis-result card inner-card analysis-mismatch">
               <p className="scan-warn"><AlertTriangle size={16} /> {analysis.message || `This looks like ${CROP_LABELS[analysis.detected_crop] || analysis.detected_crop}, not ${CROP_LABELS[form.crop_type]}.`}</p>
               <button type="button" className="btn btn-green" disabled={analyzing}
                 onClick={() => { const crop = analysis.detected_crop; changeCrop(crop); runAnalysis(crop) }}>
                 Use {CROP_LABELS[analysis.detected_crop] || analysis.detected_crop}
               </button>
-              <button type="button" className="link-btn center" onClick={() => { setSkipAi(true); setError('') }}>
-                Keep {CROP_LABELS[form.crop_type]} and save without AI check
-              </button>
+              <p className="error-text">This photo cannot be listed under the selected crop. Correct the crop or retake the photo.</p>
             </div>
           )}
 
-          {usable && !skipAi && (
+          {lowConfidence && (
+            <div className="analysis-result card inner-card analysis-mismatch">
+              <p className="scan-warn"><AlertTriangle size={16} /> Freshness confidence is too low to verify this photo.</p>
+              <p className="error-text">This photo cannot be listed until the produce is clearly visible.</p>
+              <button type="button" className="btn btn-green" onClick={retakePhoto}>Retake photo</button>
+            </div>
+          )}
+
+          {usable && (
             <div className="analysis-result card inner-card">
               <h4>Freshness Analysis Result</h4>
               <StatusBadge status={usable.freshness_status} showPercent percent={usable.freshness_percent} />
@@ -403,8 +403,8 @@ export default function NewBatch() {
           </div>
 
           {error && <p className="error-text">{error}</p>}
-          <button type="submit" className="btn btn-green" disabled={loading}>
-            {loading ? 'Saving to database...' : 'Save Product & Show in Listings'}
+          <button type="submit" className="btn btn-green" disabled={loading || analyzing || rejectedPhoto}>
+            {loading ? 'Saving to database...' : rejectedPhoto ? 'Retake or correct the photo to list' : 'Save Product & Show in Listings'}
           </button>
           {listingMissing && (
             <div className="card warning-block" style={{ marginTop: 12 }}>

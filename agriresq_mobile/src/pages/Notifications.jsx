@@ -41,7 +41,7 @@ export default function Notifications() {
             <h1>Notifications</h1>
             <button onClick={markAll} className="mark-read">Mark all read</button>
           </div>
-          <p className="notif-sub">In-app alerts only — no SMS/email</p>
+          <p className="notif-sub">Chat messages alert the other person in the conversation, whether they are a rescue buyer or stall operator. In-app alerts only — no SMS/email.</p>
           {alertsSupported && alertsPermission === 'default' && (
             <button type="button" className="alerts-btn" onClick={enableAlerts}>🔔 Alert me on this phone when the app is in the background</button>
           )}

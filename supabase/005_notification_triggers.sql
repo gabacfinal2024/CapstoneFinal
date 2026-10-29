@@ -35,6 +35,9 @@ create trigger trg_notify_new_listing after insert or update of listing_status o
   for each row execute function public.notify_new_listing();
 
 -- 2) A chat message -> the other person in the chat is notified
+-- The recipient is selected per message, so both buyers and stall operators are notified as the
+-- conversation alternates. The trigger runs under the database owner because notification RLS
+-- correctly prevents either participant from writing notifications for the other.
 create or replace function public.notify_new_message() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
@@ -44,6 +47,7 @@ declare
 begin
   select operator_id, buyer_id into t from chat_threads where id = new.thread_id;
   if not found then return new; end if;
+  if new.sender_id <> t.operator_id and new.sender_id <> t.buyer_id then return new; end if;
   recipient := case when new.sender_id = t.operator_id then t.buyer_id else t.operator_id end;
   if recipient is null or recipient = new.sender_id then return new; end if;
   select coalesce(nullif(full_name, ''), 'Someone') into sender from profiles where id = new.sender_id;
