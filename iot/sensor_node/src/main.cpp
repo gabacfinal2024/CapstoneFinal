@@ -21,8 +21,10 @@
 #include <HTTPClient.h>
 #include <Preferences.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
+#include <time.h>
 #include "mbedtls/md.h"
 
 #include "secrets.h"   // WIFI_SSID, WIFI_PASSWORD, SERVER_URL (and optionally PAIRING_CODE)
@@ -34,11 +36,26 @@
 #define PAIRING_CODE ""
 #endif
 
-static const char *FW_VERSION = "sensor-1.0.0";
+static const char *FW_VERSION = "sensor-1.1.0";
 static const uint16_t DISCOVERY_PORT = 41234;
 static const uint32_t READ_PERIOD_S = 30;
 static const uint32_t HEARTBEAT_PERIOD_S = 15;
 static const uint32_t WIFI_TIMEOUT_MS = 20000;
+static const char *GTS_ROOT_R4 = R"PEM(
+-----BEGIN CERTIFICATE-----
+MIICCjCCAZGgAwIBAgIQbkepyIuUtui7OyrYorLBmTAKBggqhkjOPQQDAzBHMQsw
+CQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2VzIExMQzEU
+MBIGA1UEAxMLR1RTIFJvb3QgUjQwHhcNMTYwNjIyMDAwMDAwWhcNMzYwNjIyMDAw
+MDAwWjBHMQswCQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZp
+Y2VzIExMQzEUMBIGA1UEAxMLR1RTIFJvb3QgUjQwdjAQBgcqhkjOPQIBBgUrgQQA
+IgNiAATzdHOnaItgrkO4NcWBMHtLSZ37wWHO5t5GvWvVYRg1rkDdc/eJkTBa6zzu
+hXyiQHY7qca4R9gq55KRanPpsXI5nymfopjTX15YhmUPoYRlBtHci8nHc8iMai/l
+xKvRHYqjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud
+DgQWBBSATNbrdP9JNqPV2Py1PsVq8JQdjDAKBggqhkjOPQQDAwNnADBkAjBqUFJ0
+CMRw3J5QdCHojXohw0+WbhXRIjVhLfoIN+4Zba3bssx9BzT1YBkstTTZbyACMANx
+sbqjYAuG7ZoIapVon+Kz4ZNkfF6Tpt95LY2F45TPI11xzPKwTdb+mciUqXWi4w==
+-----END CERTIFICATE-----
+)PEM";
 
 DHT dht(DHT_PIN, DHT22);
 Preferences prefs;
@@ -79,6 +96,18 @@ bool connectWifi() {
     return false;
   }
   Serial.printf("Wi-Fi: connected, IP %s\n", WiFi.localIP().toString().c_str());
+  configTime(0, 0, "time.google.com", "pool.ntp.org");
+  time_t now = time(nullptr);
+  uint32_t syncStarted = millis();
+  while (now < 1760000000 && millis() - syncStarted < 15000) {
+    delay(250);
+    now = time(nullptr);
+  }
+  if (now < 1760000000) {
+    Serial.println("Clock: NTP sync failed; hosted HTTPS requests need working internet time.");
+  } else {
+    Serial.println("Clock: synchronized for HTTPS certificate validation.");
+  }
   return true;
 }
 
@@ -87,9 +116,21 @@ bool connectWifi() {
 int postJson(const String &path, const String &body, String &resp, bool withToken = true) {
   if (server.isEmpty()) return -1;
   HTTPClient http;
+  WiFiClient localClient;
+  WiFiClientSecure secureClient;
   http.setConnectTimeout(5000);
   http.setTimeout(8000);
-  http.begin(server + path);
+  bool started = false;
+  if (server.startsWith("https://")) {
+    secureClient.setCACert(GTS_ROOT_R4);
+    started = http.begin(secureClient, server + path);
+  } else if (server.startsWith("http://")) {
+    started = http.begin(localClient, server + path);
+  }
+  if (!started) {
+    Serial.printf("HTTP: unsupported server URL or connection setup failed: %s\n", server.c_str());
+    return -1;
+  }
   http.addHeader("Content-Type", "application/json");
   if (withToken) http.addHeader("X-Device-Token", token);
   int code = http.POST(body);
@@ -251,9 +292,9 @@ void handleSerial() {
     String nextServer = line.substring(7);
     nextServer.trim();
     while (nextServer.endsWith("/")) nextServer.remove(nextServer.length() - 1);
-    if (!nextServer.startsWith("http://") ||
+    if ((!nextServer.startsWith("http://") && !nextServer.startsWith("https://")) ||
         nextServer.length() > 200 || nextServer.indexOf(' ') >= 0) {
-      Serial.println("This firmware uses the local laptop backend. Use: server http://<laptop-LAN-IP>:8000");
+      Serial.println("Use: server http://<laptop-LAN-IP>:8000 or server https://<hosted-backend>");
     } else if (!token.isEmpty() && nextServer != server) {
       Serial.println("This node is already paired. Remove it from the old account, type unpair, then set the new server.");
     } else {

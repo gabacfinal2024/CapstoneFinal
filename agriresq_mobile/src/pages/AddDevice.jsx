@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone, Thermometer } from 'lucide-react'
 import { deviceApi, deviceSetup, signalLabel } from '../api/deviceApi'
-import { BACKEND_URL } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import ErrorNotice from '../components/ErrorNotice'
 import '../styles/devices.css'
@@ -71,10 +70,6 @@ export default function AddDevice() {
   // ── Step 0: create a pairing code (online) ──
   const startPairing = async (e) => {
     e.preventDefault()
-    if (details.kind === 'SENSOR' && BACKEND_URL.startsWith('https://')) {
-      fail('The sensor firmware currently connects to a local laptop backend over Wi-Fi. Start the local AgriResQ apps with start_agriresq.bat, then open http://localhost:5173 on the laptop to pair the sensor.')
-      return
-    }
     setBusy(true)
     clearError()
     try {
@@ -397,7 +392,7 @@ export default function AddDevice() {
               <span>Pair the sensor</span>
               <strong className="mono">pair {pairing.code}</strong>
             </div>
-            <p className="field-hint">The sensor and laptop must use the same 2.4 GHz Wi-Fi, and Django must stay running on the laptop. This sensor firmware uses the local laptop backend over HTTP. The sensor samples every 30 seconds; readings refresh automatically on the device page. Keep this page open while it pairs.</p>
+            <p className="field-hint">If this sensor was paired to another backend before, type <strong>unpair</strong> first. It connects to the backend shown above using HTTPS, just like the camera. The sensor and dashboard must use the same AgriResQ backend. The sensor samples every 30 seconds; readings refresh automatically on the device page. Keep this page open while it pairs.</p>
             {!timedOut ? (
               <div className="notice info"><Loader2 className="spin" size={14} /> {pairingProgress || 'Waiting for the sensor to register…'}</div>
             ) : (

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Thermometer, Wifi, WifiOff, X,
 } from 'lucide-react'
-import { BACKEND_URL, DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
+import { DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
 import { useNow, usePolling } from '../hooks/usePolling'
 
 const STEPS = ['Details', 'Join camera Wi-Fi', 'Choose stall Wi-Fi', 'Connecting', 'Reconnect', 'Done']
@@ -73,10 +73,6 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
 
   // Step 0 → create a pairing code (needs the normal internet/LAN connection)
   const createPairing = async () => {
-    if (details.kind === 'SENSOR' && BACKEND_URL.startsWith('https://')) {
-      setError('The sensor firmware currently connects to a local laptop backend over Wi-Fi. Start the local AgriResQ apps with start_agriresq.bat, then open http://localhost:5173 and pair the sensor there.')
-      return
-    }
     setBusy(true)
     setError('')
     try {
@@ -329,7 +325,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
                   <strong className="font-mono text-2xl tracking-widest">{`pair ${pairing?.code || ''}`}</strong>
                 </p>
                 <p className="text-xs text-slate-500">
-                  The node and laptop must use the same 2.4 GHz Wi-Fi, and Django must stay running on the laptop. This sensor firmware uses the local laptop backend over HTTP. The sensor samples every 30 seconds and readings refresh automatically here. Keep this page open while it registers.
+                  If this sensor was paired to another backend before, type <strong>unpair</strong> first. It connects to the backend shown above using HTTPS, just like the camera. The sensor and dashboard must use the same AgriResQ backend. The sensor samples every 30 seconds and readings refresh automatically here.
                 </p>
                 <p className="flex items-center justify-center gap-2 text-sm text-[#2A6B48] font-semibold">
                   <Loader2 size={16} className="animate-spin" /> Waiting for the sensor to register…

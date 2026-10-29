@@ -14,25 +14,26 @@ to Supabase (product freshness, `sensor_logs`, `spoilage_predictions`, `notifica
        └──── during setup only: http://192.168.4.1 (device's own "AgriResQ-XXXX" Wi-Fi) ─┘
 ```
 
-`BACKEND` = `import.meta.env.VITE_BACKEND_URL` (e.g. `http://192.168.1.4:8000`, the laptop's LAN IP, so
-phones can reach it too).
+`BACKEND` = `import.meta.env.VITE_BACKEND_URL` (production: `https://agriresq.onrender.com`; local
+development: the laptop backend). The apps and sensor must use the same backend URL.
 
 ### DHT22 sensor-node setup
 
 1. In **Devices → Add device**, choose **ESP32 sensor node (DHT22)** and create a pairing code.
-2. Run the local apps with `start_agriresq.bat`. Keep the ESP32 connected to the laptop, open the
-   PlatformIO serial monitor at 115200 baud, and join the same 2.4 GHz Wi-Fi as the laptop.
-3. Enter `server <server_url>` from the wizard, then `pair CODE`, pressing Enter after each. This points
-   the sensor at the exact local backend used by the laptop dashboard.
+2. Keep the ESP32 connected to the laptop and open the PlatformIO serial monitor at 115200 baud. Connect
+   the sensor to any internet-connected 2.4 GHz Wi-Fi.
+3. If this node was previously paired to another backend, enter `unpair` first. Enter `server <server_url>`
+   from the wizard, then `pair CODE`, pressing Enter after each. For hosted AgriResQ, this sets
+   `https://agriresq.onrender.com`, the same API the camera and hosted apps use.
 4. Keep the dashboard and sensor pointed at the same backend so their readings appear in that dashboard.
 5. The node reports DHT22 readings on GPIO 4 every 30 seconds. Live temperature, relative humidity and
    calculated VPD appear on the device page; the backend rejects values outside physical sensor ranges.
 
-The sensor firmware is in `iot/sensor_node`. Its ignored `include/secrets.h` contains the local Wi-Fi
-credentials. The serial monitor's `server <URL>` command saves the laptop backend address supplied by
-the pairing wizard, so the sensor can follow a changed laptop IP without reflashing. This firmware
-uses the local laptop backend over HTTP; the hosted HTTPS API is not supported by the sensor yet. The
-app cannot provision Wi-Fi over USB.
+The sensor firmware is in `iot/sensor_node`. Its ignored `include/secrets.h` contains the Wi-Fi
+credentials. The serial monitor's `server <URL>` command saves the backend address supplied by the
+pairing wizard, so the sensor can use hosted HTTPS without reflashing. The firmware validates the
+hosted API's Google Trust Services root certificate and synchronizes its clock before TLS connections.
+The app cannot provision Wi-Fi over USB.
 
 ## 1. Operator endpoints (app → Django)
 

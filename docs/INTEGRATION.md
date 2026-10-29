@@ -46,12 +46,12 @@ with the camera's own token, and the camera saves it. Keep the backend running (
 
 ## 2a. Add the DHT22 sensor node
 
-1. In the laptop dashboard, open **Devices → Add device**, choose **ESP32 sensor node (DHT22)**, and create a pairing code.
-2. Keep the sensor connected by USB. Open the PlatformIO serial monitor at 115200 baud and ensure it joins the same 2.4 GHz Wi-Fi as the selected backend.
-3. Use the local laptop dashboard (run `start_agriresq.bat`, then open `http://localhost:5173`). In the wizard, enter the displayed `server <URL>` command, then `pair <CODE>`, pressing Enter after each.
-4. Keep Django running on the laptop. The sensor uploads a DHT22 reading every 30 seconds; the laptop's device page refreshes its readings every five seconds.
+1. In the hosted AgriResQ dashboard or app, open **Devices → Add device**, choose **ESP32 sensor node (DHT22)**, and create a pairing code.
+2. Keep the sensor connected by USB. Open the PlatformIO serial monitor at 115200 baud and connect it to any internet-connected 2.4 GHz Wi-Fi.
+3. In the wizard, enter the displayed `server <URL>` command, then `pair <CODE>`, pressing Enter after each. The hosted wizard provides the HTTPS API URL.
+4. If the sensor was previously paired to the local laptop backend, first enter `unpair`, then enter the two commands above. The sensor securely uploads readings to the same hosted backend as the camera every 30 seconds; both device pages refresh readings every five seconds.
 
-The sensor and dashboard must use the **same backend**. If the sensor posts to a local Django server while the browser is using the hosted API, each writes to a different database and the dashboard cannot show those readings. This sensor firmware currently supports the local laptop backend over HTTP; hosted HTTPS support is not enabled. To move a sensor between local backends, remove it from the old dashboard, type `unpair`, set the new `server <URL>`, and pair it with a new code.
+The sensor, camera and dashboard must use the **same backend**. Production builds default to the hosted API; local development keeps using the laptop backend. To switch a sensor between backends, type `unpair`, set the new `server <URL>`, and pair it with a new code.
 
 ## 3. What happens on each scan
 Camera JPEG → Django runs the CNN → one of four outcomes:
