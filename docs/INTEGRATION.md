@@ -46,12 +46,12 @@ with the camera's own token, and the camera saves it. Keep the backend running (
 
 ## 2a. Add the DHT22 sensor node
 
-1. In the hosted AgriResQ dashboard or app, open **Devices → Add device**, choose **ESP32 sensor node (DHT22)**, and create a pairing code.
-2. Keep the sensor connected by USB. Open the PlatformIO serial monitor at 115200 baud and connect it to any internet-connected 2.4 GHz Wi-Fi.
-3. In the wizard, enter the displayed `server <URL>` command, then `pair <CODE>`, pressing Enter after each. The hosted wizard provides the HTTPS API URL.
-4. If the sensor was previously paired to the local laptop backend, first enter `unpair`, then enter the two commands above. The sensor securely uploads readings to the same hosted backend as the camera every 30 seconds; both device pages refresh readings every five seconds.
+1. In the hosted AgriResQ app, open **Devices → Add device**, choose **ESP32 sensor node (DHT22)**, and create a pairing code.
+2. Join the sensor's `AgriResQ-SENSOR-XXXX` Wi-Fi from the phone (password `agriresq`) and stay connected if warned about no internet.
+3. Open the setup address shown in the app. Enter the stall's 2.4 GHz Wi-Fi credentials and submit; the HTTPS server URL and pairing code are prefilled.
+4. Reconnect the phone to internet Wi-Fi and return to AgriResQ. The sensor joins Wi-Fi and securely registers to the same hosted backend as the camera. Readings are uploaded every 30 seconds and refreshed in the app every five seconds.
 
-The sensor, camera and dashboard must use the **same backend**. Production builds default to the hosted API; local development keeps using the laptop backend. To switch a sensor between backends, type `unpair`, set the new `server <URL>`, and pair it with a new code.
+The sensor, camera and dashboard must use the **same backend**. Production builds default to the hosted API; local development keeps using the laptop backend. A laptop is needed only to flash or update the sensor firmware; pairing and Wi-Fi setup are done from the phone.
 
 ## 3. What happens on each scan
 Camera JPEG → Django runs the CNN → one of four outcomes:

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Thermometer, Wifi, WifiOff, X,
+  CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Smartphone, Thermometer, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
 import { useNow, usePolling } from '../hooks/usePolling'
@@ -314,18 +314,17 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
               <div className="space-y-4 text-sm text-slate-600">
                 <div className="flex gap-3 p-4 rounded-2xl bg-sky-50 border border-sky-100">
                   <Thermometer className="text-sky-700 shrink-0" size={22} />
-                  <p><strong>Keep the ESP32 connected to this computer.</strong> Open the PlatformIO serial monitor at 115200 baud. Enter both commands below, pressing Enter after each, so the node uploads to the same backend as this dashboard:</p>
+                  <p><strong>No laptop is needed for pairing.</strong> In your phone's Wi-Fi settings, join <strong>{pairing?.setup_ap_prefix || 'AgriResQ-SENSOR-'}XXXX</strong> with password <strong>{pairing?.setup_ap_password || 'agriresq'}</strong>. If prompted, stay connected without internet.</p>
                 </div>
                 <p className="text-center rounded-xl bg-slate-50 border border-slate-100 p-4">
-                  <span className="block text-xs text-slate-500">First set the backend address</span>
-                  <strong className="block font-mono text-sm break-all mt-1">{`server ${pairing?.server_url || ''}`}</strong>
+                  <span className="block text-xs text-slate-500">Pairing code (pre-filled on setup page)</span>
+                  <strong className="font-mono text-2xl tracking-widest">{pairing?.code || ''}</strong>
                 </p>
-                <p className="text-center rounded-xl bg-slate-50 border border-slate-100 p-4">
-                  <span className="block text-xs text-slate-500">Then pair the sensor</span>
-                  <strong className="font-mono text-2xl tracking-widest">{`pair ${pairing?.code || ''}`}</strong>
-                </p>
+                <a className={primaryBtn} href={`${pairing?.setup_url || SETUP_URL}/?${new URLSearchParams({ server: pairing?.server_url || '', code: pairing?.code || '' })}`} target="_blank" rel="noreferrer">
+                  <Smartphone size={18} /> Open sensor setup page
+                </a>
                 <p className="text-xs text-slate-500">
-                  If this sensor was paired to another backend before, type <strong>unpair</strong> first. It connects to the backend shown above using HTTPS, just like the camera. The sensor and dashboard must use the same AgriResQ backend. The sensor samples every 30 seconds and readings refresh automatically here.
+                  On the setup page, enter the stall's 2.4 GHz Wi-Fi name and password, then submit. Reconnect your phone to internet Wi-Fi and return here. The sensor securely pairs to the same hosted AgriResQ backend as the camera; readings update every 30 seconds.
                 </p>
                 <p className="flex items-center justify-center gap-2 text-sm text-[#2A6B48] font-semibold">
                   <Loader2 size={16} className="animate-spin" /> Waiting for the sensor to register…

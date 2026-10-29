@@ -2,9 +2,8 @@
 
 *Revision 2 – open-set detection ("no vegetable"), capture schedule, scan feedback.*
 
-Smart-home style setup: the stall operator can pair an ESP32-CAM from the app or create a pairing code
-for an ESP32 DHT22 sensor node. The sensor is connected to its configured Wi-Fi and paired from its USB
-serial monitor. Django (`agriresq_core`) is the IoT hub. It stores devices, scans and sensor readings, and
+Smart-home style setup: the stall operator can pair an ESP32-CAM or ESP32 DHT22 sensor node from the
+phone app. Django (`agriresq_core`) is the IoT hub. It stores devices, scans and sensor readings, and
 runs the freshness CNN (`ML/deploy`). When `SUPABASE_SERVICE_ROLE_KEY` is set, it also syncs results
 to Supabase (product freshness, `sensor_logs`, `spoilage_predictions`, `notifications`).
 
@@ -19,21 +18,21 @@ development: the laptop backend). The apps and sensor must use the same backend 
 
 ### DHT22 sensor-node setup
 
-1. In **Devices → Add device**, choose **ESP32 sensor node (DHT22)** and create a pairing code.
-2. Keep the ESP32 connected to the laptop and open the PlatformIO serial monitor at 115200 baud. Connect
-   the sensor to any internet-connected 2.4 GHz Wi-Fi.
-3. If this node was previously paired to another backend, enter `unpair` first. Enter `server <server_url>`
-   from the wizard, then `pair CODE`, pressing Enter after each. For hosted AgriResQ, this sets
-   `https://agriresq.onrender.com`, the same API the camera and hosted apps use.
-4. Keep the dashboard and sensor pointed at the same backend so their readings appear in that dashboard.
-5. The node reports DHT22 readings on GPIO 4 every 30 seconds. Live temperature, relative humidity and
+1. In the AgriResQ mobile app, open **Devices → Add device**, choose **ESP32 sensor node (DHT22)** and
+   create a pairing code.
+2. Connect the phone to the sensor hotspot shown in the app (`AgriResQ-SENSOR-XXXX`, password `agriresq`).
+   If prompted, stay connected without internet.
+3. Open the setup address shown by the app. Enter the stall's 2.4 GHz Wi-Fi name/password and submit.
+   The server and pairing code are prefilled from the app. Reconnect the phone to internet Wi-Fi and return
+   to AgriResQ while the sensor joins Wi-Fi and registers.
+4. The sensor uses the same hosted backend as the camera and apps. The node reports DHT22 readings on GPIO
+   4 every 30 seconds. Live temperature, relative humidity and
    calculated VPD appear on the device page; the backend rejects values outside physical sensor ranges.
 
-The sensor firmware is in `iot/sensor_node`. Its ignored `include/secrets.h` contains the Wi-Fi
-credentials. The serial monitor's `server <URL>` command saves the backend address supplied by the
-pairing wizard, so the sensor can use hosted HTTPS without reflashing. The firmware validates the
-hosted API's Google Trust Services root certificate and synchronizes its clock before TLS connections.
-The app cannot provision Wi-Fi over USB.
+The sensor firmware is in `iot/sensor_node`. Flash the firmware once over USB; thereafter, stall operators
+can configure Wi-Fi and pair entirely from a phone without using a serial monitor. Credentials are stored
+on the node. The firmware validates the hosted API's Google Trust Services root certificate and
+synchronizes its clock before TLS connections.
 
 ## 1. Operator endpoints (app → Django)
 
@@ -117,9 +116,8 @@ All endpoints send `Access-Control-Allow-Origin: *`.
 
 ### App wizard flow
 1. **Online:** `POST /api/devices/pairing/` returns the code and `server_url`.
-   The `server_url` is the Django backend address used by the app. A sensor node must set this same
-   address with its serial `server <URL>` command. Do not use `http://192.168.4.1`; that belongs to the
-   camera's setup page.
+   The `server_url` is the Django backend address used by the app. The phone setup page passes this URL
+   to the sensor. Do not use `http://192.168.4.1`; that is only the sensor's local setup portal.
    For the Render deployment, configure `DEVICE_SERVER_URL=https://agriresq.onrender.com`; do not append port `8000` to a public Render URL.
 2. Tell the operator: power the camera, open phone Wi-Fi settings, join **AgriResQ-XXXX** (password
    `agriresq`), then come back.
@@ -159,8 +157,8 @@ setup mode.
 with the same flow as the camera: the operator creates a code in the app (Devices > Add camera), the node sends
 `POST /api/devices/claim/` with `"kind": "SENSOR"` and `"dht_pin": 4`, then every 15 s a heartbeat and every
 30 s `POST /api/devices/reading/`. A `SENSOR` device has `kind: "SENSOR"` in `GET /api/devices/`, never uploads
-pictures, and is not scheduled for scans. Setup: copy `include/secrets.h.example` to `include/secrets.h`
-(Wi-Fi + hub address), `pio run -t upload`, open the serial monitor and type `pair CODE`.
+pictures, and is not scheduled for scans. Flash `iot/sensor_node` over USB once; subsequent Wi-Fi setup and
+pairing are completed from the phone's sensor hotspot and setup portal.
 
 ## Shared access, gallery and batch photos
 

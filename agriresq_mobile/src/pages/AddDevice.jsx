@@ -382,17 +382,16 @@ export default function AddDevice() {
         {step === 3 && isSensorSetup && pairing && !claimedDevice && (
           <div className="card wizard-card">
             <div className="wizard-icon"><Thermometer size={28} /></div>
-            <h3>Pair the sensor from its laptop serial monitor</h3>
-            <p className="wizard-text">Keep the ESP32 connected to the laptop. Open the PlatformIO serial monitor at <strong>115200 baud</strong>. Enter both commands, pressing Enter after each, so the node sends readings to the same backend this app uses:</p>
-            <div className="pairing-code">
-              <span>Backend address for this app</span>
-              <strong className="mono" style={{ fontSize: '0.9rem', overflowWrap: 'anywhere' }}>{`server ${pairing.server_url}`}</strong>
-            </div>
-            <div className="pairing-code">
-              <span>Pair the sensor</span>
-              <strong className="mono">pair {pairing.code}</strong>
-            </div>
-            <p className="field-hint">If this sensor was paired to another backend before, type <strong>unpair</strong> first. It connects to the backend shown above using HTTPS, just like the camera. The sensor and dashboard must use the same AgriResQ backend. The sensor samples every 30 seconds; readings refresh automatically on the device page. Keep this page open while it pairs.</p>
+            <h3>Finish sensor setup from your phone</h3>
+            <p className="wizard-text">No laptop is needed for pairing. In your phone's Wi-Fi settings, join <strong>{pairing.setup_ap_prefix || 'AgriResQ-SENSOR-'}XXXX</strong> with password <strong className="mono">{pairing.setup_ap_password || 'agriresq'}</strong>. If prompted, stay connected without internet.</p>
+            <p className="pairing-code">
+              <span>Pairing code (already filled in on the setup page)</span>
+              <strong className="mono">{pairing.code}</strong>
+            </p>
+            <a className="btn btn-green" href={`${pairing.setup_url || 'http://192.168.4.1'}/?${new URLSearchParams({ server: pairing.server_url, code: pairing.code })}`} target="_blank" rel="noreferrer">
+              <Smartphone size={18} /> Open sensor setup page
+            </a>
+            <p className="field-hint">On the setup page, enter your stall's 2.4 GHz Wi-Fi name and password, then submit. Reconnect your phone to internet Wi-Fi and return here. The sensor securely pairs to the same hosted AgriResQ backend as the camera; readings update every 30 seconds.</p>
             {!timedOut ? (
               <div className="notice info"><Loader2 className="spin" size={14} /> {pairingProgress || 'Waiting for the sensor to register…'}</div>
             ) : (

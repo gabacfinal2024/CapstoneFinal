@@ -85,6 +85,14 @@ class DeviceFlowTests(TestCase):
         self.assertEqual(response.status_code, 201, response.content)
         self.assertEqual(response.json()['server_url'], 'https://agriresq.onrender.com')
 
+    def test_sensor_pairing_returns_sensor_setup_hotspot_name(self):
+        with as_user(OPERATOR):
+            response = self.app.post('/api/devices/pairing/', {'name': 'Stall sensor', 'kind': 'SENSOR'}, format='json')
+
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()['setup_ap_prefix'], 'AgriResQ-SENSOR-')
+        self.assertEqual(response.json()['setup_ap_password'], 'agriresq')
+
     def upload(self, data, source='MANUAL'):
         r = self.cam.generic('POST', '/api/devices/upload-scan/', data, content_type='image/jpeg',
                              HTTP_X_SCAN_SOURCE=source)

@@ -182,7 +182,11 @@ class PairingCreateView(OperatorView):
         )
         return Response({
             'code': pairing.code, 'expires_at': pairing.expires_at,
-            'server_url': device_server_url(request), **SETUP_AP,
+            'server_url': device_server_url(request),
+            **{
+                **SETUP_AP,
+                'setup_ap_prefix': 'AgriResQ-SENSOR-' if kind == 'SENSOR' else SETUP_AP['setup_ap_prefix'],
+            },
         }, status=status.HTTP_201_CREATED)
 
 
