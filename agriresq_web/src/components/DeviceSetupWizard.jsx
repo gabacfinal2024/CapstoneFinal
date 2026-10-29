@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Wifi, WifiOff, X,
 } from 'lucide-react'
-import { CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
+import { DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
 import { useNow, usePolling } from '../hooks/usePolling'
 
 const STEPS = ['Details', 'Join camera Wi-Fi', 'Choose stall Wi-Fi', 'Connecting', 'Reconnect', 'Done']
@@ -209,9 +209,12 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
               </Field>
               <Field label="Crop this camera watches">
                 <select className={inputCls} value={details.crop_type} onChange={(e) => setDetails({ ...details, crop_type: e.target.value })}>
-                  {CROPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {DEVICE_CROPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </Field>
+              {details.crop_type === 'ALL' && (
+                <p className="text-xs text-slate-400">Scans eggplant, cucumber, and carrot.</p>
+              )}
               <p className="text-xs text-slate-400">You can change these later in the device settings.</p>
             </div>
           )}
@@ -306,7 +309,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
               <CheckCircle2 size={48} className="mx-auto text-emerald-500" />
               <p className="text-lg font-bold text-slate-800">{claimedDevice.name} is connected!</p>
               <p className="text-sm text-slate-500">
-                On Wi-Fi “{claimedDevice.wifi_ssid || ssid}” {claimedDevice.ip ? `at ${claimedDevice.ip}` : ''}. It will start scanning your {details.crop_type.toLowerCase()} automatically.
+                On Wi-Fi “{claimedDevice.wifi_ssid || ssid}” {claimedDevice.ip ? `at ${claimedDevice.ip}` : ''}. It will start scanning {details.crop_type === 'ALL' ? 'all supported vegetables' : `your ${details.crop_type.toLowerCase()}`} automatically.
               </p>
             </div>
           )}

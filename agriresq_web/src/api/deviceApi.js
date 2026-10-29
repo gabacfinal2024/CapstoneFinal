@@ -214,6 +214,11 @@ export const CROPS = [
   { value: 'CARROT', label: 'Carrot' },
 ]
 
+export const DEVICE_CROPS = [
+  { value: 'ALL', label: 'All vegetables' },
+  ...CROPS,
+]
+
 /** Scan image may be relative to the Django server, absolute, or a base64 data URL. */
 export function scanImageSrc(scan) {
   return absoluteMedia(scan?.image_url || scan?.processed_image_base64)
@@ -226,7 +231,7 @@ export function absoluteMedia(src) {
   return src
 }
 
-export const cropLabel = (value) => CROPS.find((c) => c.value === value)?.label || value || '—'
+export const cropLabel = (value) => DEVICE_CROPS.find((c) => c.value === value)?.label || value || '—'
 
 export function timeAgo(iso, now) {
   if (!iso) return 'never'

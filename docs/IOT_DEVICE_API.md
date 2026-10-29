@@ -46,7 +46,7 @@ only while an app is viewing it; frames expire from the backend cache after 10 s
 Pairing = { code: "7K3P9Q", expires_at: ISO, setup_ap_prefix: "AgriResQ-", setup_ap_password: "agriresq",
             setup_url: "http://192.168.4.1", server_url: "http://192.168.1.4:8000" }
 
-Device = { id, name, stall_location, crop_type: "EGGPLANT"|"CUCUMBER"|"CARROT", product_id: number|null,
+Device = { id, name, stall_location, crop_type: "ALL"|"EGGPLANT"|"CUCUMBER"|"CARROT", product_id: number|null,
            mac, ip, fw_version, wifi_ssid, rssi, online: boolean, last_seen: ISO|null,
            auto_scan: boolean,                       // monitoring on/off (all automatic scans)
            scan_mode: "schedule"|"interval",         // schedule = capture windows below (default)
@@ -61,7 +61,7 @@ Scan = { id, device_id: number|null, created_at: ISO, source: "AUTO"|"MANUAL"|"U
          freshness_status: "GREEN"|"AMBER"|"RED"|"UNKNOWN",   // UNKNOWN when detected = false
          crop_type,                    // detected crop when detected, else the device's registered crop
          detected_crop: "EGGPLANT"|"CUCUMBER"|"CARROT"|null,  // what the model actually sees
-         crop_mismatch: boolean,       // sees a different target crop than the one registered
+         crop_mismatch: boolean,       // sees a different target crop than the one registered; always false in ALL mode
          message: string,              // plain-language result to show the operator
          freshness_percent: 0-100|null, days_to_spoil: number|null, ml_confidence: 0..1,
          probs: {fresh, "at-risk", rotten}|null, none_prob: 0..1, low_confidence: boolean,
@@ -70,6 +70,10 @@ Scan = { id, device_id: number|null, created_at: ISO, source: "AUTO"|"MANUAL"|"U
 
 Reading = { id, created_at: ISO, temperature_c, humidity_rh, vpd_kpa }
 ```
+
+`crop_type: "ALL"` is camera-only and scans all supported vegetables (eggplant, cucumber, and carrot).
+A camera still links to at most one harvest batch; in ALL mode, scans update that batch only when its
+crop matches the detected vegetable.
 
 `POST /api/analyze-freshness/` (no auth, multipart `image` + `crop_type`) still exists for photo
 uploads. It returns the `Scan` fields (minus ids) plus `processed_image_base64` and `analysis_method`.

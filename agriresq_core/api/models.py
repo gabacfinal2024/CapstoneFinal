@@ -205,6 +205,7 @@ class ChatMessage(models.Model):
 # mobile apps authenticate with Supabase, and Django is the IoT/ML hub.
 
 CROP_TYPES = [('EGGPLANT', 'Eggplant'), ('CUCUMBER', 'Cucumber'), ('CARROT', 'Carrot')]
+DEVICE_CROP_TYPES = [('ALL', 'All vegetables'), *CROP_TYPES]
 
 
 class Device(models.Model):
@@ -227,7 +228,7 @@ class Device(models.Model):
     last_seen = models.DateTimeField(null=True, blank=True)
 
     # settings the operator controls from the app; sent to the device in every heartbeat
-    crop_type = models.CharField(max_length=20, choices=CROP_TYPES, default='EGGPLANT')
+    crop_type = models.CharField(max_length=20, choices=DEVICE_CROP_TYPES, default='EGGPLANT')
     product_id = models.BigIntegerField(null=True, blank=True)   # Supabase products.id
     auto_scan = models.BooleanField(default=True)                # monitoring on/off
     scan_mode = models.CharField(max_length=10, default='schedule')   # 'schedule' (capture windows) | 'interval'
@@ -280,7 +281,7 @@ class PairingCode(models.Model):
     operator_id = models.CharField(max_length=64)
     name = models.CharField(max_length=100, blank=True)
     stall_location = models.CharField(max_length=100, blank=True)
-    crop_type = models.CharField(max_length=20, choices=CROP_TYPES, default='EGGPLANT')
+    crop_type = models.CharField(max_length=20, choices=DEVICE_CROP_TYPES, default='EGGPLANT')
     expires_at = models.DateTimeField()
     device = models.ForeignKey(Device, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

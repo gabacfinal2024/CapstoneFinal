@@ -31,7 +31,7 @@ from .evidence import reference_payload
 from .supabase_client import has_service_key, supabase_select
 from django.db.models import Q
 
-from .models import CROP_TYPES, Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
+from .models import DEVICE_CROP_TYPES, Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
 from .spoilage_engine import validate_sensor_reading
 from .supabase_auth import IsOperatorOrAdminReadOnly, SupabaseAuthentication, SupabaseUser, find_profile
 from .views import ImageParser
@@ -42,7 +42,7 @@ LIVE_VIEW_LEASE_S = 20
 LIVE_FRAME_TTL_S = 10
 LIVE_FRAME_MAX_BYTES = 256 * 1024
 SIGN_SALT = 'device-live'
-CROPS = {c for c, _ in CROP_TYPES}
+CROPS = {c for c, _ in DEVICE_CROP_TYPES}
 TIME_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 SETUP_AP = {'setup_ap_prefix': 'AgriResQ-', 'setup_ap_password': 'agriresq', 'setup_url': 'http://192.168.4.1'}
 
@@ -167,7 +167,7 @@ class PairingCreateView(OperatorView):
             raise PermissionDenied('Only a stall operator can add a camera.')
         crop = str(request.data.get('crop_type') or 'EGGPLANT').upper()
         if crop not in CROPS:
-            raise ValidationError({'crop_type': 'Choose EGGPLANT, CUCUMBER or CARROT.'})
+            raise ValidationError({'crop_type': 'Choose ALL, EGGPLANT, CUCUMBER or CARROT.'})
         pairing = PairingCode.objects.create(
             code=PairingCode.new_code(),
             operator_id=request.user.id,
@@ -213,7 +213,7 @@ class DeviceDetailView(OperatorView):
         if 'crop_type' in data:
             data['crop_type'] = str(data['crop_type']).upper()
             if data['crop_type'] not in CROPS:
-                raise ValidationError({'crop_type': 'Choose EGGPLANT, CUCUMBER or CARROT.'})
+                raise ValidationError({'crop_type': 'Choose ALL, EGGPLANT, CUCUMBER or CARROT.'})
         if 'scan_interval_s' in data:
             data['scan_interval_s'] = max(15, min(86400, int(data['scan_interval_s'])))
         if 'dht_pin' in data:

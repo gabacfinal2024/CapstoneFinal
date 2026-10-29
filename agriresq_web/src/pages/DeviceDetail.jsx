@@ -4,7 +4,7 @@ import {
   AlertTriangle, ArrowLeft, Loader2, Plus, Power, RotateCcw, Save, ScanLine, Trash2, WifiOff, X,
 } from 'lucide-react'
 import {
-  CROPS, DEFAULT_CAPTURE_TIMES, STALE_READING_MS, cropLabel, canManage, canOperate, deviceApi, isDetected, isSensor, scanBadgeStatus, scanImageSrc, timeAgo,
+  DEVICE_CROPS, DEFAULT_CAPTURE_TIMES, STALE_READING_MS, cropLabel, canManage, canOperate, deviceApi, isDetected, isSensor, scanBadgeStatus, scanImageSrc, timeAgo,
 } from '../api/deviceApi'
 import { api } from '../api/supabaseApi'
 import { useNow, usePolling } from '../hooks/usePolling'
@@ -234,7 +234,7 @@ function DeviceDetailView({ id }) {
   const selectedScan = pinned ? (scans.find((s) => s.id === pinned.id) || pinned) : (device.latest_scan || scans[0] || null)
   const reading = device.latest_reading
   const readingStale = !!reading && now - new Date(reading.created_at).getTime() > STALE_READING_MS
-  const cropProducts = (products || []).filter((p) => !form?.crop_type || p.crop_type === form.crop_type)
+  const cropProducts = (products || []).filter((p) => form?.crop_type === 'ALL' || !form?.crop_type || p.crop_type === form.crop_type)
   const intervalMinutes = Math.max(1, Math.round((Number(form?.scan_interval_s) || 300) / 60))
   const intervalOptions = INTERVAL_MINUTES.includes(intervalMinutes) ? INTERVAL_MINUTES : [...INTERVAL_MINUTES, intervalMinutes].sort((a, b) => a - b)
 
@@ -429,8 +429,13 @@ function DeviceDetailView({ id }) {
                 <input className={`${inputCls} mt-1`} value={form.stall_location || ''} onChange={(e) => setField('stall_location', e.target.value)} />
               </label>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Crop
-                <select className={`${inputCls} mt-1`} value={form.crop_type} onChange={(e) => setField('crop_type', e.target.value)}>
-                  {CROPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                <select className={`${inputCls} mt-1`} value={form.crop_type} onChange={(e) => {
+                  const crop = e.target.value
+                  const linked = products?.find((p) => String(p.id) === String(form.product_id))
+                  setField('crop_type', crop)
+                  if (linked && crop !== 'ALL' && linked.crop_type !== crop) setField('product_id', '')
+                }}>
+                  {DEVICE_CROPS.filter((c) => !sensor || c.value !== 'ALL').map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </label>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Linked harvest batch
@@ -443,7 +448,7 @@ function DeviceDetailView({ id }) {
                   ))}
                 </select>
                 <span className="block normal-case font-normal text-slate-400 mt-1">
-                  Scans of a linked batch update its freshness, price and marketplace listing.
+                  Scans of a linked batch update its freshness, price and marketplace listing. In All vegetables mode, only matching-crop scans update the linked batch.
                   {products && cropProducts.length === 0 ? ` No ${cropLabel(form.crop_type).toLowerCase()} batches found.` : ''}
                 </span>
               </label>

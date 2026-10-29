@@ -1,4 +1,5 @@
 export const CROP_LABELS = {
+  ALL: 'All vegetables',
   EGGPLANT: 'Eggplant',
   CUCUMBER: 'Cucumber',
   CARROT: 'Carrot',

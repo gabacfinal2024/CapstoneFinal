@@ -147,6 +147,13 @@ def ml_override(device, scan):
     product = _product(device)
     if not product:
         return
+    product_crop = str(product.get('crop_type') or '').upper()
+    if product_crop == 'CARROTS':
+        product_crop = 'CARROT'
+    if product_crop != scan.crop_type:
+        log.info('scan %s detected %s; linked batch %s is %s, so its status was not updated',
+                 scan.id, scan.crop_type, device.product_id, product_crop)
+        return
     # Accuracy: judge the batch on its recent accepted scans together, not on one frame. The stored ML confidence is
     # that combined figure (mean probability of the agreeing scans x the share that agree).
     summary = camera_summary(accepted_scans(product['id']))

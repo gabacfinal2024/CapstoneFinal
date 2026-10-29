@@ -264,10 +264,12 @@ export default function AddDevice() {
             <div className="input-group">
               <label>Produce this camera watches</label>
               <select value={details.crop_type} onChange={(e) => setDetails({ ...details, crop_type: e.target.value })}>
+                <option value="ALL">All vegetables</option>
                 <option value="EGGPLANT">Eggplant</option>
                 <option value="CUCUMBER">Cucumber</option>
                 <option value="CARROT">Carrot</option>
               </select>
+              {details.crop_type === 'ALL' && <p className="field-hint">Scans eggplant, cucumber, and carrot.</p>}
             </div>
             <button className="btn btn-green" disabled={busy}>{busy ? 'Preparing…' : 'Next'}</button>
           </form>

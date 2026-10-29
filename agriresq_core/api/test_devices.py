@@ -201,6 +201,29 @@ class DeviceFlowTests(TestCase):
             self.assertAlmostEqual(sum(scan['probs'].values()), 1.0, places=2)
             self.assertTrue(scan['image_url'].endswith('.jpg'))
 
+    def test_all_crop_mode_pairs_and_recognizes_each_supported_vegetable(self):
+        _, claim = self.pair_and_claim('ALL')
+        self.assertEqual(claim['config']['crop_type'], 'ALL')
+        for name, crop in (('eggplant', 'EGGPLANT'), ('cucumber', 'CUCUMBER'), ('carrot', 'CARROT')):
+            scan = self.upload(sample(name))
+            self.assertTrue(scan['detected'], (name, scan))
+            self.assertEqual(scan['detected_crop'], crop)
+            self.assertFalse(scan['crop_mismatch'])
+
+    def test_all_crop_mode_does_not_update_a_different_linked_batch(self):
+        self.pair_and_claim('ALL')
+        device = Device.objects.get()
+        device.product_id = 7
+        scan = DeviceScan.objects.create(
+            device=device, source='MANUAL', crop_type='EGGPLANT', detected=True,
+            detected_crop='EGGPLANT', state='rotten', freshness_status='RED',
+            ml_confidence=0.99, freshness_percent=0, days_to_spoil=Decimal('0'),
+        )
+        with mock.patch.object(device_services, '_product', return_value={'id': 7, 'crop_type': 'CUCUMBER'}), \
+                mock.patch.object(device_services, 'supabase_update') as update:
+            device_services.ml_override(device, scan)
+        update.assert_not_called()
+
     def test_other_objects_are_rejected(self):
         self.pair_and_claim('EGGPLANT')
         for name in ('tomato', 'bitter_gourd'):

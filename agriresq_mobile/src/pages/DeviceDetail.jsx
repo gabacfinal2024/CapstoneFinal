@@ -489,7 +489,13 @@ function DeviceDetailPage({ id }) {
             </div>
             <div className="input-group">
               <label>{sensor ? 'Produce this sensor node covers' : 'Produce this camera watches'}</label>
-              <select value={form.crop_type} onChange={(e) => set('crop_type', e.target.value)}>
+              <select value={form.crop_type} onChange={(e) => {
+                const crop = e.target.value
+                const linked = batches.find((b) => String(b.id) === String(form.product_id))
+                set('crop_type', crop)
+                if (linked && crop !== 'ALL' && linked.crop_type !== crop) set('product_id', '')
+              }}>
+                {!sensor && <option value="ALL">All vegetables</option>}
                 <option value="EGGPLANT">Eggplant</option>
                 <option value="CUCUMBER">Cucumber</option>
                 <option value="CARROT">Carrot</option>
@@ -500,10 +506,11 @@ function DeviceDetailPage({ id }) {
                 <label>Linked batch (scan results update its freshness)</label>
                 <select value={form.product_id} onChange={(e) => set('product_id', e.target.value)}>
                   <option value="">— Not linked —</option>
-                  {batches.map((b) => (
+                  {batches.filter((b) => form.crop_type === 'ALL' || b.crop_type === form.crop_type).map((b) => (
                     <option key={b.id} value={b.id}>{CROP_LABELS[b.crop_type] || b.crop_type} #{b.id} · {b.quantity_kg} kg</option>
                   ))}
                 </select>
+                {form.crop_type === 'ALL' && <p className="field-hint">Any supported vegetable is recognized; only scans matching the linked batch update its freshness.</p>}
               </div>
             )}
 
