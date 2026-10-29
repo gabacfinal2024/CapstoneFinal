@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone } from 'lucide-react'
+import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone, Thermometer } from 'lucide-react'
 import { deviceApi, deviceSetup, signalLabel } from '../api/deviceApi'
 import { useAuth } from '../context/AuthContext'
 import ErrorNotice from '../components/ErrorNotice'
 import '../styles/devices.css'
 import './AddDevice.css'
 
-const STEPS = ['Details', 'Join camera', 'Stall Wi-Fi', 'Finish']
+const CAMERA_STEPS = ['Details', 'Join camera', 'Stall Wi-Fi', 'Finish']
 const PAIRING_POLL_MS = 2000
-const PAIRING_TIMEOUT_MS = 3 * 60 * 1000
+const PAIRING_TIMEOUT_MS = 18 * 60 * 1000
 const STATUS_POLL_MS = 1500
 
 const STATUS_TEXT = {
@@ -28,6 +28,7 @@ export default function AddDevice() {
 
   // Step 0
   const [details, setDetails] = useState({
+    kind: 'CAMERA',
     name: 'Stall Camera',
     stall_location: user?.stall_number ? `Stall ${user.stall_number}` : '',
     crop_type: 'EGGPLANT',
@@ -57,6 +58,9 @@ export default function AddDevice() {
   const [pairingProgress, setPairingProgress] = useState('')
   const [timedOut, setTimedOut] = useState(false)
   const [claimedDevice, setClaimedDevice] = useState(null)
+  const isSensorSetup = details.kind === 'SENSOR'
+  const steps = isSensorSetup ? ['Details', 'Pair sensor', 'Done'] : CAMERA_STEPS
+  const visibleStep = isSensorSetup ? (step === 0 ? 0 : step === 3 ? 1 : 2) : step
 
   useEffect(() => () => clearInterval(statusTimer.current), [])
 
@@ -71,7 +75,12 @@ export default function AddDevice() {
     try {
       const p = await deviceApi.createPairing(details)
       setPairing(p)
-      setStep(1)
+      if (isSensorSetup) {
+        setWaitingSince(Date.now())
+        setStep(3)
+      } else {
+        setStep(1)
+      }
     } catch (err) {
       fail(err.message, 'pairing', 'Your phone needs to be on the same Wi-Fi as the AgriResQ server for this step.')
     } finally {
@@ -231,8 +240,10 @@ export default function AddDevice() {
     <div className="app-shell">
       <div className="page page-no-nav add-device">
         <Link to="/devices" className="dev-back"><ArrowLeft size={16} /> Devices</Link>
-        <h1 className="dev-title">Add a camera</h1>
-        <p className="dev-subtitle">Connect your AgriResQ ESP32-CAM to your stall Wi-Fi.</p>
+        <h1 className="dev-title">Add a {isSensorSetup ? 'sensor node' : 'camera'}</h1>
+        <p className="dev-subtitle">{isSensorSetup
+          ? 'Pair your ESP32 DHT22 node to your stall account.'
+          : 'Connect your AgriResQ ESP32-CAM to your stall Wi-Fi.'}</p>
 
         {step < 3 && (
           <div className="notice warn wifi-band-note">
@@ -242,9 +253,9 @@ export default function AddDevice() {
         )}
 
         <ol className="wizard-steps">
-          {STEPS.map((label, i) => (
-            <li key={label} className={i === step ? 'active' : i < step ? 'done' : ''}>
-              <span>{i < step ? '✓' : i + 1}</span>{label}
+          {steps.map((label, i) => (
+            <li key={label} className={i === visibleStep ? 'active' : i < visibleStep ? 'done' : ''}>
+              <span>{i < visibleStep ? '✓' : i + 1}</span>{label}
             </li>
           ))}
         </ol>
@@ -254,14 +265,25 @@ export default function AddDevice() {
         {step === 0 && (
           <form className="card" onSubmit={startPairing}>
             <div className="input-group">
-              <label>Camera name</label>
-              <input value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} required />
+            <label>Device type</label>
+            <select value={details.kind} onChange={(e) => setDetails({
+              ...details,
+              kind: e.target.value,
+              name: e.target.value === 'SENSOR' ? 'Stall sensor' : 'Stall Camera',
+            })}>
+              <option value="CAMERA">ESP32-CAM</option>
+              <option value="SENSOR">ESP32 sensor node (DHT22)</option>
+            </select>
+          </div>
+          <div className="input-group">
+            <label>{isSensorSetup ? 'Sensor node name' : 'Camera name'}</label>
+            <input value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} required />
             </div>
             <div className="input-group">
               <label>Stall / location</label>
               <input value={details.stall_location} placeholder="e.g. Stall 41, Bulua" onChange={(e) => setDetails({ ...details, stall_location: e.target.value })} />
             </div>
-            <div className="input-group">
+            {!isSensorSetup && <div className="input-group">
               <label>Produce this camera watches</label>
               <select value={details.crop_type} onChange={(e) => setDetails({ ...details, crop_type: e.target.value })}>
                 <option value="ALL">All vegetables</option>
@@ -270,12 +292,12 @@ export default function AddDevice() {
                 <option value="CARROT">Carrot</option>
               </select>
               {details.crop_type === 'ALL' && <p className="field-hint">Scans eggplant, cucumber, and carrot.</p>}
-            </div>
-            <button className="btn btn-green" disabled={busy}>{busy ? 'Preparing…' : 'Next'}</button>
+            </div>}
+            <button className="btn btn-green" disabled={busy}>{busy ? 'Preparing…' : isSensorSetup ? 'Get pairing code' : 'Next'}</button>
           </form>
         )}
 
-        {step === 1 && pairing && (
+        {step === 1 && pairing && !isSensorSetup && (
           <div className="card wizard-card">
             <div className="wizard-icon"><Smartphone size={28} /></div>
             <h3>Connect your phone to the camera</h3>
@@ -352,7 +374,31 @@ export default function AddDevice() {
           </form>
         )}
 
-        {step === 3 && !claimedDevice && (
+        {step === 3 && isSensorSetup && pairing && !claimedDevice && (
+          <div className="card wizard-card">
+            <div className="wizard-icon"><Thermometer size={28} /></div>
+            <h3>Pair the sensor from its laptop serial monitor</h3>
+            <p className="wizard-text">Keep the ESP32 connected to the laptop. Open the PlatformIO serial monitor at <strong>115200 baud</strong>, wait for the node to join the same 2.4 GHz Wi-Fi as the AgriResQ server, then enter this command and press Enter:</p>
+            <div className="pairing-code">
+              <span>Type this in the serial monitor</span>
+              <strong className="mono">pair {pairing.code}</strong>
+            </div>
+            <p className="field-hint">The sensor firmware must already be flashed and configured for your Wi-Fi and the server address shown to the node. It reads DHT22 on GPIO 4 by default and uploads a new reading every 30 seconds. Keep this page open while it pairs.</p>
+            {!timedOut ? (
+              <div className="notice info"><Loader2 className="spin" size={14} /> {pairingProgress || 'Waiting for the sensor to register…'}</div>
+            ) : (
+              <>
+                <div className="notice warn">The code may have expired. Check the serial monitor for a pairing error, then start again to get a new code.</div>
+                <div className="btn-row">
+                  <button className="btn btn-green" onClick={retryWaiting}>Keep waiting</button>
+                  <button className="btn btn-ghost" onClick={restart}>Start over</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {step === 3 && !isSensorSetup && !claimedDevice && (
           <div className="card wizard-card">
             <div className="wizard-icon"><WifiOff size={28} /></div>
             <h3>Reconnect your phone</h3>
@@ -381,11 +427,12 @@ export default function AddDevice() {
         {step === 3 && claimedDevice && (
           <div className="card wizard-card success">
             <div className="wizard-icon ok"><CheckCircle2 size={34} /></div>
-            <h3>Camera connected!</h3>
+            <h3>{isSensorSetup ? 'Sensor node connected!' : 'Camera connected!'}</h3>
             <p className="wizard-text">
-              <strong>{claimedDevice.name || 'Your camera'}</strong> is online and will start checking freshness automatically.
+              <strong>{claimedDevice.name || (isSensorSetup ? 'Your sensor node' : 'Your camera')}</strong> is online.
+              {isSensorSetup ? ' Temperature and humidity readings should appear within 30 seconds.' : ' It will start checking freshness automatically.'}
             </p>
-            <button className="btn btn-green" onClick={() => navigate(`/devices/${claimedDevice.id}`, { replace: true })}>Open camera</button>
+            <button className="btn btn-green" onClick={() => navigate(`/devices/${claimedDevice.id}`, { replace: true })}>Open {isSensorSetup ? 'sensor' : 'camera'}</button>
           </div>
         )}
       </div>

@@ -94,6 +94,7 @@ function DeviceDetailPage({ id }) {
   const [device, setDevice] = useState(null)
   const [scans, setScans] = useState([]) // vegetable scans only, for "last vegetable seen"
   const [readings, setReadings] = useState([])
+  const [readingError, setReadingError] = useState('')
   const [galleryKey, setGalleryKey] = useState(0)
   const [monitors, setMonitors] = useState(null)
   const [monitorEmail, setMonitorEmail] = useState('')
@@ -141,7 +142,12 @@ function DeviceDetailPage({ id }) {
   }
 
   const loadReadings = async () => {
-    try { setReadings(await deviceApi.readings(id, 60)) } catch { /* keep the previous list */ }
+    try {
+      setReadings(await deviceApi.readings(id, 60))
+      setReadingError('')
+    } catch (err) {
+      setReadingError(err.message)
+    }
   }
 
   const loadMonitors = async () => {
@@ -158,7 +164,7 @@ function DeviceDetailPage({ id }) {
   usePolling(() => Promise.all([loadDevice(), loadHistory()]), REFRESH_MS)
   usePolling(loadMonitors, 15000)
   // only a sensor node has readings (a camera has none); the stall's heat-unit rate comes from the stall climate
-  usePolling(loadReadings, 15000, { enabled: sensor })
+  usePolling(loadReadings, 10000, { enabled: sensor })
   const { stalls } = useStallConditions({ enabled: sensor })
   const chuRate = sensor ? stallChuRate(stalls, device) : null
 
@@ -357,6 +363,7 @@ function DeviceDetailPage({ id }) {
         {sensor ? (
           <section className="dev-section card">
             <h3>Stall sensor (DHT22)</h3>
+            {readingError && <p className="notice error" role="alert">Could not refresh sensor readings: {readingError}</p>}
             <SensorPanel reading={device.latest_reading} readings={readings} dhtPin={device.dht_pin} chuRate={chuRate} />
           </section>
         ) : (
@@ -487,20 +494,20 @@ function DeviceDetailPage({ id }) {
               <label>Stall / location</label>
               <input value={form.stall_location} onChange={(e) => set('stall_location', e.target.value)} />
             </div>
-            <div className="input-group">
-              <label>{sensor ? 'Produce this sensor node covers' : 'Produce this camera watches'}</label>
+            {!sensor && <div className="input-group">
+              <label>Produce this camera watches</label>
               <select value={form.crop_type} onChange={(e) => {
                 const crop = e.target.value
                 const linked = batches.find((b) => String(b.id) === String(form.product_id))
                 set('crop_type', crop)
                 if (linked && crop !== 'ALL' && linked.crop_type !== crop) set('product_id', '')
               }}>
-                {!sensor && <option value="ALL">All vegetables</option>}
+                <option value="ALL">All vegetables</option>
                 <option value="EGGPLANT">Eggplant</option>
                 <option value="CUCUMBER">Cucumber</option>
                 <option value="CARROT">Carrot</option>
               </select>
-            </div>
+            </div>}
             {!sensor && (
               <div className="input-group">
                 <label>Linked batch (scan results update its freshness)</label>

@@ -164,7 +164,10 @@ class OperatorView(APIView):
 class PairingCreateView(OperatorView):
     def post(self, request):
         if request.user.role != 'STALL_OPERATOR':
-            raise PermissionDenied('Only a stall operator can add a camera.')
+            raise PermissionDenied('Only a stall operator can add a camera or sensor node.')
+        kind = str(request.data.get('kind') or 'CAMERA').upper()
+        if kind not in dict(Device.KINDS):
+            raise ValidationError({'kind': 'Choose CAMERA or SENSOR.'})
         crop = str(request.data.get('crop_type') or 'EGGPLANT').upper()
         if crop not in CROPS:
             raise ValidationError({'crop_type': 'Choose ALL, EGGPLANT, CUCUMBER or CARROT.'})
@@ -173,6 +176,7 @@ class PairingCreateView(OperatorView):
             operator_id=request.user.id,
             name=str(request.data.get('name') or 'Stall Camera')[:100],
             stall_location=str(request.data.get('stall_location') or '')[:100],
+            kind=kind,
             crop_type=crop,
             expires_at=timezone.now() + PAIRING_TTL,
         )
@@ -442,6 +446,12 @@ class DeviceClaimView(APIView):
         if not pairing or pairing.status == 'EXPIRED':
             return Response({'detail': 'Pairing code is invalid or expired. Create a new one in the app.'},
                             status=status.HTTP_400_BAD_REQUEST)
+        kind = str(request.data.get('kind') or 'CAMERA').upper()
+        if kind not in dict(Device.KINDS):
+            return Response({'detail': 'Device kind must be CAMERA or SENSOR.'}, status=status.HTTP_400_BAD_REQUEST)
+        if kind != pairing.kind:
+            return Response({'detail': f'This pairing code is for a {pairing.get_kind_display()}.'},
+                            status=status.HTTP_400_BAD_REQUEST)
         if len(mac) != 17:
             return Response({'detail': 'mac required'}, status=status.HTTP_400_BAD_REQUEST)
         if pairing.device and pairing.device.mac != mac:
@@ -457,7 +467,7 @@ class DeviceClaimView(APIView):
         if not device:
             device = Device(mac=mac, operator_id=pairing.operator_id, capture_times=Device.DEFAULT_CAPTURE_TIMES)
         device.name = pairing.name or device.name
-        device.kind = 'SENSOR' if str(request.data.get('kind', '')).upper() == 'SENSOR' else 'CAMERA'
+        device.kind = kind
         if device.kind == 'SENSOR':          # no camera: it only reports DHT22 readings
             device.auto_scan = False
             try:
@@ -465,7 +475,7 @@ class DeviceClaimView(APIView):
             except (TypeError, ValueError):
                 device.dht_pin = 4
         device.stall_location = pairing.stall_location or device.stall_location
-        device.crop_type = pairing.crop_type
+        device.crop_type = 'ALL' if device.kind == 'SENSOR' else pairing.crop_type
         device.device_token = Device.generate_token()
         device.fw_version = str(request.data.get('fw', ''))[:32]
         device.wifi_ssid = str(request.data.get('wifi_ssid', ''))[:64]

@@ -60,13 +60,18 @@ class DeviceFlowTests(TestCase):
         self.app.credentials(HTTP_AUTHORIZATION='Bearer test-session')
         self.cam = APIClient()
 
-    def pair_and_claim(self, crop='EGGPLANT'):
+    def pair_and_claim(self, crop='EGGPLANT', kind='CAMERA'):
         with as_user(OPERATOR):
-            r = self.app.post('/api/devices/pairing/', {'name': 'Stall 41 Cam', 'crop_type': crop}, format='json')
+            r = self.app.post('/api/devices/pairing/', {
+                'name': 'Stall 41 Cam', 'crop_type': crop, 'kind': kind,
+            }, format='json')
         self.assertEqual(r.status_code, 201, r.content)
         code = r.json()['code']
         self.assertTrue(r.json()['server_url'].startswith('http://'))
-        r = self.cam.post('/api/devices/claim/', {'code': code, 'mac': MAC, 'fw': '1.1.1', 'wifi_ssid': 'Stall-WiFi'},
+        r = self.cam.post('/api/devices/claim/', {
+            'code': code, 'mac': MAC, 'fw': '1.1.1', 'wifi_ssid': 'Stall-WiFi',
+            'kind': kind,
+        },
                           format='json')
         self.assertEqual(r.status_code, 201, r.content)
         self.cam.credentials(HTTP_X_DEVICE_TOKEN=r.json()['device_token'])
@@ -132,6 +137,31 @@ class DeviceFlowTests(TestCase):
             self.assertEqual(self.app.get(live['snapshot_url'].split('testserver')[1] + 'x').status_code, 403)
             self.assertEqual(self.app.delete(f'/api/devices/{dev_id}/').status_code, 204)
         self.assertEqual(self.cam.post('/api/devices/heartbeat/', {}, format='json').status_code, 401)
+
+    def test_sensor_pairing_exposes_live_dht_readings(self):
+        _, claim = self.pair_and_claim(kind='SENSOR')
+        self.assertEqual(claim['config']['crop_type'], 'ALL')
+        response = self.cam.post('/api/devices/reading/', {
+            'temperature_c': 24.7, 'humidity_rh': 63.4,
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.content)
+        with as_user(OPERATOR):
+            device = self.app.get('/api/devices/').json()[0]
+            history = self.app.get(f'/api/devices/{device["id"]}/readings/').json()
+        self.assertEqual(device['kind'], 'SENSOR')
+        self.assertEqual(device['latest_reading']['temperature_c'], 24.7)
+        self.assertEqual(device['latest_reading']['humidity_rh'], 63.4)
+        self.assertEqual(history[0]['temperature_c'], 24.7)
+        self.assertEqual(history[0]['humidity_rh'], 63.4)
+
+    def test_pairing_code_rejects_a_claim_from_the_wrong_device_kind(self):
+        with as_user(OPERATOR):
+            pairing = self.app.post('/api/devices/pairing/', {'kind': 'SENSOR'}, format='json').json()
+        response = self.cam.post('/api/devices/claim/', {
+            'code': pairing['code'], 'mac': MAC, 'kind': 'CAMERA',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('for a Sensor node', response.json()['detail'])
 
     def test_settings_validation(self):
         self.pair_and_claim()

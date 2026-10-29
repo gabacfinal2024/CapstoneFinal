@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Wifi, WifiOff, X,
+  CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Thermometer, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
 import { useNow, usePolling } from '../hooks/usePolling'
@@ -17,16 +17,19 @@ const DEVICE_STATE_TEXT = {
   done: 'Camera registered. It is restarting in normal mode.',
 }
 
-function StepHeader({ step }) {
+function StepHeader({ step, kind, claimed }) {
+  const sensor = kind === 'SENSOR'
+  const steps = sensor ? ['Details', 'Pair sensor', 'Done'] : STEPS
+  const activeStep = sensor ? (step === 0 ? 0 : claimed ? 2 : 1) : step
   return (
     <ol className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold uppercase tracking-wider mb-6">
-      {STEPS.map((label, i) => (
-        <li key={label} className={`flex items-center gap-1 ${i === step ? 'text-[#2A6B48]' : i < step ? 'text-slate-400' : 'text-slate-300'}`}>
-          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${i === step ? 'bg-[#2A6B48] text-white' : i < step ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100'}`}>
-            {i < step ? '✓' : i + 1}
+      {steps.map((label, i) => (
+        <li key={label} className={`flex items-center gap-1 ${i === activeStep ? 'text-[#2A6B48]' : i < activeStep ? 'text-slate-400' : 'text-slate-300'}`}>
+          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${i === activeStep ? 'bg-[#2A6B48] text-white' : i < activeStep ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100'}`}>
+            {i < activeStep ? '✓' : i + 1}
           </span>
           {label}
-          {i < STEPS.length - 1 && <ChevronRight size={12} className="text-slate-300" />}
+          {i < steps.length - 1 && <ChevronRight size={12} className="text-slate-300" />}
         </li>
       ))}
     </ol>
@@ -53,7 +56,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
-  const [details, setDetails] = useState({ name: 'Stall camera', stall_location: '', crop_type: 'EGGPLANT' })
+  const [details, setDetails] = useState({ kind: 'CAMERA', name: 'Stall camera', stall_location: '', crop_type: 'EGGPLANT' })
   const [pairing, setPairing] = useState(null)
   const [deviceInfo, setDeviceInfo] = useState(null)
   const [networks, setNetworks] = useState([])
@@ -64,6 +67,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
   const [deviceState, setDeviceState] = useState(null)
   const [statusMisses, setStatusMisses] = useState(0)
   const [claimedDevice, setClaimedDevice] = useState(null)
+  const sensorSetup = details.kind === 'SENSOR'
 
   const secondsLeft = pairing ? Math.max(0, Math.round((new Date(pairing.expires_at).getTime() - now) / 1000)) : null
 
@@ -76,9 +80,10 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
         name: details.name.trim() || 'Stall camera',
         stall_location: details.stall_location.trim(),
         crop_type: details.crop_type,
+        kind: details.kind,
       })
       setPairing(p)
-      setStep(1)
+      setStep(sensorSetup ? 4 : 1)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -180,14 +185,14 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-100 flex justify-between items-start">
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Add an ESP32-CAM</h2>
-            <p className="text-sm text-slate-500">Connect a new camera to your stall in a few steps — no cables or code needed.</p>
+            <h2 className="text-xl font-bold text-slate-800">Add a camera or sensor node</h2>
+            <p className="text-sm text-slate-500">Connect an ESP32-CAM or a DHT22 sensor node to your stall.</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100 text-slate-400" aria-label="Close"><X size={20} /></button>
         </div>
 
         <div className="p-6">
-          <StepHeader step={step} />
+          <StepHeader step={step} kind={details.kind} claimed={!!claimedDevice} />
 
           {pairing && step > 0 && step < 5 && (
             <div className="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between text-sm">
@@ -200,6 +205,16 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
 
           {step === 0 && (
             <div className="space-y-4">
+              <Field label="Device type">
+                <select className={inputCls} value={details.kind} onChange={(e) => setDetails({
+                  ...details,
+                  kind: e.target.value,
+                  name: e.target.value === 'SENSOR' ? 'Stall sensor' : 'Stall camera',
+                })}>
+                  <option value="CAMERA">ESP32-CAM</option>
+                  <option value="SENSOR">ESP32 sensor node (DHT22)</option>
+                </select>
+              </Field>
               <Field label="Device name">
                 <input className={inputCls} value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} />
               </Field>
@@ -207,15 +222,17 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
                 <input className={inputCls} placeholder="e.g. Stall 41, Bulua WBIT" value={details.stall_location}
                        onChange={(e) => setDetails({ ...details, stall_location: e.target.value })} />
               </Field>
-              <Field label="Crop this camera watches">
+              {!sensorSetup && <Field label="Crop this camera watches">
                 <select className={inputCls} value={details.crop_type} onChange={(e) => setDetails({ ...details, crop_type: e.target.value })}>
                   {DEVICE_CROPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
-              </Field>
-              {details.crop_type === 'ALL' && (
+              </Field>}
+              {!sensorSetup && details.crop_type === 'ALL' && (
                 <p className="text-xs text-slate-400">Scans eggplant, cucumber, and carrot.</p>
               )}
-              <p className="text-xs text-slate-400">You can change these later in the device settings.</p>
+              {sensorSetup
+                ? <p className="text-xs text-slate-400">The node uses the Wi-Fi and server settings already flashed to its firmware.</p>
+                : <p className="text-xs text-slate-400">You can change these later in the device settings.</p>}
             </div>
           )}
 
@@ -293,24 +310,45 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
           )}
 
           {step === 4 && (
-            <div className="py-4 text-center space-y-3">
-              <WifiOff size={36} className="mx-auto text-slate-400" />
-              <p className="font-bold text-slate-700">Reconnect this computer to your normal Wi-Fi</p>
-              <p className="text-sm text-slate-500">The camera has your Wi-Fi details and is registering itself.
-                Switch back to your usual network — this page will update automatically.</p>
-              <p className="flex items-center justify-center gap-2 text-sm text-[#2A6B48] font-semibold">
-                <Loader2 size={16} className="animate-spin" /> Waiting for the camera to come online…
-              </p>
-            </div>
+            sensorSetup ? (
+              <div className="space-y-4 text-sm text-slate-600">
+                <div className="flex gap-3 p-4 rounded-2xl bg-sky-50 border border-sky-100">
+                  <Thermometer className="text-sky-700 shrink-0" size={22} />
+                  <p><strong>Keep the ESP32 connected to this computer.</strong> Open the PlatformIO serial monitor at 115200 baud. Confirm it joined the same 2.4 GHz Wi-Fi as the AgriResQ server, then type this command and press Enter:</p>
+                </div>
+                <p className="text-center rounded-xl bg-slate-50 border border-slate-100 p-4">
+                  <span className="block text-xs text-slate-500">Serial monitor command</span>
+                  <strong className="font-mono text-2xl tracking-widest">{`pair ${pairing?.code || ''}`}</strong>
+                </p>
+                <p className="text-xs text-slate-500">
+                  The sensor firmware must already be flashed with the correct Wi-Fi and server URL. It reads a DHT22 on GPIO 4 by default and posts new measurements every 30 seconds. Keep this page open while it registers.
+                </p>
+                <p className="flex items-center justify-center gap-2 text-sm text-[#2A6B48] font-semibold">
+                  <Loader2 size={16} className="animate-spin" /> Waiting for the sensor to register…
+                </p>
+              </div>
+            ) : (
+              <div className="py-4 text-center space-y-3">
+                <WifiOff size={36} className="mx-auto text-slate-400" />
+                <p className="font-bold text-slate-700">Reconnect this computer to your normal Wi-Fi</p>
+                <p className="text-sm text-slate-500">The camera has your Wi-Fi details and is registering itself.
+                  Switch back to your usual network — this page will update automatically.</p>
+                <p className="flex items-center justify-center gap-2 text-sm text-[#2A6B48] font-semibold">
+                  <Loader2 size={16} className="animate-spin" /> Waiting for the camera to come online…
+                </p>
+              </div>
+            )
           )}
 
           {step === 5 && claimedDevice && (
             <div className="py-6 text-center space-y-2">
               <CheckCircle2 size={48} className="mx-auto text-emerald-500" />
               <p className="text-lg font-bold text-slate-800">{claimedDevice.name} is connected!</p>
-              <p className="text-sm text-slate-500">
-                On Wi-Fi “{claimedDevice.wifi_ssid || ssid}” {claimedDevice.ip ? `at ${claimedDevice.ip}` : ''}. It will start scanning {details.crop_type === 'ALL' ? 'all supported vegetables' : `your ${details.crop_type.toLowerCase()}`} automatically.
-              </p>
+              {sensorSetup
+                ? <p className="text-sm text-slate-500">Temperature and humidity should appear in the sensor page within 30 seconds.</p>
+                : <p className="text-sm text-slate-500">
+                  On Wi-Fi “{claimedDevice.wifi_ssid || ssid}” {claimedDevice.ip ? `at ${claimedDevice.ip}` : ''}. It will start scanning {details.crop_type === 'ALL' ? 'all supported vegetables' : `your ${details.crop_type.toLowerCase()}`} automatically.
+                </p>}
             </div>
           )}
 

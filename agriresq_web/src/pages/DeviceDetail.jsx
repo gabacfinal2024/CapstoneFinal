@@ -84,6 +84,7 @@ function DeviceDetailView({ id }) {
 
   const [device, setDevice] = useState(null)
   const [loadError, setLoadError] = useState('')
+  const [readingError, setReadingError] = useState('')
   const [scans, setScans] = useState([])
   const [showEmpty, setShowEmpty] = useState(false)
   const [readings, setReadings] = useState([])
@@ -116,8 +117,13 @@ function DeviceDetailView({ id }) {
   }, 5000, `${id}-${showEmpty}`, !sensor)
 
   usePolling(async () => {
-    try { setReadings(await deviceApi.readings(id, 60)) } catch { /* optional */ }
-  }, 30000, id, sensor)
+    try {
+      setReadings(await deviceApi.readings(id, 60))
+      setReadingError('')
+    } catch (err) {
+      setReadingError(err.message)
+    }
+  }, 10000, id, sensor)
 
   const operate = canOperate(device)
   const manage = canManage(device)
@@ -128,7 +134,16 @@ function DeviceDetailView({ id }) {
   }, 120000, 'products', operate)
 
   const refreshDevice = async () => {
-    try { setDevice(await deviceApi.get(id)) } catch { /* the 5 s poll will retry */ }
+    try {
+      setDevice(await deviceApi.get(id))
+      if (sensor) {
+        setReadings(await deviceApi.readings(id, 60))
+        setReadingError('')
+      }
+    } catch (err) {
+      if (sensor) setReadingError(err.message)
+      else setLoadError(err.message)
+    }
   }
 
   const setField = (k, v) => {
@@ -232,6 +247,7 @@ function DeviceDetailView({ id }) {
 
   // pinned = the row the user clicked (or the manual scan just taken); otherwise the true latest scan, even "nothing detected"
   const selectedScan = pinned ? (scans.find((s) => s.id === pinned.id) || pinned) : (device.latest_scan || scans[0] || null)
+  const latestReading = device.latest_reading || readings[0] || null
   const reading = device.latest_reading
   const readingStale = !!reading && now - new Date(reading.created_at).getTime() > STALE_READING_MS
   const cropProducts = (products || []).filter((p) => form?.crop_type === 'ALL' || !form?.crop_type || p.crop_type === form.crop_type)
@@ -392,7 +408,26 @@ function DeviceDetailView({ id }) {
 
           {sensor && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <h2 className="text-lg font-bold text-slate-800 mb-3">Temperature & humidity</h2>
+              <h2 className="text-lg font-bold text-slate-800 mb-1">Live sensor readings</h2>
+              <p className="text-xs text-slate-500 mb-3">
+                {latestReading
+                  ? `Updated ${new Date(latestReading.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
+                  : 'Waiting for the first DHT22 reading. The node reports every 30 seconds.'}
+              </p>
+              {readingError && <p role="alert" className="mb-3 rounded-lg bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">Could not refresh sensor readings: {readingError}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                {[
+                  ['Temperature', latestReading ? `${Number(latestReading.temperature_c).toFixed(1)} °C` : '—'],
+                  ['Humidity', latestReading ? `${Number(latestReading.humidity_rh).toFixed(1)} %RH` : '—'],
+                  ['VPD', latestReading?.vpd_kpa != null ? `${Number(latestReading.vpd_kpa).toFixed(2)} kPa` : '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-xs font-semibold text-slate-500">{label}</p>
+                    <p className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <h3 className="text-sm font-bold text-slate-700 mb-2">Temperature & humidity history</h3>
               <ReadingsChart readings={readings} />
             </div>
           )}
@@ -404,7 +439,7 @@ function DeviceDetailView({ id }) {
               <h2 className="text-lg font-bold text-slate-800 mb-3">Device settings</h2>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 {[
-                  ['Crop', cropLabel(device.crop_type)],
+                  ...(!sensor ? [['Crop', cropLabel(device.crop_type)]] : []),
                   ['Linked batch', device.product_id ? `#${device.product_id}` : 'Not linked'],
                   ...(sensor ? [] : [['Scanning', scheduleSummary(device)]]),
                   ...(sensor ? [['DHT22 pin', device.dht_pin >= 0 ? (device.dht_pin === 4 ? 'GPIO 4 (D4)' : `GPIO ${device.dht_pin}`) : 'None (no DHT22)']] : []),
@@ -428,7 +463,7 @@ function DeviceDetailView({ id }) {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Stall / location
                 <input className={`${inputCls} mt-1`} value={form.stall_location || ''} onChange={(e) => setField('stall_location', e.target.value)} />
               </label>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Crop
+              {!sensor && <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Crop
                 <select className={`${inputCls} mt-1`} value={form.crop_type} onChange={(e) => {
                   const crop = e.target.value
                   const linked = products?.find((p) => String(p.id) === String(form.product_id))
@@ -437,7 +472,7 @@ function DeviceDetailView({ id }) {
                 }}>
                   {DEVICE_CROPS.filter((c) => !sensor || c.value !== 'ALL').map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
-              </label>
+              </label>}
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Linked harvest batch
                 <select className={`${inputCls} mt-1`} value={form.product_id} onChange={(e) => setField('product_id', e.target.value)}>
                   <option value="">— Not linked —</option>

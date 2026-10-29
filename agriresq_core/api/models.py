@@ -281,6 +281,7 @@ class PairingCode(models.Model):
     operator_id = models.CharField(max_length=64)
     name = models.CharField(max_length=100, blank=True)
     stall_location = models.CharField(max_length=100, blank=True)
+    kind = models.CharField(max_length=10, choices=Device.KINDS, default='CAMERA')
     crop_type = models.CharField(max_length=20, choices=DEVICE_CROP_TYPES, default='EGGPLANT')
     expires_at = models.DateTimeField()
     device = models.ForeignKey(Device, on_delete=models.SET_NULL, null=True, blank=True)

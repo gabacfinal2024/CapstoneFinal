@@ -114,7 +114,7 @@ export default function Devices() {
                   <div className="device-card__env" title={d.latest_reading ? `Sensor updated ${timeAgo(d.latest_reading.created_at)}` : 'No sensor reading'}
                     style={d.latest_reading && isReadingStale(d.latest_reading.created_at) ? { opacity: 0.55 } : undefined}>
                     <span><Thermometer size={14} /> {d.latest_reading ? `${Number(d.latest_reading.temperature_c).toFixed(1)}°C` : '—'}</span>
-                    <span><Droplets size={14} /> {d.latest_reading ? `${Number(d.latest_reading.humidity_rh).toFixed(0)}%` : '—'}</span>
+                    <span><Droplets size={14} /> {d.latest_reading ? `${Number(d.latest_reading.humidity_rh).toFixed(1)}%` : '—'}</span>
                     {d.latest_reading && isReadingStale(d.latest_reading.created_at) && <span style={{ color: '#92400E' }}><AlertTriangle size={13} /> old</span>}
                   </div>
                 )}

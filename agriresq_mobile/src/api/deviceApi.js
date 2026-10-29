@@ -75,8 +75,8 @@ export const deviceApi = {
   },
 
   // ── Pairing (smart-home style setup) ─────────────
-  async createPairing({ name, stall_location, crop_type } = {}) {
-    return strip(await request('/api/devices/pairing/', { method: 'POST', body: { name, stall_location, crop_type } }))
+  async createPairing({ name, stall_location, crop_type, kind } = {}) {
+    return strip(await request('/api/devices/pairing/', { method: 'POST', body: { name, stall_location, crop_type, kind } }))
   },
 
   async pairingStatus(code) {

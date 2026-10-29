@@ -1,9 +1,10 @@
-# AgriResQ IoT Device API (ESP32-CAM ⇄ Django ⇄ Web / Mobile)
+# AgriResQ IoT Device API (ESP32-CAM / DHT22 Sensor ⇄ Django ⇄ Web / Mobile)
 
 *Revision 2 – open-set detection ("no vegetable"), capture schedule, scan feedback.*
 
-Smart-home style setup: the stall operator adds the ESP32-CAM from the app, with no code edits and no
-USB cable. Django (`agriresq_core`) is the IoT hub. It stores devices, scans and sensor readings, and
+Smart-home style setup: the stall operator can pair an ESP32-CAM from the app or create a pairing code
+for an ESP32 DHT22 sensor node. The sensor is connected to its configured Wi-Fi and paired from its USB
+serial monitor. Django (`agriresq_core`) is the IoT hub. It stores devices, scans and sensor readings, and
 runs the freshness CNN (`ML/deploy`). When `SUPABASE_SERVICE_ROLE_KEY` is set, it also syncs results
 to Supabase (product freshness, `sensor_logs`, `spoilage_predictions`, `notifications`).
 
@@ -16,6 +17,20 @@ to Supabase (product freshness, `sensor_logs`, `spoilage_predictions`, `notifica
 `BACKEND` = `import.meta.env.VITE_BACKEND_URL` (e.g. `http://192.168.1.4:8000`, the laptop's LAN IP, so
 phones can reach it too).
 
+### DHT22 sensor-node setup
+
+1. In **Devices → Add device**, choose **ESP32 sensor node (DHT22)** and create a pairing code.
+2. Keep the ESP32 connected to the laptop. Open the PlatformIO serial monitor at 115200 baud and wait
+   for the node to join the same 2.4 GHz Wi-Fi as Django.
+3. Enter `pair CODE` (replace `CODE` with the code shown in the app) and press Enter. The app waits for
+   the sensor to claim the pairing code.
+4. The node reports DHT22 readings on GPIO 4 every 30 seconds. Live temperature, relative humidity and
+   calculated VPD appear on the device page; the backend rejects values outside physical sensor ranges.
+
+The sensor firmware is in `iot/sensor_node`. Its ignored `include/secrets.h` must contain the local Wi-Fi
+credentials and the Django server's reachable LAN URL before upload. The app cannot configure the node
+over USB; it guides code pairing while the serial monitor is open.
+
 ## 1. Operator endpoints (app → Django)
 
 Every request sends `Authorization: Bearer <supabase session.access_token>`.
@@ -23,7 +38,7 @@ Only `STALL_OPERATOR` accounts may use them. Other accounts get 403.
 
 | Method & path | Body | Response |
 |---|---|---|
-| `POST /api/devices/pairing/` | `{name?, stall_location?, crop_type?}` | `Pairing` (201) |
+| `POST /api/devices/pairing/` | `{name?, stall_location?, crop_type?, kind?: "CAMERA"\|"SENSOR"}` | `Pairing` (201) |
 | `GET /api/devices/pairing/<code>/` | – | `{status: "WAITING"\|"CLAIMED"\|"EXPIRED", device: Device\|null, device_progress: string}` |
 | `GET /api/devices/` | – | `Device[]` (the operator's devices) |
 | `GET /api/devices/<id>/` | – | `Device` |
@@ -46,7 +61,7 @@ only while an app is viewing it; frames expire from the backend cache after 10 s
 Pairing = { code: "7K3P9Q", expires_at: ISO, setup_ap_prefix: "AgriResQ-", setup_ap_password: "agriresq",
             setup_url: "http://192.168.4.1", server_url: "http://192.168.1.4:8000" }
 
-Device = { id, name, stall_location, crop_type: "ALL"|"EGGPLANT"|"CUCUMBER"|"CARROT", product_id: number|null,
+Device = { id, kind: "CAMERA"|"SENSOR", name, stall_location, crop_type: "ALL"|"EGGPLANT"|"CUCUMBER"|"CARROT", product_id: number|null,
            mac, ip, fw_version, wifi_ssid, rssi, online: boolean, last_seen: ISO|null,
            auto_scan: boolean,                       // monitoring on/off (all automatic scans)
            scan_mode: "schedule"|"interval",         // schedule = capture windows below (default)

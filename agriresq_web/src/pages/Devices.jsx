@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Camera, Droplets, Gauge, RefreshCw,Thermometer, Video } from 'lucide-react'
+import { AlertTriangle, Camera, Droplets, Gauge, Plus, RefreshCw, Thermometer, Video } from 'lucide-react'
 import { STALE_READING_MS, cropLabel, deviceApi, isDetected, isSensor, scanBadgeStatus, timeAgo } from '../api/deviceApi'
 import { useNow, usePolling } from '../hooks/usePolling'
 import StatusBadge from '../components/StatusBadge'
 import { AccessBadge, IpAddress, AccessCount,NetworkFacts, OnlinePill, SensorBadge } from '../components/DeviceBits'
+import DeviceSetupWizard from '../components/DeviceSetupWizard'
 
 function DeviceCard({ device, now }) {
   const sensor = isSensor(device)
@@ -71,7 +72,7 @@ function DeviceCard({ device, now }) {
           <div className="rounded-xl p-3 bg-emerald-50/60 flex items-center gap-2">
             <Droplets size={18} className="text-[#2A6B48] shrink-0" />
             <div>
-              <p className="text-base font-bold text-slate-800">{reading ? `${Number(reading.humidity_rh).toFixed(0)}%` : '—'}</p>
+              <p className="text-base font-bold text-slate-800">{reading ? `${Number(reading.humidity_rh).toFixed(1)}%` : '—'}</p>
               <p className="text-[10px] text-slate-500">Humidity</p>
             </div>
           </div>
@@ -118,6 +119,7 @@ export default function Devices() {
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
   const [filter, setFilter] = useState('all') // all | online | offline | attention
+  const [addingDevice, setAddingDevice] = useState(false)
 
   usePolling(async () => {
     try {
@@ -142,12 +144,18 @@ export default function Devices() {
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800">Devices</h1>
-          <p className="text-slate-500 text-sm mt-1">Every stall's ESP32-CAM freshness cameras (scans only) and DHT22 sensor nodes (temperature, humidity and VPD only) (the administrator can always access every camera). Stall operators add and configure devices in the mobile app.</p>
+          <p className="text-slate-500 text-sm mt-1">Manage ESP32-CAMs and DHT22 sensor nodes; live sensor readings update as the node reports them.</p>
         </div>
-        <button onClick={() => setRefreshKey((k) => k + 1)}
-                className="px-4 py-2.5 rounded-xl font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 flex items-center gap-2">
-          <RefreshCw size={16} /> Refresh
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setRefreshKey((k) => k + 1)}
+                  className="px-4 py-2.5 rounded-xl font-bold text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 flex items-center gap-2">
+            <RefreshCw size={16} /> Refresh
+          </button>
+          <button onClick={() => setAddingDevice(true)}
+                  className="px-4 py-2.5 rounded-xl font-bold text-white bg-[#2A6B48] hover:bg-[#1f5035] flex items-center gap-2">
+            <Plus size={16} /> Add device
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -191,7 +199,7 @@ export default function Devices() {
           <Camera size={40} className="mx-auto text-slate-300" />
           <h2 className="mt-3 text-lg font-bold text-slate-700">No devices registered yet</h2>
           <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
-            Stall operators connect their ESP32-CAM or sensor node from the AgriResQ mobile app. It will appear here as soon as it is paired.
+            Add an ESP32-CAM or pair a DHT22 sensor node from here. It will appear once pairing completes.
           </p>
         </div>
       )}
@@ -204,6 +212,12 @@ export default function Devices() {
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
           {shown.map((d) => <DeviceCard key={d.id} device={d} now={now} />)}
         </div>
+      )}
+      {addingDevice && (
+        <DeviceSetupWizard
+          onClose={() => setAddingDevice(false)}
+          onDone={() => setRefreshKey((k) => k + 1)}
+        />
       )}
     </div>
   )
