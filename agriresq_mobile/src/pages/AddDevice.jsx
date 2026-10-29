@@ -82,7 +82,12 @@ export default function AddDevice() {
         setStep(1)
       }
     } catch (err) {
-      fail(err.message, 'pairing', 'Your phone needs to be on the same Wi-Fi as the AgriResQ server for this step.')
+      const hint = err.status >= 500
+        ? 'The AgriResQ server encountered an error. Check that the latest backend deployment completed and applied its database migrations, then try again.'
+        : err.status === 401 || err.status === 403
+          ? 'Your session may have expired or your account may not have permission to add a device. Sign in again or contact your administrator.'
+          : 'Check your internet connection and confirm the AgriResQ server is available.'
+      fail(err.message, 'pairing', hint)
     } finally {
       setBusy(false)
     }
