@@ -389,7 +389,7 @@ export const api = {
     const userId = await getSessionUserId()
     const { data, error } = await supabase
       .from('notifications')
-      .select('id, notification_type, title, message, product_id, is_read, created_at')
+      .select('id, notification_type, title, message, product_id, thread_id, is_read, created_at')
       .eq('user_id', userId)
       .eq('is_read', false)
       .order('id', { ascending: false })
@@ -416,7 +416,11 @@ export const api = {
         table: 'notifications',
         filter: `user_id=eq.${userId}`,
       }, callback)
-      .subscribe()
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('Realtime notification subscription failed', error || status)
+        }
+      })
     return () => supabase.removeChannel(channel)
   },
 
@@ -519,7 +523,7 @@ export const api = {
         *,
         marketplace_listings:listing_id (
           id, listed_price,
-          products:product_id (crop_type, freshness_status, freshness_percent)
+          products:product_id (crop_type, quantity_kg, current_price_per_kg, pickup_location, image_url, freshness_status, freshness_percent)
         ),
         operator:operator_id (full_name),
         buyer:buyer_id (full_name)
@@ -538,7 +542,7 @@ export const api = {
         *,
         marketplace_listings:listing_id (
           id, listed_price,
-          products:product_id (crop_type, freshness_status, freshness_percent)
+          products:product_id (crop_type, quantity_kg, current_price_per_kg, pickup_location, image_url, freshness_status, freshness_percent)
         )
       `)
       .eq('id', id)

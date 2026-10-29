@@ -53,6 +53,44 @@
   background: rgba(255,255,255,0.18);
 }
 
+.chat-listing-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--white);
+  color: var(--gray-800);
+  text-decoration: none;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.chat-listing-card img {
+  width: 58px;
+  height: 58px;
+  flex: 0 0 58px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.chat-listing-details {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.chat-listing-details strong {
+  color: var(--gray-900);
+  font-size: 14px;
+}
+
+.chat-listing-link {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;

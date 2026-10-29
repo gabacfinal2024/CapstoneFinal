@@ -38,12 +38,17 @@ create trigger trg_notify_new_listing after insert or update of listing_status o
 -- The recipient is selected per message, so both buyers and stall operators are notified as the
 -- conversation alternates. The trigger runs under the database owner because notification RLS
 -- correctly prevents either participant from writing notifications for the other.
+alter table public.notifications
+  add column if not exists thread_id bigint references public.chat_threads(id) on delete cascade;
+
 create or replace function public.notify_new_message() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
   t record;
+  listing record;
   recipient uuid;
   sender text;
+  context text;
 begin
   select operator_id, buyer_id into t from chat_threads where id = new.thread_id;
   if not found then return new; end if;
@@ -51,8 +56,24 @@ begin
   recipient := case when new.sender_id = t.operator_id then t.buyer_id else t.operator_id end;
   if recipient is null or recipient = new.sender_id then return new; end if;
   select coalesce(nullif(full_name, ''), 'Someone') into sender from profiles where id = new.sender_id;
-  insert into notifications (user_id, notification_type, title, message)
-  values (recipient, 'NEW_MESSAGE', 'New message from ' || sender, left(new.message_text, 120));
+  select l.product_id, p.crop_type, p.quantity_kg, l.listed_price
+    into listing
+    from chat_threads ct
+    join marketplace_listings l on l.id = ct.listing_id
+    join products p on p.id = l.product_id
+    where ct.id = new.thread_id;
+  context := initcap(lower(coalesce(listing.crop_type, 'Produce'))) || ' · '
+    || coalesce(listing.quantity_kg::text, '?') || ' kg · ₱'
+    || to_char(coalesce(listing.listed_price, 0), 'FM999990.00') || '/kg';
+  insert into notifications (user_id, product_id, thread_id, notification_type, title, message)
+  values (
+    recipient,
+    listing.product_id,
+    new.thread_id,
+    'NEW_MESSAGE',
+    'New message from ' || sender,
+    left(context || ' — ' || new.message_text, 500)
+  );
   return new;
 end $$;
 

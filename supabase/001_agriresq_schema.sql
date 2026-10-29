@@ -126,6 +126,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   sent_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS thread_id BIGINT REFERENCES chat_threads(id) ON DELETE CASCADE;
+
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$

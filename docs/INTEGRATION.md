@@ -56,10 +56,11 @@ The sensor, camera and dashboard must use the **same backend**. Production build
 ## 2b. Chat notifications and listing photo checks
 
 Each chat message creates a `NEW_MESSAGE` notification for the other participant. When the sender changes,
-the recipient changes too, so both rescue buyers and stall operators receive in-app alerts. Apply
-`supabase/005_notification_triggers.sql` in the Supabase SQL editor to enable database notifications and
-Realtime delivery. The app shows an unread badge and a toast; browser alerts can be enabled from the
-Notifications page when supported.
+the recipient changes too, so both rescue buyers and stall operators receive in-app alerts. Apply the
+latest `supabase/005_notification_triggers.sql` in the Supabase SQL editor to add the chat link and enable
+database notifications and Realtime delivery. The app shows an unread badge and a toast that opens the
+correct conversation; browser alerts can be enabled from the Notifications page when supported. Each chat
+also shows the listing photo, crop, quantity, listed price, and pickup location, with a link to the listing.
 
 Product photos are analyzed before a product is saved. Photos with no recognized supported vegetable,
 a crop mismatch, or low-confidence freshness analysis are rejected; retake the photo or correct the crop

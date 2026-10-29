@@ -32,10 +32,12 @@ export function NotificationsProvider({ children }) {
   const [permission, setPermission] = useState(canNotify() ? Notification.permission : 'denied')
   // ids already announced; null until the first load, so notifications that were already unread stay quiet
   const announced = useRef(null)
+  const initialized = useRef(false)
   const userId = user?.id
 
   const announce = useCallback((n) => {
-    if (!announced.current || announced.current.has(n.id)) return
+    if (!announced.current) announced.current = new Set()
+    if (announced.current.has(n.id)) return
     announced.current.add(n.id)
     setToast(n)
     if (canNotify() && Notification.permission === 'granted' && document.hidden) {
@@ -51,8 +53,9 @@ export function NotificationsProvider({ children }) {
     if (!userId) return
     const rows = await api.unreadNotifications()
     setItems(rows)
-    if (announced.current === null) {
-      announced.current = new Set(rows.map((r) => r.id))
+    if (!initialized.current) {
+      announced.current = new Set([...rows.map((r) => r.id), ...(announced.current || [])])
+      initialized.current = true
       return
     }
     rows.slice().reverse().forEach(announce)
@@ -60,6 +63,7 @@ export function NotificationsProvider({ children }) {
 
   useEffect(() => {
     announced.current = null
+    initialized.current = false
     setItems([])
     setToast(null)
   }, [userId])
@@ -69,8 +73,8 @@ export function NotificationsProvider({ children }) {
   useEffect(() => {
     if (!userId) return undefined
     return api.subscribeNotifications(userId, (payload) => {
-      if (payload?.new && announced.current) announce(payload.new)
-      refresh().catch(() => {})
+      if (payload?.new) announce(payload.new)
+      refresh().catch((err) => console.error('Failed to refresh notifications after realtime event', err))
     })
   }, [userId, announce, refresh])
 
@@ -86,7 +90,9 @@ export function NotificationsProvider({ children }) {
       setItems((cur) => cur.filter((x) => x.id !== n.id))
       api.acknowledgeNotif(n.id).catch(() => {})
     }
-    if (n.notification_type === 'NEW_MESSAGE') return navigate('/messages')
+    if (n.notification_type === 'NEW_MESSAGE') {
+      return navigate(n.thread_id ? `/chat/${n.thread_id}` : '/messages')
+    }
     if (n.notification_type === 'MARKETPLACE' && n.product_id) {
       try {
         const listing = await api.getListingByProduct(n.product_id)

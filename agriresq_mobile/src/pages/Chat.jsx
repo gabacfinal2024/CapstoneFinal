@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
 import { CROP_LABELS, formatTime } from '../utils/helpers'
@@ -17,6 +17,9 @@ export default function Chat() {
   const [showExitModal, setShowExitModal] = useState(false)
   const [showRating, setShowRating] = useState(false)
   const bottomRef = useRef(null)
+  const listing = thread?.marketplace_listings
+  const product = listing?.products
+  const cropName = CROP_LABELS[product?.crop_type] || 'Produce listing'
 
   const load = () => api.chatThread(id).then(setThread).catch(console.error)
 
@@ -81,12 +84,27 @@ export default function Chat() {
         <header className="chat-header">
           <div className="chat-header-left">
             <button type="button" className="back-btn" onClick={handleBackWithPref}>←</button>
-            <h2>{CROP_LABELS[thread?.marketplace_listings?.products?.crop_type] || 'Chat'} · Rescue Deal</h2>
+            <h2>{cropName} · Rescue Deal</h2>
           </div>
           <button type="button" className="complete-btn" onClick={() => setShowExitModal(true)}>
             {user?.role === 'STALL_OPERATOR' ? 'Complete & Mark Sold' : 'Mark Complete'}
           </button>
         </header>
+        {listing && (
+          <Link to={`/produce/${listing.id}`} className="chat-listing-card">
+            {product?.image_url && <img src={product.image_url} alt={cropName} />}
+            <span className="chat-listing-details">
+              <strong>{cropName}</strong>
+              <span>
+                {product?.quantity_kg != null ? `${product.quantity_kg} kg` : 'Quantity unavailable'}
+                {' · '}
+                ₱{Number(listing.listed_price || product?.current_price_per_kg || 0).toFixed(2)}/kg
+              </span>
+              {product?.pickup_location && <span>Pickup: {product.pickup_location}</span>}
+              <span className="chat-listing-link">View listing details</span>
+            </span>
+          </Link>
+        )}
         <div className="chat-messages">
           {thread?.messages?.map((m) => (
             <div

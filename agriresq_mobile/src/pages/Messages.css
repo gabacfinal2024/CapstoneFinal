@@ -70,6 +70,12 @@
   margin-left: 8px;
 }
 
+.thread-listing-summary {
+  margin: 2px 0 6px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
 .thread-body p {
   font-size: 13px;
   color: var(--gray-600);

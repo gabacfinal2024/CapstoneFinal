@@ -34,6 +34,7 @@ export default function Messages() {
         ) : threads.length ? (
           threads.map((t) => {
             const product = t.marketplace_listings?.products
+            const listing = t.marketplace_listings
             const other = user?.id === t.operator_id ? t.buyer : t.operator
             return (
               <Link key={t.id} to={`/chat/${t.id}`} className="thread-card card">
@@ -43,6 +44,14 @@ export default function Messages() {
                     <strong>{CROP_LABELS[product?.crop_type] || `Chat #${t.id}`}{other?.full_name ? ` · ${other.full_name}` : ''}</strong>
                     <span>{formatDateTime(t.updated_at)}</span>
                   </div>
+                  {product && (
+                    <p className="thread-listing-summary">
+                      {product.quantity_kg != null ? `${product.quantity_kg} kg` : 'Quantity unavailable'}
+                      {' · '}
+                      ₱{Number(listing?.listed_price || product.current_price_per_kg || 0).toFixed(2)}/kg
+                      {product.pickup_location ? ` · ${product.pickup_location}` : ''}
+                    </p>
+                  )}
                   {product && (
                     <StatusBadge status={product.freshness_status} showPercent percent={product.freshness_percent} size="sm" />
                   )}
