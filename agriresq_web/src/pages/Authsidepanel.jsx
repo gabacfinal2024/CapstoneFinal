@@ -30,13 +30,11 @@ export default function AuthSidePanel() {
     }}>
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
-          <div style={{
-            width: "40px", height: "40px",
-            background: "rgba(255,255,255,0.15)",
-            borderRadius: "8px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "20px"
-          }}>🌿</div>
+          <img
+            src="/agriresq-logo.svg"
+            alt=""
+            style={{ width: "40px", height: "40px", borderRadius: "10px" }}
+          />
           <p style={{ fontSize: "20px", fontWeight: 600, color: "#DDF3EA", margin: 0 }}>AgriResQ</p>
         </div>
         <p style={{ fontSize: "12px", color: "#73C8B0", margin: "4px 0 0" }}>

@@ -56,7 +56,7 @@ async function backend(path, { method = 'GET', body, timeoutMs } = {}) {
   if (!res.ok) {
     const msg = await readError(res)
     if (res.status === 401) throw Object.assign(new Error(`Session rejected by the backend: ${msg}`), { status: 401 })
-    if (res.status === 403) throw Object.assign(new Error(`Not allowed: ${msg} (only the camera owner can do that).`), { status: 403 })
+    if (res.status === 403) throw Object.assign(new Error(`Not allowed: ${msg}`), { status: 403 })
     throw Object.assign(new Error(msg), { status: res.status })
   }
   if (res.status === 204) return { status: 204, data: null }
@@ -70,6 +70,11 @@ async function setupCall(path, options = {}, timeoutMs = 8000) {
 }
 
 export const deviceApi = {
+  setAccountActive: async (userId, isActive) => (await backend(
+    `/api/admin/users/${encodeURIComponent(userId)}/status/`,
+    { method: 'PATCH', body: { is_active: isActive } },
+  )).data,
+
   // ── Pairing ──────────────────────────────────────
   createPairing: async (fields = {}) => (await backend('/api/devices/pairing/', { method: 'POST', body: fields })).data,
   pairingStatus: async (code) => (await backend(`/api/devices/pairing/${encodeURIComponent(code)}/`)).data,

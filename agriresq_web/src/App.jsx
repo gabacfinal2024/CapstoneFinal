@@ -55,7 +55,7 @@ function App() {
     let alive = true;
     api.me().then(async (p) => {
       if (!alive) return;
-      if (p?.role === 'ADMIN') return setIsAdmin(true);
+      if (p?.role === 'ADMIN' && p?.is_active !== false) return setIsAdmin(true);
       try { await api.logout(); } catch { /* already signed out */ }
       localStorage.removeItem('agriresq_current_user');
       setIsAdmin(false);
@@ -99,9 +99,9 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-slate-50 flex">
+      <div className="flex h-dvh min-h-0 overflow-hidden bg-[#f7f8f6]">
         <Sidebar onLogout={handleLogout} />
-        <main className="flex-1 ml-64 p-8 min-h-screen overflow-y-auto">
+        <main className="ml-64 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/batches" element={<Batches />} />

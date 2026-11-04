@@ -16,7 +16,7 @@ from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-CACHE_S = 300
+CACHE_S = 60
 
 
 class SupabaseUser:
@@ -26,11 +26,12 @@ class SupabaseUser:
     is_staff = False
     is_superuser = False
 
-    def __init__(self, uid, email, role, full_name=''):
+    def __init__(self, uid, email, role, full_name='', is_active=True):
         self.id = self.pk = uid
         self.email = email
         self.role = role
         self.full_name = full_name
+        self.is_active = is_active
 
     def __str__(self):
         return self.email or self.id
@@ -49,27 +50,42 @@ def resolve_token(token):
     key = 'sb-user-' + hashlib.sha256(token.encode()).hexdigest()
     cached = cache.get(key)
     if cached:
-        return SupabaseUser(**cached)
+        user = {'id': cached['uid'], 'email': cached['email']}
+    else:
+        try:
+            user = _get('/auth/v1/user', token)
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                raise AuthenticationFailed('Session expired. Please log in again.')
+            raise AuthenticationFailed(f'Could not verify session with Supabase ({exc.code}).')
+        except OSError:
+            raise AuthenticationFailed('Could not reach Supabase to verify the session.')
+        cache.set(key, {'uid': user['id'], 'email': user.get('email', '')}, CACHE_S)
     try:
-        user = _get('/auth/v1/user', token)
-    except urllib.error.HTTPError as exc:
-        if exc.code in (401, 403):
-            raise AuthenticationFailed('Session expired. Please log in again.')
-        raise AuthenticationFailed(f'Could not verify session with Supabase ({exc.code}).')
-    except OSError:
-        raise AuthenticationFailed('Could not reach Supabase to verify the session.')
-    try:
-        rows = _get(f"/rest/v1/profiles?id=eq.{user['id']}&select=role,full_name", token)
+        rows = _get(f"/rest/v1/profiles?id=eq.{user['id']}&select=role,full_name,is_active", token)
     except OSError:
         rows = []
-    profile = rows[0] if rows else {}
+    profile = rows[0] if rows else None
+    if profile is None:
+        from .supabase_client import has_service_key, supabase_select
+
+        if has_service_key():
+            try:
+                profiles = supabase_select('profiles', {'id': user['id']}, 'role,full_name,is_active')
+            except (OSError, ValueError):
+                profiles = []
+            profile = profiles[0] if profiles else None
+    if profile is None or 'is_active' not in profile:
+        raise AuthenticationFailed('Could not verify account status. Apply the account-controls database migration and check backend Supabase access.')
+    if profile.get('is_active') is not True:
+        raise AuthenticationFailed('This account has been deactivated. Contact an administrator for help.')
     data = {
         'uid': user['id'],
         'email': user.get('email', ''),
         'role': profile.get('role') or (user.get('user_metadata') or {}).get('role'),
         'full_name': profile.get('full_name') or '',
+        'is_active': profile.get('is_active', True),
     }
-    cache.set(key, data, CACHE_S)
     return SupabaseUser(**data)
 
 

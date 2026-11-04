@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { cachedAvatar } from './avatarApi'
+import { deviceApi } from './deviceApi'
 
 export const PRODUCT_SELECT = `
   *,
@@ -74,12 +75,16 @@ export const api = {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_active')
       .eq('id', data.user.id)
       .single()
     if (profileError || !profile?.role) {
       await clearLocalSession()
       throw new Error('Your account profile is incomplete. Please contact support.')
+    }
+    if (profile.is_active === false) {
+      await clearLocalSession()
+      throw new Error('This account has been deactivated. Contact an administrator for help.')
     }
     if (profile.role !== 'ADMIN') {
       await clearLocalSession()
@@ -116,7 +121,7 @@ export const api = {
   async adminUsers() {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, role, stall_number, created_at')
+      .select('id, full_name, email, role, stall_number, created_at, is_active')
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
     return data || []
@@ -135,6 +140,10 @@ export const api = {
   async adminSetRole(target, role, stall) {
     const { error } = await supabase.rpc('admin_set_role', { target, new_role: role, new_stall: stall || null })
     if (error) throw new Error(error.message)
+  },
+
+  async adminSetAccountActive(target, isActive) {
+    await deviceApi.setAccountActive(target, isActive)
   },
 
   async adminRejectRequest(requestId, reason) {
