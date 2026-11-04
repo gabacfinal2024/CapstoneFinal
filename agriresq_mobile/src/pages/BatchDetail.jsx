@@ -60,7 +60,8 @@ export default function BatchDetail() {
           <h3>Batch Info</h3>
           <div className="info-grid">
             <div><span>Quantity</span><strong>{batch.quantity_kg} kg</strong></div>
-            <div><span>Harvest</span><strong>{batch.harvest_datetime ? new Date(batch.harvest_datetime).toLocaleString('en-PH') : '—'}</strong></div>
+            <div><span>Harvested</span><strong>{batch.harvest_datetime ? new Date(batch.harvest_datetime).toLocaleString('en-PH') : 'Date and time unknown'}</strong></div>
+            <div><span>Added to AgriResQ</span><strong>{batch.created_at ? new Date(batch.created_at).toLocaleString('en-PH') : '—'}</strong></div>
             <div><span>Base Price</span><strong>{formatCurrency(batch.base_price_per_kg)}/kg</strong></div>
             <div><span>Current Price</span><strong>{formatCurrency(batch.current_price_per_kg)}/kg</strong></div>
             {batch.discount_percent > 0 && (

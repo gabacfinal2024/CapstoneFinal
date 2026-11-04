@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone, Thermometer } from 'lucide-react'
+import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone } from 'lucide-react'
 import { deviceApi, deviceSetup, signalLabel } from '../api/deviceApi'
 import { useAuth } from '../context/AuthContext'
 import ErrorNotice from '../components/ErrorNotice'
@@ -8,17 +8,18 @@ import '../styles/devices.css'
 import './AddDevice.css'
 
 const CAMERA_STEPS = ['Details', 'Join camera', 'Stall Wi-Fi', 'Finish']
+const SENSOR_STEPS = ['Details', 'Join sensor', 'Stall Wi-Fi', 'Finish']
 const PAIRING_POLL_MS = 2000
 const PAIRING_TIMEOUT_MS = 18 * 60 * 1000
 const STATUS_POLL_MS = 1500
 
 const STATUS_TEXT = {
   idle: 'Waiting for Wi-Fi details…',
-  connecting: 'Camera is joining your Wi-Fi…',
-  wifi_failed: 'The camera could not join that Wi-Fi.',
-  claiming: 'Connected! Registering the camera to your account…',
-  claim_failed: 'The camera joined Wi-Fi but could not reach the AgriResQ server.',
-  done: 'Camera registered.',
+  connecting: 'Device is joining your Wi-Fi…',
+  wifi_failed: 'The device could not join that Wi-Fi.',
+  claiming: 'Connected! Registering the device to your account…',
+  claim_failed: 'The device joined Wi-Fi but could not reach the AgriResQ server.',
+  done: 'Device registered.',
 }
 
 export default function AddDevice() {
@@ -49,7 +50,7 @@ export default function AddDevice() {
   const [ssid, setSsid] = useState('')
   const [password, setPassword] = useState('')
   const [provisionState, setProvisionState] = useState(null) // device /status state
-  const [provisionMessage, setProvisionMessage] = useState('') // camera's own explanation
+  const [provisionMessage, setProvisionMessage] = useState('') // device's own explanation
   const statusTimer = useRef(null)
   const statusFailures = useRef(0)
 
@@ -59,8 +60,8 @@ export default function AddDevice() {
   const [timedOut, setTimedOut] = useState(false)
   const [claimedDevice, setClaimedDevice] = useState(null)
   const isSensorSetup = details.kind === 'SENSOR'
-  const steps = isSensorSetup ? ['Details', 'Pair sensor', 'Done'] : CAMERA_STEPS
-  const visibleStep = isSensorSetup ? (step === 0 ? 0 : step === 3 ? 1 : 2) : step
+  const steps = isSensorSetup ? SENSOR_STEPS : CAMERA_STEPS
+  const visibleStep = step
 
   useEffect(() => () => clearInterval(statusTimer.current), [])
 
@@ -75,12 +76,7 @@ export default function AddDevice() {
     try {
       const p = await deviceApi.createPairing(details)
       setPairing(p)
-      if (isSensorSetup) {
-        setWaitingSince(Date.now())
-        setStep(3)
-      } else {
-        setStep(1)
-      }
+      setStep(1)
     } catch (err) {
       const hint = err.status >= 500
         ? 'The AgriResQ server encountered an error. Check that the latest backend deployment completed and applied its database migrations, then try again.'
@@ -93,7 +89,7 @@ export default function AddDevice() {
     }
   }
 
-  // ── Step 1: verify the phone is on the camera's hotspot ──
+  // ── Step 1: verify the phone is on the device hotspot ──
   const checkCamera = async () => {
     setBusy(true)
     clearError()
@@ -103,13 +99,13 @@ export default function AddDevice() {
       setStep(2)
       loadNetworks()
     } catch (err) {
-      fail(err.message, 'camera', "Make sure the phone is connected to the camera's \"AgriResQ-…\" Wi-Fi. Turn off mobile data if your phone keeps switching away.")
+      fail(err.message, 'camera', `Make sure the phone is connected to the ${isSensorSetup ? 'sensor' : 'camera'}'s "AgriResQ-…" Wi-Fi. Turn off mobile data if your phone keeps switching away.`)
     } finally {
       setBusy(false)
     }
   }
 
-  // ── Step 2: choose stall Wi-Fi and send it to the camera ──
+  // ── Step 2: choose stall Wi-Fi and send it to the device ──
   const loadNetworks = async () => {
     setScanning(true)
     clearError()
@@ -141,7 +137,7 @@ export default function AddDevice() {
       clearInterval(statusTimer.current)
       statusTimer.current = setInterval(pollDeviceStatus, STATUS_POLL_MS)
     } catch (err) {
-      fail(err.message, 'camera', 'The camera did not accept the Wi-Fi details. Check you are still connected to its "AgriResQ-…" Wi-Fi.')
+      fail(err.message, 'camera', `The ${isSensorSetup ? 'sensor' : 'camera'} did not accept the Wi-Fi details. Check you are still connected to its "AgriResQ-…" Wi-Fi.`)
       setProvisionState(null)
       setBusy(false)
     }
@@ -160,8 +156,8 @@ export default function AddDevice() {
           s.message || STATUS_TEXT[s.state],
           '',
           s.state === 'wifi_failed'
-            ? 'Re-enter the Wi-Fi password below. The camera only supports 2.4 GHz networks.'
-            : 'Make sure the AgriResQ server is running and on the same Wi-Fi network as the camera.',
+            ? 'Re-enter the Wi-Fi password below. The device only supports 2.4 GHz networks.'
+            : 'Make sure the AgriResQ server is running and the device can reach it over Wi-Fi.',
         )
       } else if (s.state === 'done') {
         clearInterval(statusTimer.current)
@@ -169,7 +165,7 @@ export default function AddDevice() {
         goToFinish()
       }
     } catch {
-      // The camera closes its hotspot once it joins the stall Wi-Fi, so the phone loses it.
+      // The device may close its hotspot once it joins the stall Wi-Fi, so the phone loses it.
       // That is expected: continue on the "Finish" step.
       statusFailures.current += 1
       if (statusFailures.current >= 3) {
@@ -302,14 +298,14 @@ export default function AddDevice() {
           </form>
         )}
 
-        {step === 1 && pairing && !isSensorSetup && (
+        {step === 1 && pairing && (
           <div className="card wizard-card">
             <div className="wizard-icon"><Smartphone size={28} /></div>
-            <h3>Connect your phone to the camera</h3>
+            <h3>Connect your phone to the {isSensorSetup ? 'sensor' : 'camera'}</h3>
             <ol className="wizard-instructions">
-              <li>Plug in the camera and wait about 10 seconds.</li>
+              <li>Power on the {isSensorSetup ? 'sensor' : 'camera'} and wait about 10 seconds.</li>
               <li>Open your phone's <strong>Wi-Fi settings</strong>.</li>
-              <li>Join the network <strong>{pairing.setup_ap_prefix || 'AgriResQ-'}XXXX</strong> with password <strong className="mono">{pairing.setup_ap_password || 'agriresq'}</strong>.</li>
+              <li>Join the network <strong>{pairing.setup_ap_prefix || (isSensorSetup ? 'AgriResQ-SENSOR-' : 'AgriResQ-')}XXXX</strong> with password <strong className="mono">{pairing.setup_ap_password || 'agriresq'}</strong>.</li>
               <li>If your phone says “No internet”, choose <strong>Stay connected</strong>.</li>
               <li>Come back here and tap the button below.</li>
             </ol>
@@ -318,12 +314,12 @@ export default function AddDevice() {
               <strong className="mono">{pairing.code}</strong>
             </div>
             <button className="btn btn-green" onClick={checkCamera} disabled={busy}>
-              {busy ? <><Loader2 className="spin" size={18} /> Looking for camera…</> : <><Camera size={18} /> I'm connected to the camera</>}
+              {busy ? <><Loader2 className="spin" size={18} /> Looking for {isSensorSetup ? 'sensor' : 'camera'}…</> : <><Camera size={18} /> I'm connected to the {isSensorSetup ? 'sensor' : 'camera'}</>}
             </button>
             <p className="fallback-note">
-              Not working? While connected to the camera's Wi-Fi, open <strong>{pairing.setup_url || 'http://192.168.4.1'}</strong> in your
+              Not working? While connected to the {isSensorSetup ? 'sensor' : 'camera'} Wi-Fi, open <strong>{pairing.setup_url || 'http://192.168.4.1'}</strong> in your
               browser and enter your Wi-Fi details and the pairing code <strong className="mono">{pairing.code}</strong> there.
-              The server address to enter is <strong className="mono">{pairing.server_url}</strong> (not <strong className="mono">{pairing.setup_url || 'http://192.168.4.1'}</strong>, which is only the camera setup page).
+              The server address to enter is <strong className="mono">{pairing.server_url}</strong> (not <strong className="mono">{pairing.setup_url || 'http://192.168.4.1'}</strong>, which is only the device setup page).
             </p>
           </div>
         )}
@@ -332,8 +328,8 @@ export default function AddDevice() {
           <form className="card wizard-card" onSubmit={sendWifi}>
             <div className="wizard-icon"><Wifi size={28} /></div>
             <h3>Choose your stall Wi-Fi</h3>
-            {deviceInfo?.mac && <p className="muted small-center">Camera found · {deviceInfo.mac}{deviceInfo.fw ? ` · fw ${deviceInfo.fw}` : ''}</p>}
-            <p className="notice info">The camera only works with <strong>2.4 GHz</strong> Wi-Fi. Avoid networks ending in “5G”.</p>
+            {deviceInfo?.mac && <p className="muted small-center">{isSensorSetup ? 'Sensor' : 'Camera'} found · {deviceInfo.mac}{deviceInfo.fw ? ` · fw ${deviceInfo.fw}` : ''}</p>}
+            <p className="notice info">The {isSensorSetup ? 'sensor' : 'camera'} only works with <strong>2.4 GHz</strong> Wi-Fi. Avoid networks ending in “5G”.</p>
 
             {!manualSsid && (
               <div className="network-list">
@@ -374,44 +370,17 @@ export default function AddDevice() {
             )}
 
             <button className="btn btn-green" disabled={busy || !ssid}>
-              {busy ? 'Connecting camera…' : 'Connect camera to this Wi-Fi'}
+              {busy ? `Connecting ${isSensorSetup ? 'sensor' : 'camera'}…` : `Connect ${isSensorSetup ? 'sensor' : 'camera'} to this Wi-Fi`}
             </button>
           </form>
         )}
 
-        {step === 3 && isSensorSetup && pairing && !claimedDevice && (
-          <div className="card wizard-card">
-            <div className="wizard-icon"><Thermometer size={28} /></div>
-            <h3>Finish sensor setup from your phone</h3>
-            <p className="wizard-text">No laptop is needed for pairing. In your phone's Wi-Fi settings, join <strong>{pairing.setup_ap_prefix || 'AgriResQ-SENSOR-'}XXXX</strong> with password <strong className="mono">{pairing.setup_ap_password || 'agriresq'}</strong>. If prompted, stay connected without internet.</p>
-            <p className="pairing-code">
-              <span>Pairing code (already filled in on the setup page)</span>
-              <strong className="mono">{pairing.code}</strong>
-            </p>
-            <a className="btn btn-green" href={`${pairing.setup_url || 'http://192.168.4.1'}/?${new URLSearchParams({ server: pairing.server_url, code: pairing.code })}`} target="_blank" rel="noreferrer">
-              <Smartphone size={18} /> Open sensor setup page
-            </a>
-            <p className="field-hint">On the setup page, enter your stall's 2.4 GHz Wi-Fi name and password, then submit. Reconnect your phone to internet Wi-Fi and return here. The sensor securely pairs to the same hosted AgriResQ backend as the camera; readings update every 30 seconds.</p>
-            {!timedOut ? (
-              <div className="notice info"><Loader2 className="spin" size={14} /> {pairingProgress || 'Waiting for the sensor to register…'}</div>
-            ) : (
-              <>
-                <div className="notice warn">The code may have expired. Check the serial monitor for a pairing error, then start again to get a new code.</div>
-                <div className="btn-row">
-                  <button className="btn btn-green" onClick={retryWaiting}>Keep waiting</button>
-                  <button className="btn btn-ghost" onClick={restart}>Start over</button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {step === 3 && !isSensorSetup && !claimedDevice && (
+        {step === 3 && !claimedDevice && (
           <div className="card wizard-card">
             <div className="wizard-icon"><WifiOff size={28} /></div>
             <h3>Reconnect your phone</h3>
             <p className="wizard-text">
-              The camera is now joining <strong>{ssid || 'your Wi-Fi'}</strong>. Switch your phone back to your normal Wi-Fi
+              The {isSensorSetup ? 'sensor' : 'camera'} is now joining <strong>{ssid || 'your Wi-Fi'}</strong>. Switch your phone back to your normal Wi-Fi
               (the same network as the AgriResQ server) and keep this screen open.
             </p>
             {!timedOut ? (
@@ -419,8 +388,8 @@ export default function AddDevice() {
             ) : (
               <>
                 <div className="notice warn">
-                  The camera hasn't registered yet. Check that the Wi-Fi password was correct and that the camera's light is on.
-                  If it still has its hotspot open, the password was probably wrong. Go back and try again.
+                  The {isSensorSetup ? 'sensor' : 'camera'} hasn't registered yet. Check that the Wi-Fi password was correct and that the device is powered on.
+                  If its hotspot is still available, the password may be wrong. Go back and try again.
                 </div>
                 <div className="btn-row">
                   <button className="btn btn-ghost" onClick={() => { clearError(); setStep(1) }}>Back to setup</button>

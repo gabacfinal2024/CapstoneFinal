@@ -41,9 +41,8 @@ export default function BatchCard({ batch }) {
         <p className="batch-meta">
           {batch.quantity_kg} kg · Stall {batch.profiles?.stall_number || batch.stall_number || '—'}
         </p>
-        {batch.harvest_datetime && (
-          <p className="batch-harvest">Harvest: {new Date(batch.harvest_datetime).toLocaleString('en-PH')}</p>
-        )}
+        <p className="batch-harvest">Harvested: {batch.harvest_datetime ? new Date(batch.harvest_datetime).toLocaleString('en-PH') : 'Date and time unknown'}</p>
+        {batch.created_at && <p className="batch-harvest">Added to AgriResQ: {new Date(batch.created_at).toLocaleString('en-PH')}</p>}
         <p className={`card-storage${storage ? '' : ' is-empty'}`} title={storage || undefined}>{storage || 'No sensor reading yet'}</p>
         <div className="batch-footer">
           <span>{batch.discount_percent > 0 ? `${batch.discount_percent}% off` : 'Full price'}</span>

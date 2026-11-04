@@ -237,7 +237,7 @@ function BatchDetailView({ id }) {
   const meta = freshnessMeta(product.freshness_status);
   const pictures = buildPictures(product, scans);
   const operator = product.profiles || {};
-  const harvested = product.harvest_datetime || product.created_at;
+  const harvested = product.harvest_datetime;
   const canList = product.freshness_status !== 'RED' && !listingActive && !listingSold;
 
   return (
@@ -277,7 +277,7 @@ function BatchDetailView({ id }) {
           <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
             <Field label="Crop">{titleCase(product.crop_type)}</Field>
             <Field label="Quantity">{product.quantity_kg} kg</Field>
-            <Field label="Harvested">{fmtDateTime(harvested)}</Field>
+            <Field label="Harvested">{harvested ? fmtDateTime(harvested) : 'Date and time unknown'}</Field>
             <Field label="Base price">{peso(product.base_price_per_kg, 2)}/kg</Field>
             <Field label="Current price">{peso(product.current_price_per_kg, 2)}/kg</Field>
             <Field label="Discount">{Number(product.discount_percent) || 0}%{product.auto_discount_enabled ? ' (auto)' : ''}</Field>
@@ -291,7 +291,7 @@ function BatchDetailView({ id }) {
             <Field label="Operator">{operator.full_name || '—'}</Field>
             <Field label="Stall">{operator.stall_number ? `Stall ${operator.stall_number}` : '—'}</Field>
             <Field label="Pickup location">{product.pickup_location || '—'}</Field>
-            <Field label="Registered">{fmtDate(product.created_at)}</Field>
+            <Field label="Added to AgriResQ">{fmtDateTime(product.created_at)}</Field>
             <Field label="Sensor node">{product.iot_node_id ? `Node ${product.iot_node_id}` : 'None'}</Field>
           </dl>
           <div className="mt-6 pt-5 border-t border-slate-100">

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
-import { CROP_LABELS, formatCurrency, formatDays, formatDateTime } from '../utils/helpers'
+import { CROP_LABELS, formatCurrency, formatDays } from '../utils/helpers'
 import FreshnessGauge from '../components/FreshnessGauge'
 import FreshnessCheck from '../components/FreshnessCheck'
 import ProductImage from '../components/ProductImage'
@@ -84,7 +84,8 @@ export default function ProduceDetail() {
           <section className="card detail-block">
             <h3>Batch Info</h3>
             <div className="info-row"><span>Quantity</span><strong>{qty ? `${qty} kg` : '—'}</strong></div>
-            <div className="info-row"><span>Harvested</span><strong>{product?.harvest_datetime ? formatDateTime(product.harvest_datetime) : '—'}</strong></div>
+            <div className="info-row"><span>Harvested</span><strong>{product?.harvest_datetime ? new Date(product.harvest_datetime).toLocaleString('en-PH') : 'Date and time unknown'}</strong></div>
+            <div className="info-row"><span>Added to AgriResQ</span><strong>{product?.created_at ? new Date(product.created_at).toLocaleString('en-PH') : '—'}</strong></div>
             <div className="info-row"><span>Price per kg</span><strong>{formatCurrency(perKg)}</strong></div>
             <div className="info-row"><span>Days to spoil</span><strong>{formatDays(product?.predicted_shelf_life)}</strong></div>
           </section>

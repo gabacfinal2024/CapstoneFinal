@@ -222,7 +222,7 @@ export const api = {
       freshness_percent: body.freshness_percent ?? 100,
       predicted_shelf_life: body.predicted_shelf_life ?? 5,
       ml_confidence: body.ml_confidence,
-      harvest_datetime: body.harvest_datetime || new Date().toISOString(),
+      harvest_datetime: body.harvest_datetime || null,
       image_url: body.image_url || '',
       notes: body.notes || '',
       pickup_location: body.pickup_location || 'Bulua West Terminal',

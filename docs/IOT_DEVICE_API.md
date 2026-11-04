@@ -21,10 +21,12 @@ development: the laptop backend). The apps and sensor must use the same backend 
 1. In the AgriResQ mobile app, open **Devices → Add device**, choose **ESP32 sensor node (DHT22)** and
    create a pairing code.
 2. Connect the phone to the sensor hotspot shown in the app (`AgriResQ-SENSOR-XXXX`, password `agriresq`).
-   If prompted, stay connected without internet.
-3. Open the setup address shown by the app. Enter the stall's 2.4 GHz Wi-Fi name/password and submit.
-   The server and pairing code are prefilled from the app. Reconnect the phone to internet Wi-Fi and return
-   to AgriResQ while the sensor joins Wi-Fi and registers.
+   If prompted, stay connected without internet, then return to AgriResQ and confirm the connection.
+3. Choose the stall's 2.4 GHz Wi-Fi from the scanned network list (or type its name), enter its password,
+   and tap **Connect sensor to this Wi-Fi**. Reconnect the phone to internet Wi-Fi and return to AgriResQ
+   while the sensor joins Wi-Fi and registers.
+   If the app cannot communicate with the sensor, open `http://192.168.4.1` while connected to its hotspot
+   and enter the Wi-Fi details and pairing code there.
 4. The sensor uses the same hosted backend as the camera and apps. The node reports DHT22 readings on GPIO
    4 every 30 seconds. Live temperature, relative humidity and
    calculated VPD appear on the device page; the backend rejects values outside physical sensor ranges.

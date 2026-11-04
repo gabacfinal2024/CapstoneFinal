@@ -19,7 +19,7 @@ const mapBatch = (row) => ({
   crop: row.crop_type || 'Unknown',
   qty: Number(row.quantity_kg) || 0,
   price: row.current_price_per_kg,
-  harvest: row.harvest_datetime || row.created_at,
+  harvest: row.harvest_datetime,
   createdAt: row.created_at,
   days: row.predicted_shelf_life != null ? Number(row.predicted_shelf_life) : null,
   percent: row.freshness_percent,
@@ -80,8 +80,8 @@ const Batches = () => {
 
   const exportCsv = () => {
     downloadCsv('agriresq_batches.csv',
-      ['batch_id', 'crop', 'operator', 'stall', 'kg', 'price_per_kg', 'harvest_time', 'days_left', 'freshness_percent', 'status', 'camera_confidence_percent', 'listed', 'temp_c', 'humidity_rh', 'vpd_kpa', 'chu'],
-      visible.map((b) => [b.id, b.crop, b.operator, b.stall, b.qty, b.price, b.harvest, b.days, b.percent, freshnessMeta(b.status).label, b.camConf, b.listed ? 'yes' : 'no', b.sensor.temp, b.sensor.rh, b.sensor.vpd, b.sensor.chu]));
+      ['batch_id', 'crop', 'operator', 'stall', 'kg', 'price_per_kg', 'harvest_time', 'added_at', 'days_left', 'freshness_percent', 'status', 'camera_confidence_percent', 'listed', 'temp_c', 'humidity_rh', 'vpd_kpa', 'chu'],
+      visible.map((b) => [b.id, b.crop, b.operator, b.stall, b.qty, b.price, b.harvest, b.createdAt, b.days, b.percent, freshnessMeta(b.status).label, b.camConf, b.listed ? 'yes' : 'no', b.sensor.temp, b.sensor.rh, b.sensor.vpd, b.sensor.chu]));
   };
 
   if (isLoading) {
@@ -174,6 +174,7 @@ const Batches = () => {
                 <th className="p-4">Operator</th>
                 <th className="p-4">Qty / Price</th>
                 <th className="p-4">Harvested</th>
+                <th className="p-4">Added to AgriResQ</th>
                 <th className="p-4">Days-to-Spoil</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Camera</th>
@@ -183,7 +184,7 @@ const Batches = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {visible.length === 0 && (
-                <tr><td colSpan="9" className="p-10 text-center text-slate-400">
+                <tr><td colSpan="10" className="p-10 text-center text-slate-400">
                   {batches.length === 0 ? 'No batches have been registered yet.' : 'No batch matches your search or filters.'}
                 </td></tr>
               )}
@@ -209,8 +210,12 @@ const Batches = () => {
                       <p className="text-xs text-slate-500">{row.price != null ? `₱${row.price}/kg` : '—'}</p>
                     </td>
                     <td className="p-4 align-top pt-5">
-                      <p className="font-bold text-slate-800">{fmtDate(row.harvest)}</p>
-                      <p className="text-xs text-slate-500">{fmtTime(row.harvest)}</p>
+                      <p className="font-bold text-slate-800">{row.harvest ? fmtDate(row.harvest) : 'Unknown'}</p>
+                      <p className="text-xs text-slate-500">{row.harvest ? fmtTime(row.harvest) : 'Not provided'}</p>
+                    </td>
+                    <td className="p-4 align-top pt-5">
+                      <p className="font-bold text-slate-800">{fmtDate(row.createdAt)}</p>
+                      <p className="text-xs text-slate-500">{fmtTime(row.createdAt)}</p>
                     </td>
                     <td className="p-4 align-top pt-5">
                       <p className={`font-bold ${meta.text}`}>{row.days != null ? `${row.days} days` : '—'}</p>

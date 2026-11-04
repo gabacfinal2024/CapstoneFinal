@@ -84,7 +84,7 @@ export default function AdminRoles() {
                   {req.note && <p className="text-sm text-slate-600 mt-1">“{req.note}”</p>}
                 </div>
                 <label className="text-xs text-slate-500">
-                  Stall number
+                  Stall number (required)
                   <input
                     className="block mt-1 w-40 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
                     defaultValue={req.requested_stall_number}
@@ -94,7 +94,7 @@ export default function AdminRoles() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => approve(req)}
-                    disabled={busy === `req-${req.id}`}
+                    disabled={busy === `req-${req.id}` || !(stalls[req.id] ?? req.requested_stall_number ?? '').trim()}
                     className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
                   >
                     Approve

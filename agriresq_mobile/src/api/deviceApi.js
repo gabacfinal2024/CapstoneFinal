@@ -1,6 +1,6 @@
 import { supabase, BACKEND_URL } from '../lib/supabase'
 
-/** Address of the ESP32-CAM while it is in setup mode (its own "AgriResQ-XXXX" hotspot). */
+/** Address of an ESP32 device while it is in setup mode (its own "AgriResQ-XXXX" hotspot). */
 export const DEVICE_SETUP_URL = 'http://192.168.4.1'
 
 async function authHeader() {
@@ -212,7 +212,7 @@ export const deviceApi = {
   },
 }
 
-// ── Device setup mode (phone joined the camera's "AgriResQ-XXXX" Wi-Fi) ──
+// ── Device setup mode (phone joined the device's "AgriResQ-XXXX" Wi-Fi) ──
 async function setupCall(path, { method = 'GET', body, timeoutMs = 6000 } = {}) {
   let res
   try {
@@ -223,9 +223,9 @@ async function setupCall(path, { method = 'GET', body, timeoutMs = 6000 } = {}) 
     }, timeoutMs)
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error('The camera did not answer. Make sure your phone is connected to the "AgriResQ-…" Wi-Fi.')
+      throw new Error('The device did not answer. Make sure your phone is connected to its "AgriResQ-…" Wi-Fi.')
     }
-    throw new Error('Cannot reach the camera at 192.168.4.1. Connect your phone to the camera\'s "AgriResQ-…" Wi-Fi first.')
+    throw new Error('Cannot reach the device at 192.168.4.1. Connect your phone to its "AgriResQ-…" Wi-Fi first.')
   }
   if (!res.ok) throw new Error(await readError(res))
   return res.json()

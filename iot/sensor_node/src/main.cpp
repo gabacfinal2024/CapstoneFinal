@@ -150,7 +150,7 @@ void handleSetupInfo() {
 }
 
 void handleSetupNetworks() {
-  int count = WiFi.scanNetworks(false, true);
+  int count = WiFi.scanNetworks(false, false);
   JsonDocument d;
   JsonArray networks = d.to<JsonArray>();
   for (int i = 0; i < count; ++i) {
@@ -534,7 +534,7 @@ void setup() {
   dht.begin();
   loadPrefs();
   if (token.isEmpty()) startSetupMode();
-  connectWifi();
+  if (!token.isEmpty() || !pendingCode.isEmpty()) connectWifi();
   if (token.isEmpty()) {
     Serial.println("Not paired. Open Devices > Add device > Sensor in the AgriResQ app and join the sensor hotspot.");
   }
@@ -550,7 +550,7 @@ void loop() {
   uint32_t now = millis();
   if (WiFi.status() != WL_CONNECTED) {
     static uint32_t lastTry = 0;
-    if (now - lastTry > 15000) {
+    if ((!token.isEmpty() || !pendingCode.isEmpty()) && now - lastTry > 15000) {
       lastTry = now;
       connectWifi();
     }

@@ -26,6 +26,7 @@ export default function NewBatch() {
     iot_node_id: '', notes: '', pickup_location: 'Bulua West Terminal',
     auto_discount_enabled: true,
   })
+  const [harvestKnown, setHarvestKnown] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [listingMissing, setListingMissing] = useState(false)
@@ -121,6 +122,10 @@ export default function NewBatch() {
   /** Step 4–5: Save product + freshness to Supabase → listings */
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (harvestKnown && !form.harvest_datetime) {
+      setError('Enter the harvest date and time, or uncheck the harvest-time option.')
+      return
+    }
     if (!imageFile) {
       setError('A product photo is required. Capture one with the ESP32-CAM or upload a clear photo first.')
       return
@@ -154,9 +159,8 @@ export default function NewBatch() {
         const { data: { user } } = await supabase.auth.getUser()
         imageUrl = await publishProductPhoto(supabase, imageFile, user?.id)
       }
-      // The countdown starts from the harvest time, not from "5 days": a batch harvested 3 days ago is
-      // already 3 days old. The camera can only shorten it further (a fresh verdict never extends it).
-      const aged = daysLeftSinceHarvest(form.crop_type, form.harvest_datetime)
+      // Use the known harvest time when provided; otherwise aging starts when the batch is registered.
+      const aged = daysLeftSinceHarvest(form.crop_type, harvestKnown ? form.harvest_datetime : new Date())
       const days = freshness?.days_to_spoil != null ? Math.min(Number(freshness.days_to_spoil), aged.days) : aged.days
       const status = worseStatus(freshness?.freshness_status || 'GREEN', statusFromDays(days))
       const percent = Math.min(freshness?.freshness_percent ?? 100, Math.round((days / aged.baseline) * 100))
@@ -168,7 +172,7 @@ export default function NewBatch() {
         // products.iot_node_id references Supabase iot_nodes; cameras live in the IoT hub,
         // so the camera is linked to the batch below instead.
         iot_node_id: null,
-        harvest_datetime: new Date(form.harvest_datetime).toISOString(),
+        harvest_datetime: harvestKnown ? new Date(form.harvest_datetime).toISOString() : null,
         freshness_status: status,
         freshness_percent: percent,
         predicted_shelf_life: days,
@@ -245,7 +249,7 @@ export default function NewBatch() {
   const usable = analysis && !rejectedPhoto ? analysis : null
 
   const previewStatus = usable
-    ? worseStatus(usable.freshness_status, statusFromDays(Math.min(Number(usable.days_to_spoil ?? 99), daysLeftSinceHarvest(form.crop_type, form.harvest_datetime).days)))
+    ? worseStatus(usable.freshness_status, statusFromDays(Math.min(Number(usable.days_to_spoil ?? 99), daysLeftSinceHarvest(form.crop_type, harvestKnown ? form.harvest_datetime : new Date()).days)))
     : null
   const previewPricing = usable
     ? computeDynamicPrice(form.base_price_per_kg, form.quantity_kg, previewStatus, form.auto_discount_enabled)
@@ -285,8 +289,18 @@ export default function NewBatch() {
             <input type="number" step="0.01" value={form.base_price_per_kg} onChange={(e) => set('base_price_per_kg', e.target.value)} required />
           </div>
           <div className="input-group">
-            <label>Harvest Date & Time</label>
-            <input type="datetime-local" value={form.harvest_datetime} onChange={(e) => set('harvest_datetime', e.target.value)} required />
+            <label className="checkbox-label">
+              <input type="checkbox" checked={harvestKnown} onChange={(e) => setHarvestKnown(e.target.checked)} />
+              I know when this produce was harvested
+            </label>
+            {harvestKnown ? (
+              <>
+                <label htmlFor="harvest-datetime">Harvest Date & Time</label>
+                <input id="harvest-datetime" type="datetime-local" value={form.harvest_datetime} onChange={(e) => set('harvest_datetime', e.target.value)} required />
+              </>
+            ) : (
+              <p className="field-hint">Optional. If unknown, the batch is recorded as added now and freshness aging starts from its registration time.</p>
+            )}
           </div>
           <div className="input-group">
             <label className="checkbox-label">

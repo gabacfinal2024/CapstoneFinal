@@ -151,20 +151,20 @@ export default function Profile() {
             {request?.status === 'PENDING' ? (
               <p className="apply-status">Request sent for <strong>{request.requested_stall_number}</strong>. An administrator will review it and you will get a notification.</p>
             ) : applying ? (
-              <div className="edit-form">
+              <form className="edit-form" onSubmit={(e) => { e.preventDefault(); handleApply() }}>
                 <div className="field">
-                  <label>Stall number</label>
-                  <input value={stall} onChange={(e) => setStall(e.target.value)} placeholder="e.g. Stall 1" />
+                  <label htmlFor="operator-stall-number">Stall number (required)</label>
+                  <input id="operator-stall-number" value={stall} onChange={(e) => setStall(e.target.value)} placeholder="e.g. 1" required />
                 </div>
                 <div className="field">
                   <label>Note for the administrator (optional)</label>
                   <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="What do you sell?" />
                 </div>
                 <div className="edit-actions">
-                  <button className="btn btn-outline" onClick={() => setApplying(false)}>Cancel</button>
-                  <button className="btn btn-green" onClick={handleApply} disabled={sending}>{sending ? 'Sending...' : 'Send request'}</button>
+                  <button type="button" className="btn btn-outline" onClick={() => setApplying(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-green" disabled={sending}>{sending ? 'Sending...' : 'Send request'}</button>
                 </div>
-              </div>
+              </form>
             ) : (
               <>
                 <p className="apply-status">
