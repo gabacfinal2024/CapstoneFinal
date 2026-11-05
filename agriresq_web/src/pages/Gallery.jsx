@@ -13,8 +13,8 @@ const PAGE_SIZE = 40
 const REFRESH_MS = 15000
 const MAX_SKIP_PAGES = 8 // pages to scan past when a "to" date hides the newest ones
 
-const EMPTY_FILTERS = { device: '', detected: '', state: '', from: '', to: '' }
-const STATES = [['fresh', 'Fresh'], ['at-risk', 'At-Risk'], ['rotten', 'Rotten'], ['none', 'Nothing detected']]
+const EMPTY_FILTERS = { device: '', state: '', from: '', to: '' }
+const STATES = [['fresh', 'Fresh'], ['at-risk', 'At-Risk'], ['rotten', 'Rotten']]
 
 const selectCls = 'px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 focus:border-[#2A6B48] focus:ring-2 focus:ring-emerald-100 outline-none'
 
@@ -28,7 +28,6 @@ function queryFor(filters, extra = {}) {
   const from = startOfDay(filters.from)
   return {
     device: filters.device || undefined,
-    detected: filters.detected === '1' ? true : filters.detected === '0' ? false : undefined,
     state: filters.state || undefined,
     since: from && !Number.isNaN(from.getTime()) ? from.toISOString() : undefined,
     limit: PAGE_SIZE,
@@ -354,7 +353,7 @@ export default function Gallery() {
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-800">Scan Gallery</h1>
-          <p className="text-slate-500 text-sm mt-1">Recent pictures analysed from every stall camera. New pictures appear automatically.</p>
+          <p className="text-slate-500 text-sm mt-1">Recent pictures of recognized, matching vegetables from every stall camera.</p>
         </div>
         <div className="flex items-center gap-3">
           {updatedAt && <span className="text-xs text-slate-400">Updated {updatedAt.toLocaleTimeString()}</span>}
@@ -365,18 +364,11 @@ export default function Gallery() {
         </div>
       </div>
 
-      <form className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end" onSubmit={(e) => e.preventDefault()}>
+      <form className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end" onSubmit={(e) => e.preventDefault()}>
         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Camera
           <select className={`${selectCls} mt-1 w-full font-normal normal-case`} value={filters.device} onChange={(e) => setFilter('device', e.target.value)}>
             <option value="">All cameras</option>
             {devices.map((d) => <option key={d.id} value={d.id}>{d.name}{d.ip ? ` (${d.ip})` : ''}</option>)}
-          </select>
-        </label>
-        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Detection
-          <select className={`${selectCls} mt-1 w-full font-normal normal-case`} value={filters.detected} onChange={(e) => setFilter('detected', e.target.value)}>
-            <option value="">All pictures</option>
-            <option value="1">Vegetable detected</option>
-            <option value="0">Nothing detected</option>
           </select>
         </label>
         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">State

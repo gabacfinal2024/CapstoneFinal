@@ -9,18 +9,10 @@ import Skeleton from './Skeleton'
 import '../styles/devices.css'
 import './ScanGallery.css'
 
-const FILTERS = [
-  { key: 'all', label: 'All' },
-  { key: 'vegetable', label: 'Vegetables' },
-  { key: 'none', label: 'Nothing in view' },
-]
-
 const SOURCES = { AUTO: 'Automatic', MANUAL: 'Manual', UPLOAD: 'Upload' }
 const POLL_MS = 20000
 
-const STATE_LABELS = { fresh: 'Fresh', 'at-risk': 'At-Risk', rotten: 'Rotten', none: 'Nothing detected' }
-
-const detectedParam = (filter) => (filter === 'vegetable' ? true : filter === 'none' ? false : undefined)
+const STATE_LABELS = { fresh: 'Fresh', 'at-risk': 'At-Risk', rotten: 'Rotten' }
 
 /** New first page merged into what is already on screen (keeps pages loaded with "Load more"). */
 function mergeNewest(prev, fresh) {
@@ -121,7 +113,6 @@ function Tile({ scan, showCamera, onOpen }) {
  * Bump `refreshKey` to pull the newest scans right away (e.g. after "Scan now").
  */
 export default function ScanGallery({ deviceId = null, devices = [], pageSize = 12, refreshKey = 0, initialCamera = '' }) {
-  const [filter, setFilter] = useState('all')
   const [camera, setCamera] = useState(initialCamera)
   const [items, setItems] = useState([])
   const [next, setNext] = useState(null)
@@ -132,7 +123,7 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
   const [selected, setSelected] = useState(null)
 
   const device = deviceId ?? (camera || undefined)
-  const key = `${device ?? ''}|${filter}`
+  const key = device ?? ''
   const keyRef = useRef(key)
   keyRef.current = key
   const itemsRef = useRef([])
@@ -141,7 +132,7 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
   const fetchFirst = async (reset) => {
     const myKey = keyRef.current
     try {
-      const page = await deviceApi.gallery({ device, detected: detectedParam(filter), limit: pageSize })
+      const page = await deviceApi.gallery({ device, detected: true, limit: pageSize })
       if (keyRef.current !== myKey) return // filter changed while this request was in flight
       const prev = itemsRef.current
       const overlap = page.results.some((s) => prev.some((p) => p.id === s.id))
@@ -186,7 +177,7 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
     setLoadingMore(true)
     setMoreError('')
     try {
-      const page = await deviceApi.gallery({ device, detected: detectedParam(filter), before: next, limit: pageSize })
+      const page = await deviceApi.gallery({ device, detected: true, before: next, limit: pageSize })
       if (keyRef.current !== myKey) return
       setItems((prev) => mergeNewest(prev, page.results))
       setNext(page.next_before)
@@ -198,19 +189,11 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
   }
 
   const showCamera = deviceId == null
-  const emptyText = filter === 'none' ? 'No "nothing in view" scans yet.' : filter === 'vegetable' ? 'No vegetables detected yet.' : 'No scans yet. Pictures appear here after the camera scans.'
+  const emptyText = 'No matching vegetable photos yet. They appear here after a camera recognizes a vegetable matching its crop.'
 
   return (
     <div className="scan-gallery">
       <div className="gal-filters">
-        <div className="gal-seg" role="radiogroup" aria-label="Filter pictures">
-          {FILTERS.map((f) => (
-            <button key={f.key} type="button" role="radio" aria-checked={filter === f.key}
-              className={`gal-seg__btn${filter === f.key ? ' active' : ''}`} onClick={() => setFilter(f.key)}>
-              {f.label}
-            </button>
-          ))}
-        </div>
         {showCamera && devices.length > 0 && (
           <select className="gal-camera" value={camera} onChange={(e) => setCamera(e.target.value)} aria-label="Camera">
             <option value="">All cameras</option>

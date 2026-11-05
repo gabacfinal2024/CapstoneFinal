@@ -9,13 +9,14 @@ import re
 import socket
 import time
 import urllib.request
+from pathlib import Path
 from datetime import timedelta
 
 from django.conf import settings
 from django.core.cache import cache
 from django.core import signing
 from django.db import transaction
-from django.http import HttpResponse, StreamingHttpResponse
+from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
@@ -49,8 +50,15 @@ SETUP_AP = {'setup_ap_prefix': 'AgriResQ-', 'setup_ap_password': 'agriresq', 'se
 
 # ── serialization ───────────────────────────────────────────────────────────
 
-def media_url(request, rel):
-    return request.build_absolute_uri(settings.MEDIA_URL + rel) if rel else ''
+def media_url(request, rel, scan=None, field='image'):
+    if not rel:
+        return ''
+    if rel.startswith(('http://', 'https://', 'data:')):
+        return rel
+    if scan is None:
+        return ''
+    token = signing.dumps({'scan_id': scan.id, 'field': field}, salt='scan-image')
+    return request.build_absolute_uri(f'/api/scans/{scan.id}/image/{token}/{field}.jpg')
 
 
 def scan_json(request, s):
@@ -61,7 +69,7 @@ def scan_json(request, s):
         'freshness_percent': s.freshness_percent,
         'days_to_spoil': None if s.days_to_spoil is None else float(s.days_to_spoil),
         'ml_confidence': s.ml_confidence, 'probs': s.probs, 'none_prob': s.none_prob,
-        'low_confidence': s.low_confidence, 'image_url': media_url(request, s.image),
+        'low_confidence': s.low_confidence, 'image_url': media_url(request, s.image, s),
         'product_id': s.product_id, 'feedback_label': s.feedback_label,
     }
 
@@ -618,8 +626,29 @@ def gallery_json(request, s):
     out = scan_json(request, s)
     out['device_name'] = s.device.name if s.device else ''
     out['device_ip'] = s.device.ip if s.device else None
-    out['raw_image_url'] = media_url(request, s.raw_image)
+    out['raw_image_url'] = media_url(request, s.raw_image, s, 'raw')
     return out
+
+
+def scan_image(request, scan_id, token, field):
+    try:
+        payload = signing.loads(token, salt='scan-image', max_age=7 * 24 * 60 * 60)
+    except signing.BadSignature as exc:
+        raise Http404 from exc
+    if payload != {'scan_id': scan_id, 'field': field} or field not in ('image', 'raw'):
+        raise Http404
+    try:
+        scan = DeviceScan.objects.only('image', 'raw_image').get(pk=scan_id)
+    except DeviceScan.DoesNotExist as exc:
+        raise Http404 from exc
+    rel = scan.raw_image if field == 'raw' else scan.image
+    if not rel or rel.startswith(('http://', 'https://', 'data:')):
+        raise Http404
+    root = Path(settings.MEDIA_ROOT).resolve()
+    image_path = (root / rel).resolve()
+    if root not in image_path.parents or not image_path.is_file():
+        raise Http404
+    return FileResponse(open(image_path, 'rb'), content_type='image/jpeg')
 
 
 class ScanGalleryView(APIView):
@@ -629,7 +658,9 @@ class ScanGalleryView(APIView):
 
     def get(self, request):
         q = request.query_params
-        scans = DeviceScan.objects.filter(device__in=visible_devices(request.user)).select_related('device')
+        scans = DeviceScan.objects.filter(
+            device__in=visible_devices(request.user), detected=True, crop_mismatch=False, image__gt='',
+        ).select_related('device')
         if q.get('device'):
             scans = scans.filter(device_id=q['device'])
         if q.get('detected') in ('1', 'true'):
@@ -666,6 +697,7 @@ class BatchPhotosView(APIView):
     def get(self, request, product_id):
         scans = (DeviceScan.objects.filter(device__in=visible_devices(request.user))
                  .filter(Q(product_id=product_id) | Q(device__product_id=product_id))
+                 .filter(detected=True, crop_mismatch=False, image__gt='')
                  .select_related('device').order_by('-pk')[:200])
         return Response([gallery_json(request, s) for s in scans])
 

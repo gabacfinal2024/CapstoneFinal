@@ -169,8 +169,13 @@ pairing are completed from the phone's sensor hotspot and setup portal.
 | `GET /api/devices/` | owner, monitor, admin | cameras the user owns or monitors (admin: all); `my_access`, `monitor_count`, `monitors_needed` |
 | `GET/POST /api/devices/<id>/monitors/` | read: owner, monitor, admin; add: owner | a second stall operator who can use the camera (found by email); a camera works with just its owner; the owner may share it with one other stall operator (two people at most), and the administrator can always access it |
 | `DELETE /api/devices/<id>/monitors/<user_id>/` | owner | remove a monitor |
-| `GET /api/scans/?device=&detected=&state=&since=&until=&before=&limit=` | owner, monitor, admin | recent analysed pictures (annotated + raw), newest first, paged by `next_before` |
-| `GET /api/batches/<product_id>/photos/` | owner, monitor, admin | pictures taken of one batch, with timestamps |
+| `GET /api/scans/?device=&detected=&state=&since=&until=&before=&limit=` | owner, monitor, admin | recent pictures of recognized vegetables matching the camera's crop, newest first, paged by `next_before` |
+| `GET /api/batches/<product_id>/photos/` | owner, monitor, admin | matching-vegetable pictures taken of one batch, with timestamps |
+
+No-match and crop-mismatch frames are not retained or shown in the gallery; the scan verdict metadata remains
+available in camera history. Matching photos are stored in the public `product-images` Supabase Storage bucket
+when the backend service key is configured; local development falls back to `MEDIA_ROOT`. Legacy local images
+are served through short-lived signed URLs. The bucket is created by `supabase/003_storage_product_images.sql`.
 
 Administrators and monitors are read-only on cameras. Old analysed pictures are deleted daily unless they are
 among a camera's newest `SCAN_KEEP_PER_DEVICE` (500) or newer than `SCAN_KEEP_DAYS` (30); frames the operator

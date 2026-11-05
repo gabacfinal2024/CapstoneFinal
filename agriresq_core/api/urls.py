@@ -62,6 +62,7 @@ urlpatterns = [
     path('devices/<int:pk>/monitors/', dv.DeviceMonitorsView.as_view(), name='device-monitors'),
     path('devices/<int:pk>/monitors/<str:user_id>/', dv.DeviceMonitorDetailView.as_view(), name='device-monitor-detail'),
     path('scans/', dv.ScanGalleryView.as_view(), name='scan-gallery'),
+    path('scans/<int:scan_id>/image/<str:token>/<str:field>.jpg', dv.scan_image, name='scan-image'),
     path('stall/conditions/', dv.StallConditionsView.as_view(), name='stall-conditions'),
     path('reference/shelf-life/', dv.ShelfLifeReferenceView.as_view(), name='shelf-life-reference'),
     path('batches/<int:product_id>/photos/', dv.BatchPhotosView.as_view(), name='batch-photos'),

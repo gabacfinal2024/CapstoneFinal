@@ -13,6 +13,7 @@ Supabase sync needs SUPABASE_SERVICE_ROLE_KEY in the backend .env. Without it ev
 works inside Django (device pages, live view, scans); the app tables just don't change.
 """
 import logging
+import io
 import urllib.error
 from datetime import timedelta
 from decimal import Decimal
@@ -24,7 +25,8 @@ from django.utils import timezone
 from .models import BatchClock, Device, DeviceReading, DeviceScan
 from .spoilage_engine import (CROP_CONFIG, calculate_chu_increment, calculate_stress_multiplier, calculate_vpd,
                                classify_status, freshness_percent, predict_spoilage)
-from .supabase_client import has_service_key, supabase_insert, supabase_select, supabase_update, supabase_upsert
+from .supabase_client import (has_service_key, supabase_delete_public_object, supabase_insert,
+                              supabase_select, supabase_update, supabase_upload_public_object, supabase_upsert)
 from .analysis import accepted_scans, camera_summary, may_override
 from .vision import analyze_image
 
@@ -50,6 +52,12 @@ def _save_image(path, data=None, image=None):
         path.write_bytes(data)
 
 
+def _jpeg_bytes(image):
+    output = io.BytesIO()
+    image.save(output, 'JPEG', quality=85)
+    return output.getvalue()
+
+
 def run_scan(image_bytes, device=None, source='AUTO', crop_type=None):
     """Analyse an image, save it as a DeviceScan and (for real detections) update the linked batch."""
     crop = crop_type or (device.crop_type if device else 'EGGPLANT')
@@ -65,13 +73,23 @@ def run_scan(image_bytes, device=None, source='AUTO', crop_type=None):
         ml_confidence=result['ml_confidence'], probs=result['probs'], low_confidence=result['low_confidence'],
         product_id=device.product_id if device else None,
     )
-    # Privacy: automatic captures of "nothing relevant in view" are not stored. A market camera
-    # can see people walking past, and there is nothing to learn from an empty frame anyway.
-    if result['detected'] or source != 'AUTO':
+    # Keep photos only when a supported vegetable matches this camera's configured crop.
+    if result['detected'] and not result['crop_mismatch']:
         folder = f"scans/{device.id if device else 'upload'}"
-        _save_image(settings.MEDIA_ROOT / folder / f"{scan.id}.jpg", image=annotated)
-        _save_image(settings.MEDIA_ROOT / folder / f"{scan.id}_raw.jpg", data=image_bytes)
-        scan.image, scan.raw_image = f"{folder}/{scan.id}.jpg", f"{folder}/{scan.id}_raw.jpg"
+        image_path = f'{folder}/{scan.id}.jpg'
+        raw_path = f'{folder}/{scan.id}_raw.jpg'
+        if has_service_key():
+            try:
+                bucket = 'product-images'
+                image_url = supabase_upload_public_object(bucket, image_path, _jpeg_bytes(annotated), 'image/jpeg')
+                raw_image_url = supabase_upload_public_object(bucket, raw_path, image_bytes, 'image/jpeg')
+                scan.image, scan.raw_image = image_url, raw_image_url
+            except (urllib.error.URLError, OSError) as exc:
+                log.warning('Could not store scan %s in Supabase Storage; using local media storage: %s', scan.id, exc)
+        if not scan.image:
+            _save_image(settings.MEDIA_ROOT / image_path, image=annotated)
+            _save_image(settings.MEDIA_ROOT / raw_path, data=image_bytes)
+            scan.image, scan.raw_image = image_path, raw_path
         scan.save(update_fields=['image', 'raw_image'])
 
     if device and device.product_id and result['detected'] and not result['crop_mismatch'] \
@@ -440,9 +458,12 @@ def prune_scans(now=None):
             for rel in (scan.image, scan.raw_image):
                 if rel:
                     try:
-                        (settings.MEDIA_ROOT / rel).unlink()
-                    except OSError:
-                        pass
+                        if rel.startswith(f'{settings.SUPABASE_URL}/storage/v1/object/public/'):
+                            supabase_delete_public_object(rel, 'product-images')
+                        else:
+                            (settings.MEDIA_ROOT / rel).unlink()
+                    except (OSError, urllib.error.URLError) as exc:
+                        log.warning('Could not remove scan %s image %s: %s', scan.id, rel, exc)
             scan.delete()
             removed += 1
     return removed

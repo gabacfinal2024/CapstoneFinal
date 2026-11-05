@@ -43,6 +43,20 @@ def solid(color=(120, 120, 120)):
     return buf.getvalue()
 
 
+def fake_analysis(detected=True, crop='EGGPLANT', mismatch=False):
+    state = 'fresh' if detected else 'none'
+    result = {
+        'crop_type': crop, 'detected': detected, 'detected_crop': crop if detected else None,
+        'crop_mismatch': mismatch,
+        'message': 'looks like eggplant, but this camera is set to cucumber.' if mismatch else 'Test result',
+        'none_prob': 0.0 if detected else 1.0,
+        'state': state, 'freshness_status': 'GREEN' if detected else 'UNKNOWN',
+        'freshness_percent': 90 if detected else None, 'days_to_spoil': 3.0 if detected else None,
+        'ml_confidence': 0.9, 'probs': {'fresh': 0.9} if detected else None, 'low_confidence': False,
+    }
+    return result, Image.new('RGB', (16, 16))
+
+
 def as_user(user):
     return mock.patch('api.supabase_auth.resolve_token', return_value=user)
 
@@ -278,25 +292,58 @@ class DeviceFlowTests(TestCase):
 
     def test_wrong_crop_is_flagged_not_saved_to_the_batch(self):
         self.pair_and_claim('CUCUMBER')                       # camera registered for cucumbers ...
-        with mock.patch.object(device_services, 'ml_override') as override:
+        with mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis(mismatch=True)), \
+                mock.patch.object(device_services, 'ml_override') as override:
             Device.objects.update(product_id=7)
             scan = self.upload(sample('eggplant'))            # ... but an eggplant is in front of it
             self.assertTrue(scan['detected'])
             self.assertTrue(scan['crop_mismatch'])
             self.assertEqual(scan['detected_crop'], 'EGGPLANT')
+            self.assertEqual(scan['image_url'], '')
             self.assertIn('looks like eggplant', scan['message'])
             override.assert_not_called()
 
-    def test_automatic_empty_frames_are_not_stored(self):
+    def test_only_matching_vegetables_are_stored_and_shown_in_gallery(self):
         self.pair_and_claim()
-        self.assertEqual(self.upload(solid(), 'AUTO')['image_url'], '')          # privacy: nobody on camera is kept
-        self.assertTrue(self.upload(solid(), 'MANUAL')['image_url'].endswith('.jpg'))
-        self.assertTrue(self.upload(sample('eggplant'), 'AUTO')['image_url'].endswith('.jpg'))
+        with mock.patch.object(device_services, 'analyze_image', side_effect=[
+            fake_analysis(detected=False), fake_analysis(detected=False), fake_analysis(),
+        ]):
+            empty_auto = self.upload(solid(), 'AUTO')
+            empty_manual = self.upload(solid(), 'MANUAL')
+            matching = self.upload(sample('eggplant'), 'AUTO')
+        self.assertEqual(empty_auto['image_url'], '')
+        self.assertEqual(empty_manual['image_url'], '')
+        self.assertTrue(matching['image_url'].endswith('.jpg'))
         with as_user(OPERATOR):
             dev_id = Device.objects.get().id
             self.assertEqual(len(self.app.get(f'/api/devices/{dev_id}/scans/').json()), 3)
             only = self.app.get(f'/api/devices/{dev_id}/scans/?detected=1').json()
             self.assertEqual([s['detected'] for s in only], [True])
+            gallery = self.app.get('/api/scans/').json()['results']
+            self.assertEqual([s['id'] for s in gallery], [matching['id']])
+
+    def test_local_scan_image_is_accessible_outside_debug_media_view(self):
+        self.pair_and_claim()
+        with mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()):
+            scan = self.upload(sample('eggplant'))
+        image_path = scan['image_url'].split('testserver', 1)[-1]
+        response = self.app.get(image_path)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'image/jpeg')
+        self.assertTrue(b''.join(response.streaming_content).startswith(b'\xff\xd8'))
+
+    def test_matching_scan_uses_supabase_storage_when_configured(self):
+        self.pair_and_claim()
+        with mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()), \
+                mock.patch.object(device_services, 'has_service_key', return_value=True), \
+                mock.patch.object(device_services, 'supabase_upload_public_object',
+                                  side_effect=[
+                                      'https://project.supabase.co/storage/v1/object/public/product-images/scans/1/1.jpg',
+                                      'https://project.supabase.co/storage/v1/object/public/product-images/scans/1/1_raw.jpg',
+                                  ]) as upload:
+            scan = self.upload(sample('eggplant'))
+        self.assertIn('/storage/v1/object/public/product-images/', scan['image_url'])
+        self.assertEqual(upload.call_count, 2)
 
     def test_operator_feedback_and_export(self):
         self.pair_and_claim()

@@ -67,3 +67,43 @@ def supabase_select(table: str, match: dict = None, select='*') -> list:
         url += '&' + _query(match)
     req = urllib.request.Request(url, headers=_headers())
     return _send(req) or []
+
+
+def supabase_upload_public_object(bucket: str, path: str, data: bytes, content_type: str) -> str:
+    """Upload a public object with the backend service key and return its public URL."""
+    if not settings.SUPABASE_SERVICE_ROLE_KEY:
+        raise RuntimeError('SUPABASE_SERVICE_ROLE_KEY is required to store scan photos.')
+    object_path = urllib.parse.quote(path, safe='/')
+    url = f'{settings.SUPABASE_URL}/storage/v1/object/{bucket}/{object_path}'
+    req = urllib.request.Request(
+        url, data=data, method='POST',
+        headers={
+            'apikey': settings.SUPABASE_SERVICE_ROLE_KEY,
+            'Authorization': f'Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}',
+            'Content-Type': content_type,
+            'x-upsert': 'true',
+        },
+    )
+    with urllib.request.urlopen(req, timeout=20) as response:
+        response.read()
+    return f'{settings.SUPABASE_URL}/storage/v1/object/public/{bucket}/{object_path}'
+
+
+def supabase_delete_public_object(public_url: str, bucket: str) -> None:
+    """Delete an object only when its URL belongs to this project's configured public bucket."""
+    prefix = f'{settings.SUPABASE_URL}/storage/v1/object/public/{bucket}/'
+    if not public_url.startswith(prefix) or not settings.SUPABASE_SERVICE_ROLE_KEY:
+        return
+    object_path = urllib.parse.unquote(public_url[len(prefix):])
+    req = urllib.request.Request(
+        f'{settings.SUPABASE_URL}/storage/v1/object/{bucket}',
+        data=json.dumps({'prefixes': [object_path]}).encode(),
+        method='DELETE',
+        headers={
+            'apikey': settings.SUPABASE_SERVICE_ROLE_KEY,
+            'Authorization': f'Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}',
+            'Content-Type': 'application/json',
+        },
+    )
+    with urllib.request.urlopen(req, timeout=20) as response:
+        response.read()
