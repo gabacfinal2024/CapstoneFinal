@@ -351,7 +351,8 @@ function BatchSensorTable({ state, now }) {
   }, [batches, sort])
 
   const toggle = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
-  const noColumns = !!batches && batches.length > 0 && !batches.some((b) => b.sensor.available)
+  const hasAnySensorTable = !!batches && batches.some((b) => b.sensor?.available)
+  const noColumns = !!batches && batches.length > 0 && !hasAnySensorTable
   const cell = (v, digits) => (v == null ? '—' : v.toFixed(digits))
 
   return (
@@ -370,7 +371,7 @@ function BatchSensorTable({ state, now }) {
       )}
       {!batches && !state.error && <p className="p-6 text-sm text-slate-400 animate-pulse">Loading batches…</p>}
       {batches && batches.length === 0 && !state.error && <p className="p-6 text-sm text-slate-500 text-center">No batches registered yet.</p>}
-      {batches && batches.length > 0 && (
+      {batches && batches.length > 0 && !noColumns && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
