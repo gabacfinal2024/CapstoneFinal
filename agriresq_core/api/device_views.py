@@ -171,19 +171,43 @@ class OperatorView(APIView):
 
 class PairingCreateView(OperatorView):
     def post(self, request):
-        if request.user.role != 'STALL_OPERATOR':
-            raise PermissionDenied('Only a stall operator can add a camera or sensor node.')
+        if request.user.role not in ('STALL_OPERATOR', 'ADMIN'):
+            raise PermissionDenied('Only stall operators and administrators can add a camera or sensor node.')
         kind = str(request.data.get('kind') or 'CAMERA').upper()
         if kind not in dict(Device.KINDS):
             raise ValidationError({'kind': 'Choose CAMERA or SENSOR.'})
         crop = str(request.data.get('crop_type') or 'EGGPLANT').upper()
         if crop not in CROPS:
             raise ValidationError({'crop_type': 'Choose ALL, EGGPLANT, CUCUMBER or CARROT.'})
+        operator_id = request.user.id
+        stall_location = str(request.data.get('stall_location') or '')[:100]
+        if request.user.role == 'ADMIN':
+            operator_id = str(request.data.get('operator_id') or '').strip()
+            if not operator_id:
+                raise ValidationError({'operator_id': 'Choose the stall operator who owns this device.'})
+            if not has_service_key():
+                return Response({'detail': 'The hub cannot verify the selected stall operator right now.'},
+                                status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            try:
+                profiles = supabase_select(
+                    'profiles', {'id': operator_id}, 'id,role,stall_number,is_active',
+                )
+            except (OSError, ValueError):
+                return Response({'detail': 'Could not verify the selected stall operator.'},
+                                status=status.HTTP_502_BAD_GATEWAY)
+            profile = profiles[0] if profiles else None
+            if not profile or profile.get('role') != 'STALL_OPERATOR' or profile.get('is_active') is not True:
+                raise ValidationError({'operator_id': 'Choose an active stall operator account.'})
+            if not stall_location:
+                stall_number = str(profile.get('stall_number') or '').strip()
+                if not stall_number:
+                    raise ValidationError({'operator_id': 'The selected account does not have a stall number.'})
+                stall_location = f'Stall {stall_number}'
         pairing = PairingCode.objects.create(
             code=PairingCode.new_code(),
-            operator_id=request.user.id,
+            operator_id=operator_id,
             name=str(request.data.get('name') or 'Stall Camera')[:100],
-            stall_location=str(request.data.get('stall_location') or '')[:100],
+            stall_location=stall_location,
             kind=kind,
             crop_type=crop,
             expires_at=timezone.now() + PAIRING_TTL,
@@ -200,9 +224,11 @@ class PairingCreateView(OperatorView):
 
 class PairingStatusView(OperatorView):
     def get(self, request, code):
-        try:
-            pairing = PairingCode.objects.get(code=code.upper(), operator_id=request.user.id)
-        except PairingCode.DoesNotExist:
+        pairings = PairingCode.objects.filter(code=code.upper())
+        if request.user.role != 'ADMIN':
+            pairings = pairings.filter(operator_id=request.user.id)
+        pairing = pairings.first()
+        if not pairing:
             raise NotFound('Pairing code not found.')
         return Response({
             'status': pairing.status,

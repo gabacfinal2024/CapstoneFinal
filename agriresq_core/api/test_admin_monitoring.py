@@ -6,8 +6,9 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from . import device_services
-from .models import Device, DeviceMonitor, DeviceScan
+from .models import Device, DeviceMonitor, DeviceScan, PairingCode
 from .supabase_auth import SupabaseUser
+from . import device_views
 from .test_devices import BUYER, OPERATOR, as_user
 
 ADMIN = SupabaseUser('99999999-9999-9999-9999-999999999999', 'agriresq@gmail.com', 'ADMIN')
@@ -47,14 +48,84 @@ class AdminMonitoringTests(TestCase):
             self.assertEqual(self.app.patch(url, {'name': 'Renamed'}, format='json').status_code, 200)
             self.assertEqual(self.app.post(url + 'scan-now/', {}, format='json').status_code, 202)
             self.assertEqual(self.app.post(url + 'command/', {'command': 'reboot'}, format='json').status_code, 200)
-            # owner-only: remove the camera, forget its Wi-Fi, choose who shares it, add cameras
+            # owner-only: remove the camera, forget its Wi-Fi, choose who shares it
             self.assertEqual(self.app.delete(url).status_code, 403)
             self.assertEqual(self.app.post(url + 'command/', {'command': 'forget_wifi'}, format='json').status_code, 403)
             self.assertEqual(self.app.post(url + 'monitors/', {'email': 'a@b.co'}, format='json').status_code, 403)
-            self.assertEqual(self.app.post('/api/devices/pairing/', {'name': 'x'}, format='json').status_code, 403)
+            self.assertEqual(self.app.post('/api/devices/pairing/', {'name': 'x'}, format='json').status_code, 400)
         self.theirs.refresh_from_db()
         self.assertEqual(self.theirs.name, 'Renamed')
         self.assertTrue(Device.objects.filter(pk=self.theirs.pk).exists())
+
+    def test_admin_can_pair_devices_to_two_stall_operators_and_see_both(self):
+        second_operator_id = '33333333-3333-3333-3333-333333333333'
+        profiles = {
+            OPERATOR.id: {
+                'id': OPERATOR.id, 'role': 'STALL_OPERATOR', 'stall_number': '199', 'is_active': True,
+            },
+            second_operator_id: {
+                'id': second_operator_id, 'role': 'STALL_OPERATOR', 'stall_number': '76', 'is_active': True,
+            },
+        }
+
+        with as_user(ADMIN), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select',
+                                  side_effect=lambda _table, match, _select: [profiles[match['id']]]):
+            pairings = []
+            for operator_id, mac in (
+                (OPERATOR.id, 'AA:BB:CC:DD:EE:91'),
+                (second_operator_id, 'AA:BB:CC:DD:EE:76'),
+            ):
+                response = self.app.post('/api/devices/pairing/', {
+                    'operator_id': operator_id, 'kind': 'SENSOR', 'name': f'Sensor {mac[-2:]}',
+                }, format='json')
+                self.assertEqual(response.status_code, 201, response.content)
+                pairing = PairingCode.objects.get(code=response.json()['code'])
+                self.assertEqual(pairing.operator_id, operator_id)
+                self.assertEqual(pairing.stall_location, f"Stall {profiles[operator_id]['stall_number']}")
+                self.assertEqual(
+                    self.app.get(f"/api/devices/pairing/{pairing.code}/").status_code, 200,
+                )
+                pairings.append((pairing, mac))
+
+            for pairing, mac in pairings:
+                claimed = self.app.post('/api/devices/claim/', {
+                    'code': pairing.code, 'mac': mac, 'kind': 'SENSOR', 'fw': '1.0',
+                }, format='json')
+                self.assertEqual(claimed.status_code, 201, claimed.content)
+
+            devices = [
+                device for device in self.app.get('/api/devices/').json()
+                if device['name'].startswith('Sensor ')
+            ]
+
+        self.assertEqual(
+            {(device['operator_id'], device['stall_location']) for device in devices},
+            {(OPERATOR.id, 'Stall 199'), (second_operator_id, 'Stall 76')},
+        )
+
+    def test_admin_pairing_requires_an_active_stall_operator_target(self):
+        with as_user(ADMIN), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', return_value=[{
+                    'id': OPERATOR.id, 'role': 'RESCUE_BUYER', 'stall_number': None, 'is_active': True,
+                }]):
+            response = self.app.post('/api/devices/pairing/', {
+                'operator_id': OPERATOR.id, 'kind': 'CAMERA',
+            }, format='json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('active stall operator', str(response.json()))
+
+    def test_operator_cannot_choose_another_owner_for_pairing(self):
+        other_id = '33333333-3333-3333-3333-333333333333'
+        with as_user(OPERATOR):
+            response = self.app.post('/api/devices/pairing/', {
+                'operator_id': other_id, 'kind': 'CAMERA', 'stall_location': 'Stall 76',
+            }, format='json')
+
+        self.assertEqual(response.status_code, 201, response.content)
+        pairing = PairingCode.objects.get(code=response.json()['code'])
+        self.assertEqual(pairing.operator_id, OPERATOR.id)
 
     def test_buyers_still_have_no_access(self):
         with as_user(BUYER):
@@ -189,8 +260,8 @@ class SensorNodeTests(TestCase):
         from django.utils import timezone
         from datetime import timedelta
         from .models import PairingCode
-        PairingCode.objects.create(code='ABC234', operator_id=OPERATOR.id, name='Stall sensors', crop_type='EGGPLANT',
-                                   expires_at=timezone.now() + timedelta(minutes=10))
+        PairingCode.objects.create(code='ABC234', operator_id=OPERATOR.id, name='Stall sensors', kind='SENSOR',
+                                   crop_type='EGGPLANT', expires_at=timezone.now() + timedelta(minutes=10))
         node = APIClient()
         r = node.post('/api/devices/claim/', {'code': 'ABC234', 'mac': 'AA:BB:CC:DD:EE:77', 'fw': 'sensor-1.0.0',
                                               'kind': 'SENSOR', 'dht_pin': 4}, format='json')

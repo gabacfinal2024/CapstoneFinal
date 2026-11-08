@@ -39,13 +39,13 @@ synchronizes its clock before TLS connections.
 ## 1. Operator endpoints (app → Django)
 
 Every request sends `Authorization: Bearer <supabase session.access_token>`.
-Only `STALL_OPERATOR` accounts may use them. Other accounts get 403.
+Stall operators may pair devices to their own account. Administrators may start a pairing for a selected active stall operator from the web Devices page; other accounts get 403.
 
 | Method & path | Body | Response |
 |---|---|---|
-| `POST /api/devices/pairing/` | `{name?, stall_location?, crop_type?, kind?: "CAMERA"\|"SENSOR"}` | `Pairing` (201) |
-| `GET /api/devices/pairing/<code>/` | – | `{status: "WAITING"\|"CLAIMED"\|"EXPIRED", device: Device\|null, device_progress: string}` |
-| `GET /api/devices/` | – | `Device[]` (the operator's devices) |
+| `POST /api/devices/pairing/` | Stall operator: `{name?, stall_location?, crop_type?, kind?: "CAMERA"\|"SENSOR"}`. Administrator: same fields plus `operator_id` for an active stall operator | `Pairing` (201) |
+| `GET /api/devices/pairing/<code>/` | Pairing owner or administrator | `{status: "WAITING"\|"CLAIMED"\|"EXPIRED", device: Device\|null, device_progress: string}` |
+| `GET /api/devices/` | – | `Device[]` (the operator's devices; administrators see all stalls) |
 | `GET /api/devices/<id>/` | – | `Device` |
 | `PATCH /api/devices/<id>/` | any of `name, stall_location, crop_type, product_id, auto_scan, scan_mode, capture_times, scan_interval_s, dht_pin, flash_on_scan` | `Device` |
 | `DELETE /api/devices/<id>/` | – | 204. The device is told to unpair and goes back to setup mode |

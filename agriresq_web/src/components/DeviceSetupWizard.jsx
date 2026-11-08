@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2, ChevronRight, Loader2, Lock, Power, RefreshCw, Router, Smartphone, Thermometer, Wifi, WifiOff, X,
 } from 'lucide-react'
 import { DEVICE_CROPS, SETUP_URL, deviceApi } from '../api/deviceApi'
+import { api } from '../api/supabaseApi'
 import { useNow, usePolling } from '../hooks/usePolling'
 
 const STEPS = ['Details', 'Join camera Wi-Fi', 'Choose stall Wi-Fi', 'Connecting', 'Reconnect', 'Done']
@@ -55,8 +56,12 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
   const [step, setStep] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [operators, setOperators] = useState([])
+  const [loadingOperators, setLoadingOperators] = useState(true)
 
-  const [details, setDetails] = useState({ kind: 'CAMERA', name: 'Stall camera', stall_location: '', crop_type: 'EGGPLANT' })
+  const [details, setDetails] = useState({
+    kind: 'CAMERA', name: 'Stall camera', operator_id: '', stall_location: '', crop_type: 'EGGPLANT',
+  })
   const [pairing, setPairing] = useState(null)
   const [deviceInfo, setDeviceInfo] = useState(null)
   const [networks, setNetworks] = useState([])
@@ -71,13 +76,37 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
 
   const secondsLeft = pairing ? Math.max(0, Math.round((new Date(pairing.expires_at).getTime() - now) / 1000)) : null
 
+  useEffect(() => {
+    let active = true
+    api.adminUsers()
+      .then((users) => {
+        if (active) {
+          setOperators(users
+            .filter((user) => user.role === 'STALL_OPERATOR' && user.is_active !== false)
+            .sort((a, b) => String(a.stall_number || '').localeCompare(String(b.stall_number || ''), undefined, { numeric: true })))
+        }
+      })
+      .catch((err) => {
+        if (active) setError(`Could not load stall operators: ${err.message}`)
+      })
+      .finally(() => {
+        if (active) setLoadingOperators(false)
+      })
+    return () => { active = false }
+  }, [])
+
   // Step 0 → create a pairing code (needs the normal internet/LAN connection)
   const createPairing = async () => {
+    if (!details.operator_id) {
+      setError('Select the stall operator who owns this device.')
+      return
+    }
     setBusy(true)
     setError('')
     try {
       const p = await deviceApi.createPairing({
         name: details.name.trim() || 'Stall camera',
+        operator_id: details.operator_id,
         stall_location: details.stall_location.trim(),
         crop_type: details.crop_type,
         kind: details.kind,
@@ -205,6 +234,25 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
 
           {step === 0 && (
             <div className="space-y-4">
+              <Field label="Register device to stall">
+                <select
+                  className={inputCls}
+                  value={details.operator_id}
+                  onChange={(e) => setDetails({ ...details, operator_id: e.target.value })}
+                  disabled={loadingOperators || operators.length === 0}
+                  required
+                >
+                  <option value="">
+                    {loadingOperators ? 'Loading stall operators…' : operators.length ? 'Choose a stall' : 'No active stall operators found'}
+                  </option>
+                  {operators.map((operator) => (
+                    <option key={operator.id} value={operator.id}>
+                      Stall {operator.stall_number || 'number not set'} — {operator.full_name || operator.email}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">Choose Stall 199 or Stall 76 before pairing so the device appears under the correct stall.</p>
+              </Field>
               <Field label="Device type">
                 <select className={inputCls} value={details.kind} onChange={(e) => setDetails({
                   ...details,
@@ -219,7 +267,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
                 <input className={inputCls} value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} />
               </Field>
               <Field label="Stall / location">
-                <input className={inputCls} placeholder="e.g. Stall 41, Bulua WBIT" value={details.stall_location}
+                <input className={inputCls} placeholder="Optional; defaults to the selected stall number" value={details.stall_location}
                        onChange={(e) => setDetails({ ...details, stall_location: e.target.value })} />
               </Field>
               {!sensorSetup && <Field label="Crop this camera watches">
@@ -362,7 +410,7 @@ export default function DeviceSetupWizard({ onClose, onDone }) {
           <button onClick={onClose} className={ghostBtn}>{step === 5 ? 'Close' : 'Cancel'}</button>
           <div className="flex gap-3">
             {step === 0 && (
-              <button onClick={createPairing} disabled={busy} className={primaryBtn}>
+              <button onClick={createPairing} disabled={busy || loadingOperators || operators.length === 0 || !details.operator_id} className={primaryBtn}>
                 {busy && <Loader2 size={16} className="animate-spin" />} Get pairing code
               </button>
             )}
