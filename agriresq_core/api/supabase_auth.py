@@ -119,12 +119,14 @@ class IsOperatorOrAdminReadOnly(BasePermission):
 
 
 def find_profile(token, **eq):
-    """One profiles row (id, full_name, email, role) matching the given equality filters, or None.
+    """One profile row matching the given equality filters, or None.
     Uses the caller's own session, so it sees exactly what that user is allowed to see."""
     from urllib.parse import quote
     query = '&'.join(f"{k}=eq.{quote(str(v), safe='')}" for k, v in eq.items())
     try:
-        rows = _get(f"/rest/v1/profiles?{query}&select=id,full_name,email,role&limit=1", token)
+        rows = _get(
+            f"/rest/v1/profiles?{query}&select=id,full_name,email,role,stall_number,is_active&limit=1", token,
+        )
     except OSError:
         return None
     return rows[0] if rows else None

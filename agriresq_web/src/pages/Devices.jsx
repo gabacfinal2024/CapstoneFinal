@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Camera, Droplets, Gauge, Plus, RefreshCw, Thermometer, Video } from 'lucide-react'
 import { STALE_READING_MS, cropLabel, deviceApi, isDetected, isSensor, scanBadgeStatus, timeAgo } from '../api/deviceApi'
+import { api } from '../api/supabaseApi'
 import { useNow, usePolling } from '../hooks/usePolling'
 import StatusBadge from '../components/StatusBadge'
 import { AccessBadge, IpAddress, AccessCount,NetworkFacts, OnlinePill, SensorBadge } from '../components/DeviceBits'
 import DeviceSetupWizard from '../components/DeviceSetupWizard'
 
-function DeviceCard({ device, now }) {
+function DeviceCard({ device, now, stallNumber, ownerStallNumber, shared }) {
   const sensor = isSensor(device)
   const scan = sensor ? null : device.latest_scan
   const detected = isDetected(scan)
@@ -28,7 +29,11 @@ function DeviceCard({ device, now }) {
                 {device.name}
               </Link>
             </h3>
-            <p className="text-xs text-slate-500 truncate">{device.stall_location || 'No location set'} • {cropLabel(device.crop_type)}</p>
+            <p className="text-xs text-slate-500 truncate">
+              Stall {stallNumber || 'unknown'} {shared ? '• Shared access' : '• Owner'}
+            </p>
+            {shared && <p className="text-[11px] text-slate-400 truncate">Owned by Stall {ownerStallNumber || device.stall_location || 'unknown'}</p>}
+            <p className="text-[11px] text-slate-400 truncate">{device.stall_location || 'No location set'} • {cropLabel(device.crop_type)}</p>
           </div>
         </div>
         <OnlinePill online={device.online} />
@@ -117,9 +122,23 @@ export default function Devices() {
   const now = useNow(5000)
   const [devices, setDevices] = useState(null)
   const [error, setError] = useState('')
+  const [operators, setOperators] = useState([])
+  const [operatorError, setOperatorError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
   const [filter, setFilter] = useState('all') // all | online | offline | attention
   const [addingDevice, setAddingDevice] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    api.adminUsers()
+      .then((users) => {
+        if (active) setOperators(users.filter((user) => user.role === 'STALL_OPERATOR'))
+      })
+      .catch((err) => {
+        if (active) setOperatorError(err.message)
+      })
+    return () => { active = false }
+  }, [])
 
   usePolling(async () => {
     try {
@@ -130,11 +149,33 @@ export default function Devices() {
     }
   }, 5000, refreshKey)
 
-  const list = devices || []
+  const list = useMemo(() => devices || [], [devices])
   const onlineCount = list.filter((d) => d.online).length
-  const shown = list.filter((d) => {
-    if (filter === 'online') return d.online
-    if (filter === 'offline') return !d.online
+  const operatorById = useMemo(() => new Map(operators.map((operator) => [String(operator.id), operator])), [operators])
+  const stallEntries = useMemo(() => list.flatMap((device) => {
+    const owner = operatorById.get(String(device.operator_id))
+    const owned = [{
+      device,
+      stallNumber: owner?.stall_number || device.stall_location.replace(/^Stall\s*/i, ''),
+      ownerStallNumber: owner?.stall_number || device.stall_location.replace(/^Stall\s*/i, ''),
+      shared: false,
+      key: `${device.id}-${device.operator_id}`,
+    }]
+    const shared = (device.shared_with || []).map((person) => {
+      const operator = operatorById.get(String(person.user_id))
+      return {
+        device,
+        stallNumber: operator?.stall_number || person.stall_number || 'unknown',
+        ownerStallNumber: owner?.stall_number || device.stall_location.replace(/^Stall\s*/i, ''),
+        shared: true,
+        key: `${device.id}-${person.user_id}`,
+      }
+    })
+    return [...owned, ...shared]
+  }), [list, operatorById])
+  const shown = stallEntries.filter(({ device }) => {
+    if (filter === 'online') return device.online
+    if (filter === 'offline') return !device.online
     return true
   })
   const FILTERS = [['all', 'All'], ['online', 'Online'], ['offline', 'Offline']]
@@ -158,7 +199,7 @@ export default function Devices() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Devices</p>
           <h2 className="text-4xl font-bold text-slate-800">{devices ? devices.length : '—'}</h2>
@@ -166,6 +207,10 @@ export default function Devices() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Online now</p>
           <h2 className="text-4xl font-bold text-[#2A6B48]">{devices ? onlineCount : '—'}</h2>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Stall access entries</p>
+          <h2 className="text-4xl font-bold text-slate-800">{devices ? stallEntries.length : '—'}</h2>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">At-risk / rotten in last scan</p>
@@ -178,6 +223,11 @@ export default function Devices() {
       {error && (
         <div role="alert" className="p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 text-sm">
           Couldn't load devices: {error}. Is the Django backend running?
+        </div>
+      )}
+      {operatorError && (
+        <div role="alert" className="p-4 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-sm">
+          Couldn't load stall labels: {operatorError}. Device owner IDs will still be shown where stall details are unavailable.
         </div>
       )}
 
@@ -210,7 +260,16 @@ export default function Devices() {
 
       {shown.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-          {shown.map((d) => <DeviceCard key={d.id} device={d} now={now} />)}
+          {shown.map((entry) => (
+            <DeviceCard
+              key={entry.key}
+              device={entry.device}
+              now={now}
+              stallNumber={entry.stallNumber}
+              ownerStallNumber={entry.ownerStallNumber}
+              shared={entry.shared}
+            />
+          ))}
         </div>
       )}
       {addingDevice && (

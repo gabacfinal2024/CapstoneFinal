@@ -86,12 +86,12 @@ def reading_json(r):
 CAMERA_DHT_PINS = (2, 12, 13, 14, 15)
 SENSOR_DHT_PINS = (4, 5, 13, 14, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33)
 
-MIN_MONITORS = 0           # a camera works with just its owner; nobody is required to share it
-MAX_MONITORS = 1           # at most two people per camera: the owner plus one more (the administrator is extra, always)
+MIN_MONITORS = 0           # sharing is optional
+MAX_MONITORS = 1           # one additional stall operator per device (the administrator is not counted)
 
 
 def device_access(user, device):
-    """'owner' | 'admin' | 'monitor' | None for this user and camera."""
+    """'owner' | 'admin' | 'monitor' | None for this user and device."""
     if not isinstance(user, SupabaseUser):
         return None
     if device.operator_id == user.id:
@@ -114,10 +114,16 @@ def visible_devices(user):
 def device_json(request, d):
     scan = d.scans.first()
     reading = d.readings.first()
-    watchers = 1 + d.monitors.count()
+    monitors = list(d.monitors.all())
+    watchers = 1 + len(monitors)
     return {
         'my_access': device_access(request.user, d), 'can_operate': device_access(request.user, d) is not None,
         'can_manage': device_access(request.user, d) == 'owner', 'monitor_count': watchers,
+        'can_manage_sharing': device_access(request.user, d) == 'owner' or request.user.role == 'ADMIN',
+        'shared_with': [
+            {'user_id': m.user_id, 'full_name': m.full_name, 'email': m.email}
+            for m in monitors
+        ],
         'monitors_needed': max(0, MIN_MONITORS - watchers),
         'id': d.id, 'operator_id': d.operator_id, 'kind': d.kind, 'name': d.name, 'stall_location': d.stall_location, 'crop_type': d.crop_type,
         'product_id': d.product_id, 'mac': d.mac, 'ip': d.ip, 'fw_version': d.fw_version,
@@ -161,7 +167,7 @@ class OperatorView(APIView):
         access = device_access(request.user, device)
         if access is None:
             raise NotFound('Device not found.')
-        # The owner, the people the owner shared the camera with, and the administrator can all use it
+        # The owner, the people the owner shared the device with, and the administrator can all use it
         # (watch live, scan, correct results, change settings). Removing the camera, forgetting its Wi-Fi
         # and choosing who shares it stay with the owner.
         if owner_only and access != 'owner':
@@ -597,16 +603,27 @@ class DeviceReadingView(DeviceView):
 # ── second monitor per stall camera ─────────────────────────────────────────
 
 def monitors_payload(request, device):
-    mons = [{'user_id': m.user_id, 'full_name': m.full_name, 'email': m.email, 'added_at': m.added_at}
-            for m in device.monitors.all()]
-    owner = {'user_id': device.operator_id, 'full_name': '', 'email': ''}
+    token = request.META.get('HTTP_AUTHORIZATION', '')[7:].strip()
+    mons = []
+    for monitor in device.monitors.all():
+        person = find_profile(token, id=monitor.user_id) if token else None
+        mons.append({
+            'user_id': monitor.user_id,
+            'full_name': monitor.full_name or (person or {}).get('full_name', ''),
+            'email': monitor.email or (person or {}).get('email', ''),
+            'stall_number': (person or {}).get('stall_number'),
+            'added_at': monitor.added_at,
+        })
+    owner = {'user_id': device.operator_id, 'full_name': '', 'email': '', 'stall_number': None}
     if request.user.id == device.operator_id:
         owner.update(full_name=request.user.full_name, email=request.user.email)
     else:
-        token = request.META.get('HTTP_AUTHORIZATION', '')[7:].strip()
         found = find_profile(token, id=device.operator_id) if token else None
         if found:
-            owner.update(full_name=found.get('full_name') or '', email=found.get('email') or '')
+            owner.update(
+                full_name=found.get('full_name') or '', email=found.get('email') or '',
+                stall_number=found.get('stall_number'),
+            )
     count = 1 + len(mons)
     return {'owner': owner, 'monitors': mons, 'count': count, 'minimum': MIN_MONITORS, 'maximum': 1 + MAX_MONITORS,
             'ok': count >= MIN_MONITORS, 'my_access': device_access(request.user, device)}
@@ -617,20 +634,22 @@ class DeviceMonitorsView(OperatorView):
         return Response(monitors_payload(request, self.get_device(request, pk)))
 
     def post(self, request, pk):
-        device = self.get_device(request, pk, owner_only=True)
+        device = self.get_device(request, pk)
+        if device.operator_id != request.user.id and request.user.role != 'ADMIN':
+            raise PermissionDenied('Only the device owner or an administrator can give access.')
         email = str(request.data.get('email', '')).strip().lower()
         if not email or '@' not in email:
-            raise ValidationError({'email': 'Enter the email address of the second person.'})
+            raise ValidationError({'email': 'Enter the email address of the stall operator to share with.'})
         if device.monitors.count() >= MAX_MONITORS:
-            raise ValidationError({'email': f'A camera can be shared with only one other person (two people in total). Remove them first to choose someone else.'})
+            raise ValidationError({'email': 'This device can be shared with only one other stall operator. Remove the current access first to choose someone else.'})
         token = request.META.get('HTTP_AUTHORIZATION', '')[7:].strip()
         person = find_profile(token, email=email)
         if not person:
             raise ValidationError({'email': 'No AgriResQ account uses that email. They need to register first.'})
         if person['id'] == device.operator_id:
-            raise ValidationError({'email': 'That is you. Add a different person.'})
-        if person.get('role') != 'STALL_OPERATOR':
-            raise ValidationError({'email': 'Only approved stall operators can monitor a camera.'})
+            raise ValidationError({'email': 'That operator already owns this device.'})
+        if person.get('role') != 'STALL_OPERATOR' or person.get('is_active') is False:
+            raise ValidationError({'email': 'Only active stall operators can use a shared device.'})
         DeviceMonitor.objects.get_or_create(
             device=device, user_id=person['id'],
             defaults={'full_name': person.get('full_name') or '', 'email': person.get('email') or email})
@@ -640,8 +659,8 @@ class DeviceMonitorsView(OperatorView):
 class DeviceMonitorDetailView(OperatorView):
     def delete(self, request, pk, user_id):
         device = self.get_device(request, pk)
-        if user_id != request.user.id:               # the owner removes anyone; a shared person can leave
-            self.get_device(request, pk, owner_only=True)
+        if user_id != request.user.id and device.operator_id != request.user.id and request.user.role != 'ADMIN':
+            raise PermissionDenied('Only the device owner or an administrator can remove someone else.')
         DeviceMonitor.objects.filter(device=device, user_id=user_id).delete()
         return Response(monitors_payload(request, device))
 
@@ -811,7 +830,7 @@ class BatchPhotosView(APIView):
 
 class StallConditionsView(APIView):
     """GET /api/stall/conditions/  the stall climate from the DHT22s and what it does to each crop's shelf life.
-    An operator gets their own stall (and the stalls whose cameras they share); the administrator gets every stall."""
+    An operator gets their own stall (and the stalls whose devices they share); the administrator gets every stall."""
     authentication_classes = [SupabaseAuthentication]
     permission_classes = [IsAuthenticated, IsOperatorOrAdminReadOnly]
 

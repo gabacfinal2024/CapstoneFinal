@@ -437,7 +437,12 @@ function DeviceDetailView({ id }) {
             </div>
           )}
 
-          <MonitorsPanel deviceId={id} canManage={manage} onChanged={refreshDevice} />
+          <MonitorsPanel
+            deviceId={id}
+            deviceType={sensor ? 'Sensor node' : 'Camera'}
+            canManage={manage || device.my_access === 'admin'}
+            onChanged={refreshDevice}
+          />
 
           {!operate && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">

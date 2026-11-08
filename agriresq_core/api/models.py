@@ -352,8 +352,7 @@ class BatchClock(models.Model):
 
 
 class DeviceMonitor(models.Model):
-    """A second stall operator who can watch a camera (live view, scans, readings) but not change it.
-    Every stall camera should have its owner plus at least one monitor."""
+    """A second stall operator who can use a shared camera or sensor without owning it."""
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='monitors')
     user_id = models.CharField(max_length=64, db_index=True)       # Supabase profiles.id
     full_name = models.CharField(max_length=120, blank=True)

@@ -45,13 +45,14 @@ class AdminMonitoringTests(TestCase):
         with as_user(ADMIN):
             body = self.app.get(url).json()
             self.assertEqual((body['my_access'], body['can_operate'], body['can_manage']), ('admin', True, False))
+            self.assertTrue(body['can_manage_sharing'])
             self.assertEqual(self.app.patch(url, {'name': 'Renamed'}, format='json').status_code, 200)
             self.assertEqual(self.app.post(url + 'scan-now/', {}, format='json').status_code, 202)
             self.assertEqual(self.app.post(url + 'command/', {'command': 'reboot'}, format='json').status_code, 200)
-            # owner-only: remove the camera, forget its Wi-Fi, choose who shares it
+            # device reset/removal stays owner-only; sharing is available to the admin web page.
             self.assertEqual(self.app.delete(url).status_code, 403)
             self.assertEqual(self.app.post(url + 'command/', {'command': 'forget_wifi'}, format='json').status_code, 403)
-            self.assertEqual(self.app.post(url + 'monitors/', {'email': 'a@b.co'}, format='json').status_code, 403)
+            self.assertEqual(self.app.post(url + 'monitors/', {'email': 'a@b.co'}, format='json').status_code, 400)
             self.assertEqual(self.app.post('/api/devices/pairing/', {'name': 'x'}, format='json').status_code, 400)
         self.theirs.refresh_from_db()
         self.assertEqual(self.theirs.name, 'Renamed')
@@ -171,7 +172,7 @@ class MonitorsAndGalleryTests(TestCase):
             with self.lookup(third):
                 r = self.app.post(f'/api/devices/{self.cam.id}/monitors/', {'email': 't@example.com'}, format='json')
             self.assertEqual(r.status_code, 400)
-            self.assertIn('only one other person', str(r.json()))
+            self.assertIn('only one other stall operator', str(r.json()))
         self.assertEqual(DeviceMonitor.objects.count(), 1)
 
     def test_shared_person_can_use_the_camera_but_not_remove_or_share_it(self):
@@ -203,12 +204,61 @@ class MonitorsAndGalleryTests(TestCase):
         with as_user(OPERATOR):
             for person, text in ((None, 'No AgriResQ account'),
                                  ({'id': 'x', 'role': 'RESCUE_BUYER', 'email': 'b@b.co'}, 'stall operators'),
-                                 ({'id': OPERATOR.id, 'role': 'STALL_OPERATOR', 'email': 'op@example.com'}, 'That is you')):
+                                 ({'id': OPERATOR.id, 'role': 'STALL_OPERATOR', 'email': 'op@example.com'},
+                                  'already owns this device')):
                 with self.lookup(person):
                     r = self.app.post(f'/api/devices/{self.cam.id}/monitors/', {'email': 'x@y.co'}, format='json')
                 self.assertEqual(r.status_code, 400)
                 self.assertIn(text, str(r.json()))
         self.assertEqual(DeviceMonitor.objects.count(), 0)
+
+    def test_owner_can_share_sensor_and_admin_can_manage_access(self):
+        sensor = Device.objects.create(
+            operator_id=OPERATOR.id, name='Stall 199 DHT22', kind='SENSOR',
+            mac='AA:BB:CC:DD:EE:19', device_token='sensor-199',
+        )
+        shared_operator = {
+            'id': self.other.operator_id, 'full_name': 'Stall 76 Operator',
+            'email': 'stall76@example.com', 'role': 'STALL_OPERATOR',
+            'stall_number': '76', 'is_active': True,
+        }
+        with as_user(OPERATOR), mock.patch.object(device_views, 'find_profile', return_value=shared_operator):
+            shared = self.app.post(
+                f'/api/devices/{sensor.id}/monitors/',
+                {'email': shared_operator['email']}, format='json',
+            )
+        self.assertEqual(shared.status_code, 201, shared.content)
+        self.assertEqual(shared.json()['monitors'][0]['stall_number'], '76')
+
+        with as_user(ADMIN), mock.patch.object(device_views, 'find_profile', return_value=shared_operator):
+            admin_list = self.app.get('/api/devices/').json()
+            shared_sensor = next(item for item in admin_list if item['id'] == sensor.id)
+            self.assertEqual(shared_sensor['shared_with'][0]['user_id'], self.other.operator_id)
+            self.assertEqual(shared_sensor['shared_with'][0]['email'], shared_operator['email'])
+
+            removed = self.app.delete(
+                f'/api/devices/{sensor.id}/monitors/{self.other.operator_id}/',
+            )
+        self.assertEqual(removed.status_code, 200, removed.content)
+        self.assertEqual(removed.json()['monitors'], [])
+
+    def test_admin_can_share_camera_with_another_stall(self):
+        shared_operator = {
+            'id': self.other.operator_id, 'full_name': 'Stall 76 Operator',
+            'email': 'stall76@example.com', 'role': 'STALL_OPERATOR', 'is_active': True,
+        }
+        with as_user(ADMIN), mock.patch.object(device_views, 'find_profile', return_value=shared_operator):
+            response = self.app.post(
+                f'/api/devices/{self.cam.id}/monitors/',
+                {'email': shared_operator['email']}, format='json',
+            )
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual(response.json()['monitors'][0]['user_id'], self.other.operator_id)
+
+        shared_user = SupabaseUser(self.other.operator_id, shared_operator['email'], 'STALL_OPERATOR')
+        with as_user(shared_user):
+            devices = self.app.get('/api/devices/').json()
+        self.assertIn(self.cam.id, {device['id'] for device in devices})
 
     def test_owner_can_remove_a_monitor(self):
         DeviceMonitor.objects.create(device=self.cam, user_id=self.SECOND.id)

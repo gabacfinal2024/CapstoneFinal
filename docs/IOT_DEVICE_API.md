@@ -166,9 +166,9 @@ pairing are completed from the phone's sensor hotspot and setup portal.
 
 | Endpoint | Who | What |
 |---|---|---|
-| `GET /api/devices/` | owner, monitor, admin | cameras the user owns or monitors (admin: all); `my_access`, `monitor_count`, `monitors_needed` |
-| `GET/POST /api/devices/<id>/monitors/` | read: owner, monitor, admin; add: owner | a second stall operator who can use the camera (found by email); a camera works with just its owner; the owner may share it with one other stall operator (two people at most), and the administrator can always access it |
-| `DELETE /api/devices/<id>/monitors/<user_id>/` | owner | remove a monitor |
+| `GET /api/devices/` | owner, monitor, admin | cameras and sensor nodes the user owns or monitors (admin: all); `my_access`, `monitor_count`, `shared_with` |
+| `GET/POST /api/devices/<id>/monitors/` | read: owner, monitor, admin; add: owner or admin | share a camera or sensor with one active stall operator (found by email); the operator can use the same device from their Devices list |
+| `DELETE /api/devices/<id>/monitors/<user_id>/` | owner or admin; a shared operator may leave | remove a shared operator |
 | `GET /api/scans/?device=&detected=&state=&since=&until=&before=&limit=` | owner, monitor, admin | recent pictures of recognized vegetables matching the camera's crop, newest first, paged by `next_before` |
 | `POST /api/scans/upload/` | stall operator | multipart `image`, `crop_type`, `source` (`PHONE`, `UPLOAD`, or `MANUAL`), optional camera `device_id`; analyzes and saves the photo in that operator's gallery |
 | `POST /api/scans/<scan_id>/batch/` | owning stall operator | `{product_id}`; links an unlinked operator photo scan to a batch owned by the same operator |
@@ -179,10 +179,11 @@ available in camera history. Matching photos are stored in the public `product-i
 when the backend service key is configured; local development falls back to `MEDIA_ROOT`. Legacy local images
 are served through short-lived signed URLs. The bucket is created by `supabase/003_storage_product_images.sql`.
 
-Administrators and monitors are read-only on cameras. Old analysed pictures are deleted daily unless they are
+Monitors can use shared cameras and sensors; administrators can manage sharing from the web dashboard. Old analysed pictures are deleted daily unless they are
 among a camera's newest `SCAN_KEEP_PER_DEVICE` (500) or newer than `SCAN_KEEP_DAYS` (30); frames the operator
 corrected are kept as retraining data.
 
-**Who can do what to a camera.** The owner, anyone the owner shared it with, and the administrator can all use
-it: watch live, scan now, correct results, restart, change settings (`can_operate`). Only the owner can remove it,
-forget its Wi-Fi, or choose who shares it (`can_manage`). A shared person can remove their own access.
+**Who can do what to a device.** The owner, anyone the owner shared it with, and the administrator can use it
+(`can_operate`). Sharing gives access to the same physical camera or sensor; it does not create another device
+registration. Administrators can manage sharing from the web dashboard. Only the owner can remove the device or
+forget its Wi-Fi (`can_manage`); a shared operator can remove their own access.

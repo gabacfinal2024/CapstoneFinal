@@ -430,7 +430,7 @@ function DeviceDetailPage({ id }) {
             </span>
           </div>
           <p className="field-hint" style={{ marginTop: 0, marginBottom: 10 }}>
-            A {what} can be used by its owner alone. You may also give one other stall operator access (two people at most).
+            The owner may share this {what} with one other stall operator. Administrators can manage access from the web Devices page.
           </p>
 
           <ul className="monitor-list">
@@ -480,7 +480,7 @@ function DeviceDetailPage({ id }) {
             </form>
           )}
           {manage && monitorCount >= monitorMax && (
-            <p className="field-hint">Two people have access (the limit). Remove one to choose someone else.</p>
+            <p className="field-hint">Two stall operators have access (the limit). Remove one to choose someone else.</p>
           )}
         </section>
 
