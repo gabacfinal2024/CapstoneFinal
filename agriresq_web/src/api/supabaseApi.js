@@ -234,7 +234,15 @@ export const api = {
     if (me?.role !== 'ADMIN') query = query.eq('operator_id', userId)    // administrators see every stall
     const { data, error } = await query
     if (error) throw new Error(error.message)
-    return attachClimate(data)
+    const products = await attachClimate(data)
+    if (!products?.length) return products || []
+    const { data: listings, error: listingError } = await supabase
+      .from('marketplace_listings')
+      .select('product_id, created_at, listing_status, listed_price, discount_percent')
+      .in('product_id', products.map((product) => product.id))
+    if (listingError) throw new Error(listingError.message)
+    const listingByProduct = new Map((listings || []).map((listing) => [listing.product_id, listing]))
+    return products.map((product) => ({ ...product, marketplace_listing: listingByProduct.get(product.id) || null }))
   },
 
   async marketplace(params = {}) {

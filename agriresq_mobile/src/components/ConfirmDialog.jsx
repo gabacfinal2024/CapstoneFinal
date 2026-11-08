@@ -1,6 +1,6 @@
 import './ConfirmDialog.css'
 
-export default function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = 'Confirm', cancelLabel = 'Cancel' }) {
+export default function ConfirmDialog({ open, title, message, onConfirm, onCancel, confirmLabel = 'Confirm', cancelLabel = 'Cancel', danger = false }) {
   if (!open) return null
   return (
     <div className="confirm-overlay" onClick={(e) => { e.preventDefault(); e.stopPropagation() }}>
@@ -10,7 +10,7 @@ export default function ConfirmDialog({ open, title, message, onConfirm, onCance
         <p className="confirm-message">{message}</p>
         <div className="confirm-actions">
           <button className="btn btn-outline" onClick={onCancel}>{cancelLabel}</button>
-          <button className="btn btn-green" onClick={onConfirm}>{confirmLabel}</button>
+          <button className={`btn ${danger ? 'btn-danger' : 'btn-green'}`} onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>
     </div>

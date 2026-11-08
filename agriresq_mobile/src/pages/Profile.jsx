@@ -119,6 +119,13 @@ export default function Profile() {
           <h2>{user?.full_name || 'Your name'}</h2>
           <p className="profile-email">{user?.email}</p>
           <span className="role-badge">{isOperator ? 'Stall Operator' : 'Rescue Buyer'}</span>
+          {isOperator && (
+            <div className="profile-stall">
+              <span>Your registered stall</span>
+              <strong>{user?.stall_number ? `Stall ${user.stall_number}` : 'Not set'}</strong>
+              <small>Contact an administrator if this needs to be corrected.</small>
+            </div>
+          )}
 
           {!editing ? (
             <button className="btn btn-outline edit-btn" onClick={startEditing}>

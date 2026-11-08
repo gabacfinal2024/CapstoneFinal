@@ -190,6 +190,26 @@ export const deviceApi = {
     }
   },
 
+  async analyzePhoto(imageFile, cropType, { source = 'UPLOAD', deviceId = null, productId = null } = {}) {
+    const headers = await authHeader()
+    const form = new FormData()
+    form.append('image', imageFile)
+    form.append('crop_type', cropType)
+    form.append('source', source)
+    if (deviceId != null) form.append('device_id', String(deviceId))
+    if (productId != null) form.append('product_id', String(productId))
+    const res = await fetchWithTimeout(`${BACKEND_URL}/api/scans/upload/`, { method: 'POST', headers, body: form }, 60000)
+    if (!res.ok) throw new Error(await readError(res))
+    return res.json()
+  },
+
+  async linkScanToBatch(scanId, productId) {
+    return strip(await request(`/api/scans/${encodeURIComponent(scanId)}/batch/`, {
+      method: 'POST',
+      body: { product_id: productId },
+    }))
+  },
+
   /** Signed { stream_url, snapshot_url, expires_at } usable directly in <img src>. */
   async live(id) {
     const data = strip(await request(`/api/devices/${id}/live/`))

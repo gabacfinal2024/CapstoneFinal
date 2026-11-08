@@ -337,7 +337,12 @@ esp_err_t provisionHandler(httpd_req_t *req) {
   if (code.length() != 6)
     return sendJson(req, "{\"ok\":false,\"error\":\"Pairing codes are six characters. Copy the full code from the app.\"}",
                     "400 Bad Request");
-  if (!server.startsWith("http://") && !server.startsWith("https://")) server = "http://" + server;
+  if (!server.startsWith("http://") && !server.startsWith("https://")) {
+    const bool localAddress = server.startsWith("192.168.") || server.startsWith("10.") ||
+                              server.startsWith("172.16.") || server.startsWith("127.") ||
+                              server == "localhost";
+    server = String(localAddress ? "http://" : "https://") + server;
+  }
   if (targetsSetupAccessPoint(server))
     return sendJson(req, "{\"ok\":false,\"error\":\"This is the camera setup address, not the AgriResQ server. Enter the server address shown in the AgriResQ app.\"}",
                     "400 Bad Request");
@@ -370,10 +375,11 @@ background:#2A6B48;color:#fff;font-size:16px;font-weight:600}#msg{margin-top:12p
 <input id="ssid2" placeholder="or type the Wi-Fi name" style="margin-top:6px">
 <label>Wi-Fi password</label><input id="pass" type="password">
 <label>Pairing code (6 characters from the app)</label><input id="code" maxlength="6" style="text-transform:uppercase">
-<label>Server address (from the app)</label><input id="server" placeholder="http://192.168.1.4:8000">
+<label>Server address (from the app)</label><input id="server" value="https://" placeholder="https://your-server.example.com">
 <button onclick="go()">Connect camera</button><div id="msg"></div></div>
 <script>
 const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);if(params.get('server'))$('server').value=params.get('server');if(params.get('code'))$('code').value=params.get('code');
 fetch('/networks').then(r=>r.json()).then(l=>{$('ssid').innerHTML=l.map(n=>`<option>${n.ssid}</option>`).join('')||'<option value="">No networks found</option>'});
 async function go(){const b={ssid:$('ssid2').value||$('ssid').value,password:$('pass').value,code:$('code').value,server:$('server').value};
 $('msg').textContent='Sending...';const r=await fetch('/provision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});

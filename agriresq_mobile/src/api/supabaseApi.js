@@ -209,7 +209,14 @@ export const api = {
       body.quantity_kg,
       status,
       body.auto_discount_enabled !== false,
+      body.discount_override_percent,
     )
+    const discountOverride = body.discount_override_percent == null || body.discount_override_percent === ''
+      ? null
+      : Number(body.discount_override_percent)
+    if (discountOverride != null && (!Number.isFinite(discountOverride) || discountOverride < 0 || discountOverride > 100)) {
+      throw new Error('The At-Risk discount must be between 0 and 100 percent.')
+    }
     const payload = {
       operator_id: userId,
       crop_type: body.crop_type,
@@ -217,6 +224,7 @@ export const api = {
       base_price_per_kg: body.base_price_per_kg || body.price_per_kg || 0,
       current_price_per_kg: pricing.current_price_per_kg,
       discount_percent: pricing.discount_percent,
+      discount_override_percent: discountOverride,
       auto_discount_enabled: body.auto_discount_enabled !== false,
       freshness_status: status,
       freshness_percent: body.freshness_percent ?? 100,
@@ -227,7 +235,7 @@ export const api = {
       notes: body.notes || '',
       pickup_location: body.pickup_location || 'Bulua West Terminal',
       iot_node_id: body.iot_node_id || null,
-      is_listed: status === 'AMBER' || body.is_listed,
+      is_listed: status !== 'RED' && body.is_listed !== false && (status === 'AMBER' || body.is_listed),
     }
     const { data, error } = await supabase.from('products').insert(payload).select().single()
     if (error) throw new Error(error.message)
@@ -252,6 +260,7 @@ export const api = {
       product.quantity_kg,
       product.freshness_status,
       product.auto_discount_enabled,
+      product.discount_override_percent,
     )
     const expires = new Date()
     expires.setDate(expires.getDate() + 2)
@@ -263,11 +272,12 @@ export const api = {
       discount_percent: pricing.discount_percent,
       listing_status: 'ACTIVE',
       expires_at: expires.toISOString(),
-    }, { onConflict: 'product_id' }).select().single()
+    }, { onConflict: 'product_id' }).select().maybeSingle()
     if (listErr) {
       console.error('Listing upsert error', listErr)
       throw new Error(listErr.message || listErr)
     }
+    if (!listing) throw new Error('Listing was not returned after saving. Check that the product is visible to your account.')
     console.debug('Listing upserted', listing)
     await supabase.from('products').update({ is_listed: true }).eq('id', product.id)
     return listing
@@ -290,6 +300,68 @@ export const api = {
       console.error('getListingByProduct exception', err)
       throw err
     }
+  },
+
+  async updateActiveBatchFromPhoto(productId, { image_url, freshness_status, freshness_percent, predicted_shelf_life, ml_confidence }) {
+    const userId = await getSessionUserId()
+    const { data: product, error: productError } = await supabase.from('products')
+      .select('*').eq('id', productId).eq('operator_id', userId).maybeSingle()
+    if (productError) throw new Error(productError.message)
+    if (!product) throw new Error('Batch not found.')
+    const { data: listing, error: listingError } = await supabase.from('marketplace_listings')
+      .select('id, listing_status').eq('product_id', productId).maybeSingle()
+    if (listingError) throw new Error(listingError.message)
+    if (!listing || listing.listing_status !== 'ACTIVE') {
+      throw new Error('Only an active, unsold listing can have its photo updated.')
+    }
+
+    const detectedStatus = String(freshness_status || '').toUpperCase()
+    if (!['GREEN', 'AMBER', 'RED'].includes(detectedStatus)) throw new Error('The photo analysis did not return a valid freshness status.')
+    const severity = { GREEN: 0, AMBER: 1, RED: 2 }
+    const status = severity[detectedStatus] >= severity[product.freshness_status]
+      ? detectedStatus
+      : product.freshness_status
+    const daysLeft = Math.min(Number(predicted_shelf_life), Number(product.predicted_shelf_life))
+    const freshnessLeft = Math.min(Number(freshness_percent), Number(product.freshness_percent))
+    const pricing = computeDynamicPrice(
+      product.base_price_per_kg, product.quantity_kg, status,
+      product.auto_discount_enabled, product.discount_override_percent,
+    )
+    const patch = {
+      image_url,
+      freshness_status: status,
+      freshness_percent: freshnessLeft,
+      predicted_shelf_life: daysLeft,
+      ml_confidence,
+      current_price_per_kg: pricing.current_price_per_kg,
+      discount_percent: pricing.discount_percent,
+      is_listed: status !== 'RED',
+    }
+    const { data: updated, error: updateError } = await supabase.from('products')
+      .update(patch).eq('id', productId).eq('operator_id', userId).select().maybeSingle()
+    if (updateError) throw new Error(updateError.message)
+    if (!updated) throw new Error('The batch could not be updated.')
+
+    const listingPatch = status === 'RED'
+      ? { listing_status: 'CANCELLED' }
+      : {
+          listed_price: pricing.listed_price,
+          original_price: Number(product.base_price_per_kg) * Number(product.quantity_kg),
+          discount_percent: pricing.discount_percent,
+        }
+    const { error: updateListingError } = await supabase.from('marketplace_listings')
+      .update(listingPatch).eq('id', listing.id).eq('listing_status', 'ACTIVE')
+    if (updateListingError) throw new Error(updateListingError.message)
+
+    const { error: predictionError } = await supabase.from('spoilage_predictions').insert({
+      product_id: productId,
+      predicted_status: status,
+      days_to_spoil: daysLeft,
+      freshness_percent: freshnessLeft,
+      source: 'VISION_ML',
+    })
+    if (predictionError) throw new Error(predictionError.message)
+    return updated
   },
 
   async predict(id) {
@@ -363,13 +435,22 @@ export const api = {
   },
 
   async listing(id) {
-    const { data, error } = await supabase
+    const { data: byId, error: idError } = await supabase
       .from('marketplace_listings')
       .select(LISTING_SELECT)
       .eq('id', id)
-      .single()
-    if (error) throw new Error(error.message)
-    return data
+      .maybeSingle()
+    if (idError) throw new Error(idError.message)
+    if (byId) return byId
+
+    const { data: byProduct, error: productError } = await supabase
+      .from('marketplace_listings')
+      .select(LISTING_SELECT)
+      .eq('product_id', id)
+      .maybeSingle()
+    if (productError) throw new Error(productError.message)
+    if (!byProduct) throw new Error('This listing is no longer available.')
+    return byProduct
   },
 
   // ── Notifications (in-app only) ───────────────────

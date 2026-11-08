@@ -114,8 +114,8 @@ function DeviceDetailPage({ id }) {
   const what = sensor ? 'sensor node' : 'camera'
   const dhtPin = device?.dht_pin ?? -1
   const dhtStatusText = dhtPin >= 0
-    ? `DHT22: connected on ${sensor && dhtPin === 4 ? 'GPIO 4 (D4)' : `GPIO ${dhtPin}`} (set by the administrator)`
-    : 'DHT22: not set up yet. The administrator configures it.'
+    ? `DHT22 connected on ${sensor && dhtPin === 4 ? 'GPIO 4 (D4)' : `GPIO ${dhtPin}`}`
+    : 'DHT22 is not configured'
 
   // the polling callback must always see the current value without restarting the timer
   const dirtyRef = useRef(false)
@@ -196,7 +196,7 @@ function DeviceDetailPage({ id }) {
         capture_times: times.length ? times : [...DEFAULT_TIMES],
         scan_interval_s: Number(form.scan_interval_s),
       }
-      delete patch.dht_pin // only the administrator sets the DHT22 pin
+      delete patch.dht_pin
       const d = await deviceApi.updateDevice(id, patch)
       setDevice(d)
       setDirty(false)
@@ -363,7 +363,7 @@ function DeviceDetailPage({ id }) {
         {sensor ? (
           <section className="dev-section card">
             <h3>Live stall sensor (DHT22)</h3>
-            <p className="field-hint">Readings refresh automatically every 5 seconds; the sensor samples every 30 seconds.</p>
+            <p className="field-hint">Readings refresh automatically. The sensor reports about once a minute.</p>
             {readingError && <p className="notice error" role="alert">Could not refresh sensor readings: {readingError}</p>}
             <SensorPanel reading={device.latest_reading} readings={readings} dhtPin={device.dht_pin} chuRate={chuRate} />
           </section>

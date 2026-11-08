@@ -97,6 +97,7 @@ export default function ProduceDetail() {
             error={analysis.error}
             signedIn={!!user}
             fallback={{ days: product?.predicted_shelf_life, status: product?.freshness_status, percent: product?.freshness_percent }}
+            showCamera={false}
           />
 
           <section className="card detail-block seller-block">

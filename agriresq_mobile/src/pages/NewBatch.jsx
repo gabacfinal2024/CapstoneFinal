@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { computeDynamicPrice, daysLeftSinceHarvest, statusFromDays, worseStatus } from '../api/pricing'
 import StatusBadge from '../components/StatusBadge'
@@ -7,24 +7,27 @@ import './Auth.css'
 import './NewBatch.css'
 import { publishProductPhoto } from '../utils/photo'
 import { supabase } from '../lib/supabase'
-import { deviceApi, isSensor, deviceFallbackName } from '../api/deviceApi'
+import { deviceApi, isSensor, deviceFallbackName, backendAsset } from '../api/deviceApi'
 import { ProbabilityBars, confidencePct, isNoVegetable, NO_VEGETABLE_TEXT, NO_VEGETABLE_HINT } from '../components/ScanResultCard'
 import { CROP_LABELS, formatDays } from '../utils/helpers'
 import { ScanSearch, AlertTriangle } from 'lucide-react'
 
 export default function NewBatch() {
   const navigate = useNavigate()
+  const location = useLocation()
   const fileInputRef = useRef(null)
   const [nodes, setNodes] = useState([])
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
+  const [photoSource, setPhotoSource] = useState('UPLOAD')
+  const [capturedAt, setCapturedAt] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysis, setAnalysis] = useState(null)
   const [form, setForm] = useState({
     crop_type: 'EGGPLANT', quantity_kg: '', base_price_per_kg: '',
     harvest_datetime: new Date().toISOString().slice(0, 16),
     iot_node_id: '', notes: '', pickup_location: 'Bulua West Terminal',
-    auto_discount_enabled: true,
+    auto_discount_enabled: true, discount_override_percent: 30,
   })
   const [harvestKnown, setHarvestKnown] = useState(false)
   const [error, setError] = useState('')
@@ -40,13 +43,50 @@ export default function NewBatch() {
     deviceApi.devices().then(setNodes).catch(() => setNodes([]))
   }, [])
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  useEffect(() => {
+    const scan = location.state?.scan
+    const photoUrl = scan?.raw_image_url || scan?.image_url
+    if (!photoUrl || imageFile) return undefined
+    let previewUrl = ''
+    let cancelled = false
+    const seedFromScan = async () => {
+      try {
+        const response = await fetch(backendAsset(photoUrl))
+        if (!response.ok) throw new Error('Could not load the captured photo.')
+        const blob = await response.blob()
+        const file = new File([blob], `scan-${scan.id}.jpg`, { type: blob.type || 'image/jpeg' })
+        if (cancelled) return
+        previewUrl = URL.createObjectURL(file)
+        setImageFile(file)
+        setImagePreview(previewUrl)
+        setPhotoSource(scan.source === 'PHONE' ? 'PHONE' : scan.source === 'UPLOAD' ? 'UPLOAD' : 'MANUAL')
+        setCapturedAt(scan.created_at)
+        setAnalysis(scan)
+        if (scan.detected_crop) set('crop_type', scan.detected_crop)
+        if (scan.device_id != null) set('iot_node_id', String(scan.device_id))
+      } catch (err) {
+        if (!cancelled) setError(err.message)
+      }
+    }
+    seedFromScan()
+    return () => {
+      cancelled = true
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [location.state])
 
-  const handleImage = (e) => {
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const captureTime = capturedAt ? new Date(capturedAt).getTime() : NaN
+  const photoAge = Date.now() - captureTime
+  const photoCanBeListed = Number.isFinite(captureTime) && photoAge >= 0 && photoAge < 7 * 60 * 60 * 1000
+
+  const handleImage = (e, source = 'UPLOAD') => {
     const file = e.target.files?.[0]
     if (!file) return
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
+    setPhotoSource(source)
+    setCapturedAt(new Date().toISOString())
     setAnalysis(null)
     setError('')
   }
@@ -67,6 +107,8 @@ export default function NewBatch() {
       const file = await deviceApi.snapshotFile(cam.id)
       setImageFile(file)
       setImagePreview(URL.createObjectURL(file))
+      setPhotoSource('MANUAL')
+      setCapturedAt(new Date().toISOString())
       setAnalysis(null)
       if (!form.iot_node_id) set('iot_node_id', String(cam.id))
       if (cam.crop_type && cam.crop_type !== form.crop_type) set('crop_type', cam.crop_type)
@@ -81,6 +123,7 @@ export default function NewBatch() {
   const retakePhoto = () => {
     setImageFile(null)
     setImagePreview(null)
+    setCapturedAt(null)
     setAnalysis(null)
     setError('')
     fileInputRef.current?.click()
@@ -110,7 +153,11 @@ export default function NewBatch() {
     setAnalyzing(true)
     setError('')
     try {
-      const result = await api.analyzeFreshness(imageFile, crop)
+      const selectedDevice = nodes.find((node) => String(node.id) === String(form.iot_node_id))
+      const result = await deviceApi.analyzePhoto(imageFile, crop, {
+        source: photoSource,
+        deviceId: selectedDevice && !isSensor(selectedDevice) ? selectedDevice.id : null,
+      })
       setAnalysis(result)
     } catch (err) {
       setError(err.message)
@@ -122,6 +169,8 @@ export default function NewBatch() {
   /** Step 4–5: Save product + freshness to Supabase → listings */
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const canListAtSubmit = Number.isFinite(captureTime) &&
+      Date.now() - captureTime >= 0 && Date.now() - captureTime < 7 * 60 * 60 * 1000
     if (harvestKnown && !form.harvest_datetime) {
       setError('Enter the harvest date and time, or uncheck the harvest-time option.')
       return
@@ -165,10 +214,12 @@ export default function NewBatch() {
       const status = worseStatus(freshness?.freshness_status || 'GREEN', statusFromDays(days))
       const percent = Math.min(freshness?.freshness_percent ?? 100, Math.round((days / aged.baseline) * 100))
 
+      let scanLinkWarning = ''
       const batch = await api.createBatch({
         ...form,
         quantity_kg: parseFloat(form.quantity_kg),
         base_price_per_kg: parseFloat(form.base_price_per_kg) || 0,
+        discount_override_percent: form.auto_discount_enabled ? Number(form.discount_override_percent) : null,
         // products.iot_node_id references Supabase iot_nodes; cameras live in the IoT hub,
         // so the camera is linked to the batch below instead.
         iot_node_id: null,
@@ -178,34 +229,41 @@ export default function NewBatch() {
         predicted_shelf_life: days,
         ml_confidence: freshness?.ml_confidence,
         image_url: imageUrl || '',
-        is_listed: status !== 'RED',
+        is_listed: status !== 'RED' && canListAtSubmit,
       })
       setLastBatchId(batch.id)
-      if (form.iot_node_id) {
+      const selectedDevice = nodes.find((node) => String(node.id) === String(form.iot_node_id))
+      if (selectedDevice && !isSensor(selectedDevice)) {
         try {
           await deviceApi.updateDevice(form.iot_node_id, { product_id: batch.id, crop_type: form.crop_type })
         } catch (err) {
           console.warn('Could not link camera to batch', err)
         }
       }
-      // Ensure listing exists (some Supabase configs take a moment)
-      try {
-        let listing = await api.getListingByProduct(batch.id)
-        const start = Date.now()
-        while (!listing && Date.now() - start < 10000) {
-          // wait a bit and retry
-          await new Promise((r) => setTimeout(r, 800))
-          listing = await api.getListingByProduct(batch.id)
+      if (freshness?.id && freshness.product_id == null) {
+        try {
+          await deviceApi.linkScanToBatch(freshness.id, batch.id)
+        } catch (err) {
+          console.warn('Batch saved but its photo scan could not be linked', err)
+          scanLinkWarning = 'The batch was saved, but its photo scan could not be linked to the freshness history. Contact support if this continues.'
         }
-        if (!listing) {
+      }
+      if (batch.is_listed) {
+        try {
+          let listing = await api.getListingByProduct(batch.id)
+          const start = Date.now()
+          while (!listing && Date.now() - start < 10000) {
+            await new Promise((r) => setTimeout(r, 800))
+            listing = await api.getListingByProduct(batch.id)
+          }
+          if (!listing) setListingMissing(true)
+        } catch (err) {
+          console.warn('Listing check failed', err)
           setListingMissing(true)
         }
-      } catch (err) {
-        console.warn('Listing check failed', err)
-        setListingMissing(true)
       }
 
-      navigate(`/batch/${batch.id}`)
+      navigate(`/batch/${batch.id}`, { state: { warning: scanLinkWarning } })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -214,6 +272,11 @@ export default function NewBatch() {
   }
 
   const forcePublish = async () => {
+    if (!Number.isFinite(captureTime) || Date.now() - captureTime < 0 ||
+        Date.now() - captureTime >= 7 * 60 * 60 * 1000) {
+      setPublishError('This photo is more than 7 hours old. It can remain in inventory, but it can no longer be listed.')
+      return
+    }
     setPublishLoading(true)
     setPublishError('')
     try {
@@ -223,7 +286,12 @@ export default function NewBatch() {
       const { data: product } = await supabase.from('products').select('*').eq('id', prodId).maybeSingle()
       if (!product) throw new Error('Product not found')
       // Call _ensureListing with the batch returned earlier by createBatch
-      await api._ensureListing({ id: product.id, operator_id: uid, base_price_per_kg: product.base_price_per_kg, quantity_kg: product.quantity_kg, freshness_status: product.freshness_status, auto_discount_enabled: product.auto_discount_enabled })
+      await api._ensureListing({
+        id: product.id, operator_id: uid, base_price_per_kg: product.base_price_per_kg,
+        quantity_kg: product.quantity_kg, freshness_status: product.freshness_status,
+        auto_discount_enabled: product.auto_discount_enabled,
+        discount_override_percent: product.discount_override_percent,
+      })
       // re-check
       const listing = await api.getListingByProduct(product.id)
       if (listing) {
@@ -252,7 +320,7 @@ export default function NewBatch() {
     ? worseStatus(usable.freshness_status, statusFromDays(Math.min(Number(usable.days_to_spoil ?? 99), daysLeftSinceHarvest(form.crop_type, harvestKnown ? form.harvest_datetime : new Date()).days)))
     : null
   const previewPricing = usable
-    ? computeDynamicPrice(form.base_price_per_kg, form.quantity_kg, previewStatus, form.auto_discount_enabled)
+    ? computeDynamicPrice(form.base_price_per_kg, form.quantity_kg, previewStatus, form.auto_discount_enabled, form.discount_override_percent)
     : null
 
   const freshnessDistribution = usable ? getFreshnessDistribution(usable.freshness_percent) : null
@@ -261,13 +329,13 @@ export default function NewBatch() {
     <div className="app-shell">
       <div className="page page-no-nav auth-page">
         <Link to="/home" className="back-link">← Back</Link>
-        <h2 className="page-heading">Add Product</h2>
-        <p className="flow-hint">Capture with the ESP32-CAM or upload a photo → confirm AI vegetable recognition → save and list</p>
+        <h2 className="page-heading">Add Batch</h2>
+        <p className="flow-hint">Capture a photo, confirm the AI analysis, then save the batch to inventory or list it for rescue.</p>
 
         <form className="card auth-form new-batch-form" onSubmit={handleSubmit}>
           <div className="flow-steps card inner-card">
             <div className="step">1. Product details</div>
-            <div className="step">2. ESP32-CAM image</div>
+            <div className="step">2. Product photo</div>
             <div className="step">3. Freshness analysis</div>
             <div className="step">4. Save & list</div>
           </div>
@@ -305,15 +373,24 @@ export default function NewBatch() {
           <div className="input-group">
             <label className="checkbox-label">
               <input type="checkbox" checked={form.auto_discount_enabled} onChange={(e) => set('auto_discount_enabled', e.target.checked)} />
-              Enable auto-discount when At-Risk (30%)
+              Enable automatic discount when At-Risk
             </label>
+            {form.auto_discount_enabled && (
+              <>
+                <label htmlFor="discount-override">At-Risk discount (%)</label>
+                <input id="discount-override" type="number" min="0" max="100" step="1"
+                  value={form.discount_override_percent}
+                  onChange={(e) => set('discount_override_percent', e.target.value)} />
+                <p className="field-hint">Default is 30%. This discount is fixed once the batch is listed.</p>
+              </>
+            )}
           </div>
 
           <div className="input-group">
-            <label>Required Product Photo (ESP32-CAM / Upload)</label>
+            <label>Product photo (ESP32-CAM, Phone Camera, or upload)</label>
             <div className="camera-actions">
               <button type="button" className="btn btn-outline-dark" onClick={handleCaptureClick}>
-                Capture with Camera
+                Use Phone Camera
               </button>
               <span className="camera-hint">or upload from device</span>
             </div>
@@ -327,10 +404,13 @@ export default function NewBatch() {
               type="file"
               accept="image/*"
               capture="environment"
-              onChange={handleImage}
+              onChange={(e) => handleImage(e, 'PHONE')}
               style={{ display: 'none' }}
             />
-            <input type="file" accept="image/*" onChange={handleImage} />
+            <input type="file" accept="image/*" onChange={(e) => handleImage(e, 'UPLOAD')} />
+            {!photoCanBeListed && capturedAt && (
+              <p className="field-hint">This photo is older than 7 hours. You can save the batch to inventory, but it cannot be listed.</p>
+            )}
             {!imageFile && <p className="field-hint">A photo must be captured or uploaded and pass AI vegetable analysis before this product can be saved.</p>}
             {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
           </div>
@@ -406,15 +486,16 @@ export default function NewBatch() {
           )}
 
           <div className="input-group">
-            <label>Camera or sensor node (optional)</label>
+            <label>ESP32-CAM (optional)</label>
             <select value={form.iot_node_id} onChange={(e) => set('iot_node_id', e.target.value)}>
               <option value="">— None —</option>
-              {nodes.map((n) => (
+              {nodes.filter((n) => !isSensor(n)).map((n) => (
                 <option key={n.id} value={n.id}>
-                  {n.name || deviceFallbackName(n)}{isSensor(n) ? ' (sensor node)' : ''}{n.stall_location ? ` · ${n.stall_location}` : ''}{n.online ? '' : ' (offline)'}
+                  {n.name || deviceFallbackName(n)}{n.stall_location ? ` · ${n.stall_location}` : ''}{n.online ? '' : ' (offline)'}
                 </option>
               ))}
             </select>
+            <p className="field-hint">DHT22 readings from this stall automatically update all listed batches, including days to spoil, CHU, and VPD.</p>
           </div>
           <div className="input-group">
             <label>Notes</label>
@@ -423,7 +504,7 @@ export default function NewBatch() {
 
           {error && <p className="error-text">{error}</p>}
           <button type="submit" className="btn btn-green" disabled={loading || analyzing || !imageFile || !analysis || rejectedPhoto}>
-            {loading ? 'Saving to database...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo to list' : 'Save Product & Show in Listings'}
+            {loading ? 'Saving batch...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo to list' : photoCanBeListed ? 'Save batch & list' : 'Save batch to inventory'}
           </button>
           {listingMissing && (
             <div className="card warning-block" style={{ marginTop: 12 }}>

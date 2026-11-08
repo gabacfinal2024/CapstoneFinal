@@ -11,7 +11,7 @@ import { IpAddress, NetworkFacts, OnlinePill, SensorBadge } from '../components/
 const STRESS_TEMP = 25 // spoilage_engine stress threshold (°C)
 const ALERT_TEMP = 30 // IoT alert threshold (°C)
 const DRY_VPD = 1.0 // kPa above which stored produce loses water quickly
-const WINDOWS = [30, 60, 120, 240] // readings shown in the chart / stats
+const WINDOWS = [30, 60, 120, 240, 1440] // the last option represents a full day at the normal one-minute sample rate
 const CROP_KEYS = ['EGGPLANT', 'CUCUMBER', 'CARROT']
 const BATCH_PAGE = 15
 
@@ -37,7 +37,7 @@ const TONES = {
 /** One-line status for a device card. `title` carries the longer advice. */
 function conditionStatus({ configured, reading, stale, now }) {
   if (!configured) {
-    return { Icon: Settings2, tone: 'slate', text: 'No DHT22 configured', title: 'Wire a DHT22, then pick its data pin under Device settings.' }
+    return { Icon: Settings2, tone: 'slate', text: 'No DHT22 configured', title: 'Connect the DHT22 and check its wiring and device settings.' }
   }
   if (!reading) {
     return { Icon: Clock, tone: 'slate', text: 'Waiting for the first DHT22 reading', title: 'If nothing arrives, check the wiring (data pin, 3.3 V, ground) and that the node is online.' }
@@ -102,6 +102,51 @@ function StatsTable({ readings }) {
               ))}
             </tr>
           ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function DailySummary({ readings }) {
+  const days = new Map()
+  for (const reading of readings) {
+    const date = new Date(reading.created_at)
+    if (Number.isNaN(date.getTime())) continue
+    const key = date.toLocaleDateString('en-CA')
+    const day = days.get(key) || { key, readings: [], maxTemp: null, maxHumidity: null }
+    day.readings.push(reading)
+    if (!day.maxTemp || Number(reading.temperature_c) > Number(day.maxTemp.temperature_c)) day.maxTemp = reading
+    if (!day.maxHumidity || Number(reading.humidity_rh) > Number(day.maxHumidity.humidity_rh)) day.maxHumidity = reading
+    days.set(key, day)
+  }
+  const summaries = [...days.values()].sort((a, b) => b.key.localeCompare(a.key))
+  if (!summaries.length) return null
+
+  return (
+    <div className="overflow-x-auto">
+      <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Daily sensor summary</h4>
+      <table className="w-full text-xs text-left">
+        <thead className="text-slate-400 uppercase">
+          <tr><th className="py-1">Day</th><th className="py-1 text-right">Avg temp</th><th className="py-1 text-right">Avg RH</th><th className="py-1 text-right">Highest temp</th><th className="py-1 text-right">Highest RH</th></tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {summaries.map((day) => {
+            const avg = (key) => day.readings.reduce((sum, r) => sum + Number(r[key]), 0) / day.readings.length
+            return (
+              <tr key={day.key}>
+                <th scope="row" className="py-1.5 font-semibold text-slate-700">{day.key}</th>
+                <td className="py-1.5 text-right">{avg('temperature_c').toFixed(1)}°C</td>
+                <td className="py-1.5 text-right">{avg('humidity_rh').toFixed(0)}%</td>
+                <td className="py-1.5 text-right" title={formatDateTime(day.maxTemp.created_at)}>
+                  {Number(day.maxTemp.temperature_c).toFixed(1)}°C · {new Date(day.maxTemp.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </td>
+                <td className="py-1.5 text-right" title={formatDateTime(day.maxHumidity.created_at)}>
+                  {Number(day.maxHumidity.humidity_rh).toFixed(0)}% · {new Date(day.maxHumidity.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -207,7 +252,7 @@ function DeviceCard({ device, now, windowSize, batches }) {
           {!configured ? (
             <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 text-sm px-6">
               <p className="font-semibold text-slate-500">No DHT22 configured</p>
-              <p className="text-xs mt-1">The administrator picks the DHT22 data pin in <Link to={`/devices/${device.id}`} className="font-bold text-[#2A6B48] hover:underline">this node's settings</Link>.</p>
+              <p className="text-xs mt-1">Check the DHT22 connection and device settings.</p>
             </div>
           ) : readings === null && !readError ? (
             <div className="h-full flex items-center justify-center text-sm text-slate-400 animate-pulse">Loading readings…</div>
@@ -220,6 +265,7 @@ function DeviceCard({ device, now, windowSize, batches }) {
 
       {/* 6. min / avg / max */}
       <StatsTable readings={list} />
+      <DailySummary readings={list} />
 
       <div className="mt-auto pt-3 border-t border-slate-100 text-xs font-medium text-slate-400 truncate">
         Last reading: {reading ? `${timeAgo(reading.created_at, now)} (${formatDateTime(reading.created_at)})` : 'none yet'}
@@ -511,7 +557,7 @@ export default function Sensors() {
             Chart window
             <select value={windowSize} onChange={(e) => setWindowSize(Number(e.target.value))}
                     className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700">
-              {WINDOWS.map((n) => <option key={n} value={n}>Last {n} readings</option>)}
+              {WINDOWS.map((n) => <option key={n} value={n}>{n === 1440 ? 'Last 24 hours' : `Last ${n} readings`}</option>)}
             </select>
           </label>
           <Link to="/devices" className="px-4 py-2.5 rounded-xl font-bold text-[#2A6B48] border border-emerald-200 bg-white hover:bg-emerald-50 text-sm">
@@ -552,7 +598,7 @@ export default function Sensors() {
       {devices === null && !error && <p className="text-slate-400 animate-pulse">Syncing node data…</p>}
       {devices && list.length === 0 && (
         <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
-          No sensor nodes yet. Stall operators pair their DHT22 sensor node from the mobile app; the administrator configures the DHT22 pin on the device page. Cameras are not listed here.
+          No sensor nodes yet. Pair a DHT22 sensor node from the mobile app. Cameras are listed separately.
         </div>
       )}
 

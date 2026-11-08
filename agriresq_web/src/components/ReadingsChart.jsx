@@ -20,7 +20,7 @@ export default function ReadingsChart({ readings }) {
     return (
       <div className="h-full min-h-48 flex flex-col items-center justify-center text-slate-400 text-sm text-center px-6">
         <p className="font-semibold text-slate-500">Not enough sensor readings yet</p>
-        <p className="text-xs mt-1">The trend appears after two readings. The sensor reports every 30 seconds; check its Wi-Fi, server URL, and DHT22 wiring if no reading arrives.</p>
+        <p className="text-xs mt-1">The trend appears after two readings. The sensor reports about once a minute; check its Wi-Fi, server URL, and DHT22 wiring if no reading arrives.</p>
       </div>
     )
   }

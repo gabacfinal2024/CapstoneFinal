@@ -189,6 +189,23 @@ button, input, textarea, select {
   margin-bottom: 12px;
 }
 
+.back-exit-hint {
+  position: fixed;
+  z-index: 1000;
+  left: 50%;
+  bottom: calc(var(--nav-height) + var(--safe-bottom) + 12px);
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  padding: 11px 16px;
+  border-radius: 999px;
+  background: rgba(25, 40, 36, 0.94);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
 /* .btn-outline is white-on-green for the splash screen; on the light app pages it must be dark */
 .app-shell .btn-outline {
   background: transparent;

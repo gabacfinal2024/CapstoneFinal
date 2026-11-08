@@ -86,7 +86,7 @@ function DeviceCard({ device, now }) {
         </div>
         <p className={`text-[11px] mt-1.5 ${stale ? 'text-amber-600 font-semibold' : 'text-slate-400'}`}>
           {noDht
-            ? 'No DHT22 configured yet (the administrator sets this)'
+            ? 'No DHT22 configured yet'
             : reading
               ? `${stale ? 'Stale reading: ' : 'Reading '}${timeAgo(reading.created_at, now)}`
               : 'Waiting for the first DHT22 reading'}

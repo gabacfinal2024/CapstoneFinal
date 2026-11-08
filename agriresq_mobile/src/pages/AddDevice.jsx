@@ -71,10 +71,15 @@ export default function AddDevice() {
   // ── Step 0: create a pairing code (online) ──
   const startPairing = async (e) => {
     e.preventDefault()
+    const stallNumber = String(user?.stall_number || '').trim()
+    if (!stallNumber) {
+      fail('Your account does not have a stall number yet. Contact an administrator before pairing a device.')
+      return
+    }
     setBusy(true)
     clearError()
     try {
-      const p = await deviceApi.createPairing(details)
+      const p = await deviceApi.createPairing({ ...details, stall_location: `Stall ${stallNumber}` })
       setPairing(p)
       setStep(1)
     } catch (err) {
@@ -280,9 +285,10 @@ export default function AddDevice() {
             <label>{isSensorSetup ? 'Sensor node name' : 'Camera name'}</label>
             <input value={details.name} onChange={(e) => setDetails({ ...details, name: e.target.value })} required />
             </div>
-            <div className="input-group">
-              <label>Stall / location</label>
-              <input value={details.stall_location} placeholder="e.g. Stall 41, Bulua" onChange={(e) => setDetails({ ...details, stall_location: e.target.value })} />
+            <div className="device-stall">
+              <span>Your registered stall</span>
+              <strong>Stall {user?.stall_number || 'not set'}</strong>
+              <small>The device will be registered to your stall. Contact an administrator if this is incorrect.</small>
             </div>
             {!isSensorSetup && <div className="input-group">
               <label>Produce this camera watches</label>

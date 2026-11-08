@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ImageOff, X, ExternalLink, Loader2 } from 'lucide-react'
 import { deviceApi, backendAsset } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
@@ -9,7 +10,7 @@ import Skeleton from './Skeleton'
 import '../styles/devices.css'
 import './ScanGallery.css'
 
-const SOURCES = { AUTO: 'Automatic', MANUAL: 'Manual', UPLOAD: 'Upload' }
+const SOURCES = { AUTO: 'Stall camera', MANUAL: 'Stall camera', UPLOAD: 'Photo upload', PHONE: 'Phone camera' }
 const POLL_MS = 20000
 
 const STATE_LABELS = { fresh: 'Fresh', 'at-risk': 'At-Risk', rotten: 'Rotten' }
@@ -56,7 +57,7 @@ function ScanModal({ scan, onClose }) {
           <div className="gal-modal__row"><strong>{formatDateTime(scan.created_at)}</strong><ScanChip scan={scan} /></div>
           {scan.message && none && <p className="gal-modal__msg">{scan.message}</p>}
           <div className="info-list">
-            <div><span>Camera</span><strong>{scan.device_name || (scan.device_id != null ? `Camera #${scan.device_id}` : '—')}</strong></div>
+            <div><span>Capture device</span><strong>{scan.device_name || (scan.source === 'PHONE' ? 'Phone camera' : scan.source === 'UPLOAD' ? 'Uploaded photo' : scan.device_id != null ? `Camera #${scan.device_id}` : '—')}</strong></div>
             {scan.device_ip && <div><span>Camera IP</span><strong>{scan.device_ip}</strong></div>}
             <div><span>Source</span><strong>{SOURCES[scan.source] || scan.source || '—'}</strong></div>
             {!none && (
@@ -99,7 +100,7 @@ function Tile({ scan, showCamera, onOpen }) {
       </span>
       <span className="gal-tile__meta">
         <strong>{formatDateTime(scan.created_at)}</strong>
-        {showCamera && <span className="gal-tile__cam">{scan.device_name || `Camera #${scan.device_id ?? '?'}`}</span>}
+        {showCamera && <span className="gal-tile__cam">{scan.device_name || SOURCES[scan.source] || `Camera #${scan.device_id ?? '?'}`}</span>}
         <span className="gal-tile__chip"><ScanChip scan={scan} /></span>
         <span className="gal-tile__detail">{detail}</span>
       </span>
@@ -113,7 +114,9 @@ function Tile({ scan, showCamera, onOpen }) {
  * Bump `refreshKey` to pull the newest scans right away (e.g. after "Scan now").
  */
 export default function ScanGallery({ deviceId = null, devices = [], pageSize = 12, refreshKey = 0, initialCamera = '' }) {
+  const navigate = useNavigate()
   const [camera, setCamera] = useState(initialCamera)
+  const [sourceFilter, setSourceFilter] = useState('ALL')
   const [items, setItems] = useState([])
   const [next, setNext] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -189,11 +192,23 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
   }
 
   const showCamera = deviceId == null
-  const emptyText = 'No matching vegetable photos yet. They appear here after a camera recognizes a vegetable matching its crop.'
+  const visibleItems = items.filter((scan) => {
+    if (sourceFilter === 'PHONE') return scan.source === 'PHONE' || scan.source === 'UPLOAD'
+    if (sourceFilter === 'CAMERA') return scan.source !== 'PHONE' && scan.source !== 'UPLOAD'
+    return true
+  })
+  const emptyText = 'No analyzed photos yet. Stall-camera captures, phone-camera photos, and uploads appear here.'
+  const useScanForBatch = (scan) => navigate('/new-batch', { state: { scan } })
 
   return (
     <div className="scan-gallery">
       <div className="gal-filters">
+        <div className="gal-seg" role="group" aria-label="Filter photos by capture source">
+          {[['ALL', 'All photos'], ['CAMERA', 'Stall camera'], ['PHONE', 'Phone Camera & uploads']].map(([value, label]) => (
+            <button type="button" key={value} className={`gal-seg__btn${sourceFilter === value ? ' active' : ''}`}
+              onClick={() => setSourceFilter(value)}>{label}</button>
+          ))}
+        </div>
         {showCamera && devices.length > 0 && (
           <select className="gal-camera" value={camera} onChange={(e) => setCamera(e.target.value)} aria-label="Camera">
             <option value="">All cameras</option>
@@ -215,11 +230,24 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
         </div>
       )}
 
-      {!loading && !error && items.length === 0 && <p className="muted gal-empty">{emptyText}</p>}
+      {!loading && !error && visibleItems.length === 0 && <p className="muted gal-empty">{emptyText}</p>}
 
-      {items.length > 0 && (
+      {visibleItems.length > 0 && (
         <div className="gal-grid">
-          {items.map((s) => <Tile key={s.id} scan={s} showCamera={showCamera} onOpen={setSelected} />)}
+          {visibleItems.map((s) => {
+            const age = Date.now() - new Date(s.created_at).getTime()
+            const canList = Number.isFinite(age) && age < 7 * 60 * 60 * 1000
+            return (
+              <div className="gal-entry" key={`${s.source}-${s.id}`}>
+                <Tile scan={s} showCamera={showCamera} onOpen={setSelected} />
+                {s.detected && !isNoVegetable(s) && (
+                  <button type="button" className="btn btn-outline gal-list-batch" onClick={() => useScanForBatch(s)}>
+                    {canList ? 'Create batch & list' : 'Save to inventory'}
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 

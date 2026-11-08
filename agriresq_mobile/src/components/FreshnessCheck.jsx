@@ -81,7 +81,7 @@ function Body({ loading, error, analysis, children }) {
  * mode 'operator': the full analysis (camera ML, DHT22 rules, agreement, trust badge, explainer).
  * `fallback` ({ days, status, percent }) fills the tiles while the analysis is loading or unavailable.
  */
-export default function FreshnessCheck({ analysis, loading = false, error = '', mode = 'buyer', fallback, signedIn = true }) {
+export default function FreshnessCheck({ analysis, loading = false, error = '', mode = 'buyer', fallback, signedIn = true, showCamera = true }) {
   const operator = mode === 'operator'
   const days = analysis?.days_to_spoil ?? fallback?.days
   const status = analysis?.status ?? fallback?.status
@@ -130,18 +130,20 @@ export default function FreshnessCheck({ analysis, loading = false, error = '', 
         {analysis && <TrustBadge level={level} />}
       </div>
       <Body loading={loading} error={error} analysis={analysis}>
-        <div className="fc-block">
-          <h4><Camera size={14} /> Camera (ML model)</h4>
-          <div className="fc-tiles">
-            <Tile icon={Leaf} label="State seen" value={state} note={camera ? 'Latest accepted scans' : 'No accepted scans yet'} />
-            <Tile icon={ScanLine} label="Agreeing scans" value={camera ? `${camera.agreeing ?? 0} of ${camera.scans ?? 0}` : '—'} note="Match the batch status" />
-            <Tile icon={Gauge} label="Mean confidence" value={camera ? pctText(camera.mean_confidence) : '—'} note="Average of the scans" />
-            <Tile icon={Layers} label="Consistency" value={camera ? pctText(camera.consistency) : '—'} note="Scans giving one answer" />
+        {showCamera && (
+          <div className="fc-block">
+            <h4><Camera size={14} /> Camera (ML model)</h4>
+            <div className="fc-tiles">
+              <Tile icon={Leaf} label="State seen" value={state} note={camera ? 'Latest accepted scans' : 'No accepted scans yet'} />
+              <Tile icon={ScanLine} label="Agreeing scans" value={camera ? `${camera.agreeing ?? 0} of ${camera.scans ?? 0}` : '—'} note="Match the batch status" />
+              <Tile icon={Gauge} label="Mean confidence" value={camera ? pctText(camera.mean_confidence) : '—'} note="Average of the scans" />
+              <Tile icon={Layers} label="Consistency" value={camera ? pctText(camera.consistency) : '—'} note="Scans giving one answer" />
+            </div>
+            <ConfidenceBar label="Combined confidence" value={camera?.confidence} />
+            <p className="fc-sub">{camera?.last_scan_at ? `Last scan ${formatDateTime(camera.last_scan_at)} (${timeAgo(camera.last_scan_at)})` : 'No scan yet'}</p>
+            {modelNote(analysis?.model) && <p className="fc-model">{modelNote(analysis.model)}</p>}
           </div>
-          <ConfidenceBar label="Combined confidence" value={camera?.confidence} />
-          <p className="fc-sub">{camera?.last_scan_at ? `Last scan ${formatDateTime(camera.last_scan_at)} (${timeAgo(camera.last_scan_at)})` : 'No scan yet'}</p>
-          {modelNote(analysis?.model) && <p className="fc-model">{modelNote(analysis.model)}</p>}
-        </div>
+        )}
 
         <div className="fc-block">
           <h4><Thermometer size={14} /> Storage rules (DHT22)</h4>
@@ -156,11 +158,11 @@ export default function FreshnessCheck({ analysis, loading = false, error = '', 
           <p className="fc-sub">{c?.updated_at ? `Sensor updated ${formatDateTime(c.updated_at)} (${timeAgo(c.updated_at)})` : 'No sensor reading yet'}</p>
         </div>
 
-        {analysis?.agreement && AGREEMENT[analysis.agreement] && (
+        {showCamera && analysis?.agreement && AGREEMENT[analysis.agreement] && (
           <p className="fc-agree">{AGREEMENT[analysis.agreement]}</p>
         )}
 
-        <div className="fc-explain">
+        {showCamera && <div className="fc-explain">
           <strong>How the two are combined</strong>
           <p>
             The storage rules turn the stall's heat units (CHU) and VPD into days to spoil. The camera model labels each recent
@@ -168,7 +170,7 @@ export default function FreshnessCheck({ analysis, loading = false, error = '', 
             <b> Medium</b> when they agree or the camera sees good skin while heat has already used up days (60 % or more), and <b>Low</b> otherwise.
             With no accepted pictures only the storage rules are used.
           </p>
-        </div>
+        </div>}
       </Body>
     </section>
   )

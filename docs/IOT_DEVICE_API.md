@@ -170,6 +170,8 @@ pairing are completed from the phone's sensor hotspot and setup portal.
 | `GET/POST /api/devices/<id>/monitors/` | read: owner, monitor, admin; add: owner | a second stall operator who can use the camera (found by email); a camera works with just its owner; the owner may share it with one other stall operator (two people at most), and the administrator can always access it |
 | `DELETE /api/devices/<id>/monitors/<user_id>/` | owner | remove a monitor |
 | `GET /api/scans/?device=&detected=&state=&since=&until=&before=&limit=` | owner, monitor, admin | recent pictures of recognized vegetables matching the camera's crop, newest first, paged by `next_before` |
+| `POST /api/scans/upload/` | stall operator | multipart `image`, `crop_type`, `source` (`PHONE`, `UPLOAD`, or `MANUAL`), optional camera `device_id`; analyzes and saves the photo in that operator's gallery |
+| `POST /api/scans/<scan_id>/batch/` | owning stall operator | `{product_id}`; links an unlinked operator photo scan to a batch owned by the same operator |
 | `GET /api/batches/<product_id>/photos/` | owner, monitor, admin | matching-vegetable pictures taken of one batch, with timestamps |
 
 No-match and crop-mismatch frames are not retained or shown in the gallery; the scan verdict metadata remains

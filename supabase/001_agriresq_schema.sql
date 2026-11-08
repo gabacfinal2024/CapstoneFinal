@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS products (
   base_price_per_kg NUMERIC(10,2) DEFAULT 0,
   current_price_per_kg NUMERIC(10,2) DEFAULT 0,
   discount_percent NUMERIC(5,2) DEFAULT 0,
+  discount_override_percent NUMERIC(5,2) CHECK (discount_override_percent BETWEEN 0 AND 100),
   auto_discount_enabled BOOLEAN DEFAULT TRUE,
   freshness_status TEXT DEFAULT 'GREEN' CHECK (freshness_status IN ('GREEN', 'AMBER', 'RED')),
   freshness_percent INTEGER DEFAULT 100,

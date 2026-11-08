@@ -110,7 +110,9 @@ export default function Dashboard() {
           <div>
             <p className="dash-greet">Good day,</p>
             <h1>{user?.full_name || user?.email?.split('@')[0]}</h1>
-            <p className="role-tag">{isOperator ? 'Stall Operator' : 'Rescue Buyer'}</p>
+            <p className="role-tag">{isOperator
+              ? `Stall Operator${user?.stall_number ? ` · Stall ${user.stall_number}` : ''}`
+              : 'Rescue Buyer'}</p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Link to="/notifications" className="notif-btn" aria-label="Notifications"><Bell size={20} strokeWidth={2.2} />{unread > 0 && (<span className="notif-badge">{unread > 9 ? '9+' : unread}</span>)}</Link>

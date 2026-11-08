@@ -5,12 +5,15 @@ export const DISCOUNT_RULES = {
   RED: 100,
 }
 
-export function computeDynamicPrice(basePricePerKg, quantityKg, freshnessStatus, autoDiscountEnabled = true) {
+export function computeDynamicPrice(basePricePerKg, quantityKg, freshnessStatus, autoDiscountEnabled = true, discountOverridePercent = null) {
   const base = Number(basePricePerKg) || 0
   const qty = Number(quantityKg) || 0
   let discount = 0
   if (autoDiscountEnabled) {
-    discount = DISCOUNT_RULES[freshnessStatus] ?? 0
+    const override = Number(discountOverridePercent)
+    discount = freshnessStatus === 'AMBER' && discountOverridePercent != null && Number.isFinite(override)
+      ? Math.min(100, Math.max(0, override))
+      : DISCOUNT_RULES[freshnessStatus] ?? 0
   }
   const currentPerKg = base * (1 - discount / 100)
   return {

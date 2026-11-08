@@ -19,10 +19,11 @@ from django.core.management import call_command
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 from rest_framework.test import APIClient
 
-from . import background, device_services
+from . import background, device_services, device_views
 from .models import Device, DeviceScan
 from .supabase_auth import SupabaseUser
 
@@ -322,6 +323,52 @@ class DeviceFlowTests(TestCase):
             gallery = self.app.get('/api/scans/').json()['results']
             self.assertEqual([s['id'] for s in gallery], [matching['id']])
 
+    def test_phone_photo_scan_is_saved_to_the_operator_gallery(self):
+        image = SimpleUploadedFile('phone.jpg', solid(), content_type='image/jpeg')
+        with as_user(OPERATOR), mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()):
+            response = self.app.post('/api/scans/upload/', {
+                'image': image, 'crop_type': 'EGGPLANT', 'source': 'PHONE',
+            }, format='multipart')
+            self.assertEqual(response.status_code, 201, response.content)
+            gallery = self.app.get('/api/scans/').json()['results']
+
+        self.assertEqual(len(gallery), 1)
+        self.assertEqual(gallery[0]['source'], 'PHONE')
+        self.assertEqual(DeviceScan.objects.get(pk=gallery[0]['id']).operator_id, OPERATOR.id)
+
+    def test_operator_can_link_owned_photo_scan_to_owned_batch(self):
+        image = SimpleUploadedFile('phone.jpg', solid(), content_type='image/jpeg')
+        with as_user(OPERATOR), mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()):
+            scan = self.app.post('/api/scans/upload/', {
+                'image': image, 'crop_type': 'EGGPLANT', 'source': 'PHONE',
+            }, format='multipart').json()
+
+        with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', return_value=[{
+                    'id': 42, 'operator_id': OPERATOR.id,
+                }]):
+            response = self.app.post(f'/api/scans/{scan["id"]}/batch/', {'product_id': 42}, format='json')
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['product_id'], 42)
+        self.assertEqual(DeviceScan.objects.get(pk=scan['id']).product_id, 42)
+
+    def test_operator_cannot_link_photo_scan_to_another_operators_batch(self):
+        image = SimpleUploadedFile('phone.jpg', solid(), content_type='image/jpeg')
+        with as_user(OPERATOR), mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()):
+            scan = self.app.post('/api/scans/upload/', {
+                'image': image, 'crop_type': 'EGGPLANT', 'source': 'PHONE',
+            }, format='multipart').json()
+
+        with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', return_value=[{
+                    'id': 42, 'operator_id': BUYER.id,
+                }]):
+            response = self.app.post(f'/api/scans/{scan["id"]}/batch/', {'product_id': 42}, format='json')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIsNone(DeviceScan.objects.get(pk=scan['id']).product_id)
+
     def test_local_scan_image_is_accessible_outside_debug_media_view(self):
         self.pair_and_claim()
         with mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()):
@@ -424,14 +471,24 @@ class DeviceFlowTests(TestCase):
     def test_high_temperature_alert_links_to_live_device(self):
         self.pair_and_claim(kind='SENSOR')
         device = Device.objects.get()
+        previous = device.readings.create(temperature_c=Decimal('35'), humidity_rh=Decimal('55'), vpd_kpa=Decimal('2'))
         with mock.patch.object(device_services, 'has_service_key', return_value=True), \
                 mock.patch.object(device_services, 'supabase_insert') as insert:
-            device_services._alerts(device, timezone.now(), Decimal('37'), Decimal('55'))
+            device_services._alerts(device, timezone.now(), Decimal('37'), Decimal('55'), previous)
 
         insert.assert_called_once()
         self.assertEqual(insert.call_args.args[0], 'notifications')
         self.assertEqual(insert.call_args.args[1]['notification_type'], 'IOT_ALERT')
         self.assertEqual(insert.call_args.args[1]['device_id'], device.id)
+
+    def test_stable_or_lower_sensor_values_do_not_alert(self):
+        self.pair_and_claim(kind='SENSOR')
+        device = Device.objects.get()
+        previous = device.readings.create(temperature_c=Decimal('37'), humidity_rh=Decimal('95'), vpd_kpa=Decimal('1'))
+        with mock.patch.object(device_services, 'has_service_key', return_value=True), \
+                mock.patch.object(device_services, 'supabase_insert') as insert:
+            device_services._alerts(device, timezone.now(), Decimal('37'), Decimal('95'), previous)
+        insert.assert_not_called()
 
     def test_sustained_heat_queues_an_emergency_snapshot(self):
         self.pair_and_claim()
@@ -440,7 +497,7 @@ class DeviceFlowTests(TestCase):
         for minutes in (118, 95, 70, 40, 10):      # oldest is just inside the 2 h window
             r = device.readings.create(temperature_c=Decimal('37'), humidity_rh=Decimal('55'), vpd_kpa=Decimal('3'))
             device.readings.filter(pk=r.pk).update(created_at=now - timedelta(minutes=minutes))
-        device_services._alerts(device, now, Decimal('37'), Decimal('55'))
+        device_services._alerts(device, now, Decimal('37'), Decimal('55'), device.readings.first())
         device.refresh_from_db()
         self.assertEqual(device.pending_command, 'scan_auto')
         self.assertIsNotNone(device.last_emergency_at)

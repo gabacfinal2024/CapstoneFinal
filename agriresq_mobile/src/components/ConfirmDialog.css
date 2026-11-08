@@ -44,3 +44,9 @@
   gap: 10px;
   justify-content: flex-end;
 }
+
+.confirm-actions .btn-danger {
+  border: 1px solid #b91c1c;
+  background: #dc2626;
+  color: #fff;
+}

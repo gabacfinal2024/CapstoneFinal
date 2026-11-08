@@ -52,18 +52,19 @@ export default function BatchCard({ batch }) {
         <div className="batch-actions">
           {batch.is_listed && <Link to={`/produce/${batch.id}`} className="btn btn-sm">View Listing</Link>}
           {user && user.role === 'STALL_OPERATOR' && user.id === batch.operator_id && (
-            <button title="Remove Batch" className="icon-btn danger" onClick={openConfirm}>🗑</button>
+            <button title="Delete batch" className="btn btn-danger" onClick={openConfirm}>Delete</button>
           )}
         </div>
       </div>
     </Link>
     <ConfirmDialog
       open={confirmOpen}
-      title="Remove Batch"
-      message="Remove this batch? This will delete the product and its listing."
+      title="Delete Batch"
+      message="Delete this batch and its listing? This action cannot be undone."
       onConfirm={handleRemove}
       onCancel={() => setConfirmOpen(false)}
-      confirmLabel="Remove"
+      confirmLabel="Delete"
+      danger
     />
     </>
   )

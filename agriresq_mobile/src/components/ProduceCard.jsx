@@ -96,8 +96,8 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
             {user?.role === 'RESCUE_BUYER' && <button type="button" className="btn btn-sm" onClick={stop(chat)}>Send message</button>}
             {isOwner && (
               <>
-                <button type="button" title="Finalize Sale" className="icon-btn green" onClick={stop(() => setConfirmFinalize(true))}>✓</button>
-                <button type="button" title="Remove Batch" className="icon-btn danger" onClick={stop(() => setConfirmRemove(true))}>🗑</button>
+                <button type="button" className="btn btn-sm" onClick={stop(() => setConfirmFinalize(true))}>Mark sold</button>
+                <button type="button" className="btn btn-danger btn-sm" onClick={stop(() => setConfirmRemove(true))}>Delete</button>
               </>
             )}
             {user?.role === 'RESCUE_BUYER' && (
@@ -109,8 +109,8 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
           {note && <p className="card-note">{note}</p>}
         </div>
       </Link>
-      <ConfirmDialog open={confirmRemove} title="Remove Batch" message="Remove this batch? This will delete the product and its listing." onConfirm={doRemove} onCancel={() => setConfirmRemove(false)} confirmLabel="Remove" />
-      <ConfirmDialog open={confirmFinalize} title="Finalize Sale" message="Mark this listing as SOLD? This will remove it from the marketplace." onConfirm={doFinalize} onCancel={() => setConfirmFinalize(false)} confirmLabel="Mark Sold" />
+      <ConfirmDialog open={confirmRemove} title="Delete batch" message="Delete this batch and its listing? This action cannot be undone." onConfirm={doRemove} onCancel={() => setConfirmRemove(false)} confirmLabel="Delete" danger />
+      <ConfirmDialog open={confirmFinalize} title="Mark listing as sold" message="Mark this listing as sold? It will be removed from the marketplace." onConfirm={doFinalize} onCancel={() => setConfirmFinalize(false)} confirmLabel="Mark sold" />
     </>
   )
 }

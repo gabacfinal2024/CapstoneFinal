@@ -304,9 +304,10 @@ class PairingCode(models.Model):
 
 
 class DeviceScan(models.Model):
-    SOURCES = [('AUTO', 'Auto'), ('MANUAL', 'Manual'), ('UPLOAD', 'Upload')]
+    SOURCES = [('AUTO', 'Auto'), ('MANUAL', 'Manual'), ('UPLOAD', 'Upload'), ('PHONE', 'Phone camera')]
 
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='scans', null=True, blank=True)
+    operator_id = models.CharField(max_length=64, blank=True, db_index=True)
     source = models.CharField(max_length=10, choices=SOURCES, default='AUTO')
     crop_type = models.CharField(max_length=20, choices=CROP_TYPES)
     detected = models.BooleanField(default=True)                # False = no eggplant/cucumber/carrot in view

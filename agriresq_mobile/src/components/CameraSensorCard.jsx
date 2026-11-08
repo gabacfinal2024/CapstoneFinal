@@ -55,7 +55,7 @@ export function SensorPanel({ reading, readings = [], dhtPin, chuRate = null }) 
   let Icon = Clock
   let title = 'No reading yet'
   let detail = dhtPin != null && dhtPin < 0
-    ? 'DHT22 is not configured. Check the sensor-node firmware pin.'
+    ? 'DHT22 is not configured. Check the sensor and device settings.'
     : `No recent upload. Check node Wi-Fi/server connectivity and DHT22 wiring on GPIO ${dhtPin ?? 4}.`
   if (latest) {
     const when = `updated ${timeAgo(latest.created_at)}`

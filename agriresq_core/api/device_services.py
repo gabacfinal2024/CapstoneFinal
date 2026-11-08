@@ -58,20 +58,26 @@ def _jpeg_bytes(image):
     return output.getvalue()
 
 
-def run_scan(image_bytes, device=None, source='AUTO', crop_type=None):
+_DEVICE_BATCH = object()
+
+
+def run_scan(image_bytes, device=None, source='AUTO', crop_type=None, operator_id=None, product_id=_DEVICE_BATCH):
     """Analyse an image, save it as a DeviceScan and (for real detections) update the linked batch."""
     crop = crop_type or (device.crop_type if device else 'EGGPLANT')
     result, annotated = analyze_image(image_bytes, crop)
 
     scan = DeviceScan.objects.create(
         device=device, source=source,
+        operator_id=str(operator_id or (device.operator_id if device else '')),
         crop_type=result['crop_type'], detected=result['detected'], detected_crop=result['detected_crop'],
         crop_mismatch=result['crop_mismatch'], message=result['message'][:200], none_prob=result['none_prob'],
         state=result['state'], freshness_status=result['freshness_status'],
         freshness_percent=result['freshness_percent'],
         days_to_spoil=None if result['days_to_spoil'] is None else Decimal(str(result['days_to_spoil'])),
         ml_confidence=result['ml_confidence'], probs=result['probs'], low_confidence=result['low_confidence'],
-        product_id=device.product_id if device else None,
+        product_id=device.product_id if product_id is _DEVICE_BATCH and device else (
+            None if product_id is _DEVICE_BATCH else product_id
+        ),
     )
     # Keep photos only when a supported vegetable matches this camera's configured crop.
     if result['detected'] and not result['crop_mismatch']:
@@ -118,7 +124,10 @@ def _apply(device, product, status, days, percent, source, ml_confidence=None, d
     old = product.get('freshness_status')
     base = Decimal(str(product.get('base_price_per_kg') or 0))
     qty = Decimal(str(product.get('quantity_kg') or 0))
+    override = product.get('discount_override_percent')
     discount = DISCOUNT_RULES[status] if product.get('auto_discount_enabled', True) else 0
+    if status == 'AMBER' and product.get('auto_discount_enabled', True) and override is not None:
+        discount = min(100, max(0, int(Decimal(str(override)))))
     current = (base * (100 - discount) / 100).quantize(Decimal('0.01'))
 
     patch = {'freshness_status': status, 'freshness_percent': percent,
@@ -199,6 +208,7 @@ def save_reading(device, temperature_c, humidity_rh):
     now = timezone.now()
     t, rh = Decimal(str(temperature_c)), Decimal(str(humidity_rh))
     vpd = calculate_vpd(t, rh).quantize(Decimal('0.0001'))
+    previous = device.readings.first()
     reading = DeviceReading.objects.create(device=device, temperature_c=t, humidity_rh=rh, vpd_kpa=vpd)
     recent = list(device.readings.all()[:FILTER_WINDOW])
     t_f = sum(r.temperature_c for r in recent) / len(recent)      # moving average: ignores one-off spikes
@@ -214,7 +224,7 @@ def save_reading(device, temperature_c, humidity_rh):
             age_operator_batches(device.operator_id, now)
         except Exception as exc:
             log.warning('Supabase sensor sync failed: %s', exc)
-    _alerts(device, now, t_f, rh_f)
+    _alerts(device, now, t_f, rh_f, previous)
     return reading
 
 
@@ -236,17 +246,19 @@ def apply_environment(device, t_f, rh_f, hours):
            'RULE_ENGINE', detail=f'Stall conditions: {t_f:.1f}°C, {rh_f:.0f}% RH.')
 
 
-def _alerts(device, now, t_f, rh_f):
+def _alerts(device, now, t_f, rh_f, previous):
     where = device.stall_location or 'your stall'
-    if t_f > ALERT_TEMP_C and (not device.last_alert_at or now - device.last_alert_at > ALERT_COOLDOWN) \
+    rising_heat = previous is not None and t_f > ALERT_TEMP_C and Decimal(str(t_f)) > previous.temperature_c
+    rising_humidity = previous is not None and rh_f >= Decimal('90') and Decimal(str(rh_f)) > previous.humidity_rh
+    if (rising_heat or rising_humidity) and (not device.last_alert_at or now - device.last_alert_at > ALERT_COOLDOWN) \
             and has_service_key():
         try:
+            reason = 'temperature is rising' if rising_heat else 'humidity is rising'
             supabase_insert('notifications', {
                 'user_id': device.operator_id, 'product_id': device.product_id, 'notification_type': 'IOT_ALERT',
                 'device_id': device.id,
-                'title': 'High Temperature Alert',
-                'message': f'{device.name}: {t_f:.1f}°C, {rh_f:.0f}% RH at {where}. Produce will spoil faster; '
-                           f'move it to shade or cool storage.'})
+                'title': 'Stall Conditions Rising',
+                'message': f'{device.name}: {reason} at {where} ({t_f:.1f}°C, {rh_f:.0f}% RH). Check the produce and storage.'})
             device.last_alert_at = now
             device.save(update_fields=['last_alert_at'])
         except Exception as exc:

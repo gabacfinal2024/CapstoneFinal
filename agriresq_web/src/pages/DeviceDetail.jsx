@@ -329,7 +329,7 @@ function DeviceDetailView({ id }) {
               {sensor && (
                 <span className={readingStale ? 'text-amber-600 font-semibold' : ''}>
                   {device.dht_pin < 0
-                    ? 'No DHT22 configured yet (the administrator sets this)'
+                    ? 'No DHT22 configured yet'
                     : reading
                       ? `🌡 ${Number(reading.temperature_c).toFixed(1)}°C • 💧 ${Number(reading.humidity_rh).toFixed(0)}% RH • VPD ${reading.vpd_kpa != null ? Number(reading.vpd_kpa).toFixed(2) : '—'} kPa • ${readingStale ? 'stale, ' : ''}${timeAgo(reading.created_at, now)}`
                       : 'Waiting for the first DHT22 reading'}
@@ -544,7 +544,7 @@ function DeviceDetailView({ id }) {
                     {dhtPinOptions(form.dht_pin).map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
                   </select>
                   <span className="block normal-case font-normal text-slate-400 mt-1">
-                    Only the administrator configures the DHT22. Sensor nodes come set to GPIO 4 (D4).
+                    Sensor nodes use GPIO 4 (D4) by default.
                   </span>
                   {Number(device.dht_pin) === 4 && (
                     <span className="block normal-case font-semibold text-emerald-700 mt-1">DHT22 ready on GPIO 4 (D4)</span>

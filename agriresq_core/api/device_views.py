@@ -21,7 +21,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied, ValidationError
-from rest_framework.parsers import JSONParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -339,7 +339,7 @@ class ScanFeedbackView(OperatorView):
 class DeviceReadingsView(OperatorView):
     def get(self, request, pk):
         device = self.get_device(request, pk)
-        limit = min(int(request.query_params.get('limit', 60)), 1000)
+        limit = min(max(int(request.query_params.get('limit', 60)), 1), 3000)
         return Response([reading_json(r) for r in device.readings.all()[:limit]])
 
 
@@ -659,7 +659,9 @@ class ScanGalleryView(APIView):
     def get(self, request):
         q = request.query_params
         scans = DeviceScan.objects.filter(
-            device__in=visible_devices(request.user), detected=True, crop_mismatch=False, image__gt='',
+            Q(device__in=visible_devices(request.user)) |
+            Q(operator_id=request.user.id) if request.user.role != 'ADMIN' else Q(),
+            detected=True, crop_mismatch=False, image__gt='',
         ).select_related('device')
         if q.get('device'):
             scans = scans.filter(device_id=q['device'])
@@ -689,13 +691,92 @@ class ScanGalleryView(APIView):
                          'next_before': page[-1].pk if more and page else None})
 
 
+class ScanBatchLinkView(APIView):
+    authentication_classes = [SupabaseAuthentication]
+    permission_classes = [IsAuthenticated, IsOperatorOrAdminReadOnly]
+    parser_classes = [JSONParser]
+
+    def post(self, request, scan_id):
+        if request.user.role != 'STALL_OPERATOR':
+            raise PermissionDenied('Only a stall operator can link a photo scan to a batch.')
+        scan = DeviceScan.objects.filter(pk=scan_id, operator_id=request.user.id).first()
+        if not scan:
+            raise NotFound('Photo scan not found.')
+        if scan.product_id is not None:
+            raise ValidationError({'scan_id': 'This photo is already linked to a batch.'})
+        try:
+            product_id = int(request.data.get('product_id'))
+        except (TypeError, ValueError):
+            raise ValidationError({'product_id': 'A valid batch is required.'})
+        if not has_service_key():
+            return Response({'detail': 'The hub cannot verify batch ownership right now.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        try:
+            products = supabase_select('products', {'id': product_id})
+        except Exception:
+            return Response({'detail': 'Could not verify the batch.'}, status=status.HTTP_502_BAD_GATEWAY)
+        if not products or products[0].get('operator_id') != request.user.id:
+            raise NotFound('Batch not found.')
+        scan.product_id = product_id
+        scan.save(update_fields=['product_id'])
+        return Response(gallery_json(request, scan))
+
+
+class OperatorPhotoAnalyzeView(APIView):
+    """Analyze and retain a stall operator's phone or uploaded photo in their scan gallery."""
+    authentication_classes = [SupabaseAuthentication]
+    permission_classes = [IsAuthenticated, IsOperatorOrAdminReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        if request.user.role != 'STALL_OPERATOR':
+            raise PermissionDenied('Only a stall operator can save a photo scan.')
+        image = request.FILES.get('image')
+        if not image:
+            raise ValidationError({'image': 'Choose a photo to analyze.'})
+        if image.size > 10 * 1024 * 1024:
+            raise ValidationError({'image': 'Choose a photo smaller than 10 MB.'})
+
+        crop = str(request.data.get('crop_type') or 'EGGPLANT').upper()
+        if crop not in CROPS:
+            raise ValidationError({'crop_type': 'Choose eggplant, cucumber or carrot.'})
+        source = str(request.data.get('source') or 'UPLOAD').upper()
+        if source not in ('PHONE', 'UPLOAD', 'MANUAL'):
+            raise ValidationError({'source': 'Choose PHONE, UPLOAD or MANUAL.'})
+
+        device = None
+        device_id = request.data.get('device_id')
+        if device_id:
+            device = visible_devices(request.user).filter(pk=device_id).first()
+            if not device or device.kind != 'CAMERA':
+                raise NotFound('Camera not found.')
+        product_id = request.data.get('product_id')
+        if product_id not in (None, ''):
+            if not has_service_key():
+                return Response({'detail': 'The hub cannot verify batch ownership right now.'},
+                                status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            try:
+                product_id = int(product_id)
+                products = supabase_select('products', {'id': product_id})
+            except (TypeError, ValueError):
+                raise ValidationError({'product_id': 'Invalid batch.'})
+            if not products or products[0].get('operator_id') != request.user.id:
+                raise NotFound('Batch not found.')
+
+        scan = run_scan(image.read(), device, source, crop, request.user.id, product_id)
+        return Response(gallery_json(request, scan), status=status.HTTP_201_CREATED)
+
+
 class BatchPhotosView(APIView):
     """The pictures the camera took of one batch (product), newest first, with timestamps."""
     authentication_classes = [SupabaseAuthentication]
     permission_classes = [IsAuthenticated, IsOperatorOrAdminReadOnly]
 
     def get(self, request, product_id):
-        scans = (DeviceScan.objects.filter(device__in=visible_devices(request.user))
+        scopes = Q() if request.user.role == 'ADMIN' else (
+            Q(device__in=visible_devices(request.user)) | Q(operator_id=request.user.id)
+        )
+        scans = (DeviceScan.objects.filter(scopes)
                  .filter(Q(product_id=product_id) | Q(device__product_id=product_id))
                  .filter(detected=True, crop_mismatch=False, image__gt='')
                  .select_related('device').order_by('-pk')[:200])
