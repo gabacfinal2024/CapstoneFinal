@@ -29,6 +29,7 @@ from .supabase_auth import SupabaseUser
 
 OPERATOR = SupabaseUser('11111111-1111-1111-1111-111111111111', 'op@example.com', 'STALL_OPERATOR')
 BUYER = SupabaseUser('22222222-2222-2222-2222-222222222222', 'buyer@example.com', 'RESCUE_BUYER')
+ADMIN = SupabaseUser('99999999-9999-9999-9999-999999999999', 'admin@example.com', 'ADMIN')
 MAC = 'AA:BB:CC:DD:EE:01'
 ASSETS = Path(__file__).parent / 'test_assets'
 MEDIA = tempfile.mkdtemp()
@@ -320,7 +321,7 @@ class DeviceFlowTests(TestCase):
             self.assertEqual(len(self.app.get(f'/api/devices/{dev_id}/scans/').json()), 3)
             only = self.app.get(f'/api/devices/{dev_id}/scans/?detected=1').json()
             self.assertEqual([s['detected'] for s in only], [True])
-            gallery = self.app.get('/api/scans/').json()['results']
+            gallery = self.app.get('/api/scans/?detected=1').json()['results']
             self.assertEqual([s['id'] for s in gallery], [matching['id']])
 
     def test_phone_photo_scan_is_saved_to_the_operator_gallery(self):
@@ -335,6 +336,9 @@ class DeviceFlowTests(TestCase):
         self.assertEqual(len(gallery), 1)
         self.assertEqual(gallery[0]['source'], 'PHONE')
         self.assertEqual(DeviceScan.objects.get(pk=gallery[0]['id']).operator_id, OPERATOR.id)
+        with as_user(ADMIN):
+            admin_gallery = self.app.get('/api/scans/').json()['results']
+        self.assertEqual([scan['id'] for scan in admin_gallery], [gallery[0]['id']])
 
     def test_operator_can_link_owned_photo_scan_to_owned_batch(self):
         image = SimpleUploadedFile('phone.jpg', solid(), content_type='image/jpeg')

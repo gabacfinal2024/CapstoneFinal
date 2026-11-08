@@ -271,13 +271,30 @@ class MonitorsAndGalleryTests(TestCase):
         with as_user(OPERATOR):
             ids = {s['id'] for s in self.app.get('/api/scans/').json()['results']}
             only = self.app.get('/api/scans/?detected=1').json()['results']
+            empty = self.app.get('/api/scans/?detected=0').json()['results']
         self.assertEqual(ids, {self.s1.id, self.s2.id, self.old.id})
         self.assertTrue(all(s['detected'] for s in only))
+        self.assertEqual([s['id'] for s in empty], [self.s2.id])
         with as_user(ADMIN):
             body = self.app.get('/api/scans/').json()
             self.assertEqual(len(body['results']), 4)
             self.assertEqual(body['results'][0]['device_name'] in ('Stall 1 Cam', 'Other Cam'), True)
             self.assertEqual(len(self.app.get(f'/api/scans/?device={self.other.id}').json()['results']), 1)
+
+    def test_gallery_includes_unattached_phone_scans_for_the_operator_and_admin(self):
+        phone_scan = DeviceScan.objects.create(
+            operator_id=OPERATOR.id, source='PHONE', crop_type='EGGPLANT', state='fresh',
+            freshness_status='GREEN', ml_confidence=0.9,
+        )
+        with as_user(OPERATOR):
+            operator_ids = {s['id'] for s in self.app.get('/api/scans/').json()['results']}
+        with as_user(ADMIN):
+            admin_ids = {s['id'] for s in self.app.get('/api/scans/').json()['results']}
+
+        self.assertIn(phone_scan.id, operator_ids)
+        self.assertIn(phone_scan.id, admin_ids)
+        self.assertIn(self.s3.id, admin_ids)
+        self.assertNotIn(self.s3.id, operator_ids)
 
     def test_gallery_pages(self):
         with as_user(ADMIN):

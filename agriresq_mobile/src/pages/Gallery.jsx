@@ -29,7 +29,7 @@ export default function Gallery() {
         <Link to="/devices" className="dev-back"><ArrowLeft size={16} /> Devices</Link>
         <header style={{ marginBottom: 14 }}>
           <h1 className="dev-title">Scan Gallery</h1>
-          <p className="dev-subtitle">Recent pictures analysed by your cameras</p>
+          <p className="dev-subtitle">Recent scans from your cameras, including empty frames</p>
         </header>
         <ScanGallery devices={devices} initialCamera={initial} pageSize={12} />
       </div>

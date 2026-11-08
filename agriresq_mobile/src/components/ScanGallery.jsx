@@ -135,7 +135,7 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
   const fetchFirst = async (reset) => {
     const myKey = keyRef.current
     try {
-      const page = await deviceApi.gallery({ device, detected: true, limit: pageSize })
+      const page = await deviceApi.gallery({ device, limit: pageSize })
       if (keyRef.current !== myKey) return // filter changed while this request was in flight
       const prev = itemsRef.current
       const overlap = page.results.some((s) => prev.some((p) => p.id === s.id))
@@ -180,7 +180,7 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
     setLoadingMore(true)
     setMoreError('')
     try {
-      const page = await deviceApi.gallery({ device, detected: true, before: next, limit: pageSize })
+      const page = await deviceApi.gallery({ device, before: next, limit: pageSize })
       if (keyRef.current !== myKey) return
       setItems((prev) => mergeNewest(prev, page.results))
       setNext(page.next_before)
