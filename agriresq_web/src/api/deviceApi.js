@@ -97,7 +97,12 @@ export const deviceApi = {
   /** label: 'correct' | 'none' | '<crop>_<state>' e.g. 'eggplant_at-risk'. Returns the updated Scan. */
   scanFeedback: async (deviceId, scanId, label) =>
     (await backend(`/api/devices/${deviceId}/scans/${scanId}/feedback/`, { method: 'POST', body: { label } })).data,
-  readings: async (id, limit = 60) => (await backend(`/api/devices/${id}/readings/?limit=${limit}`)).data,
+  readings: async (id, limit = 60, { since, until } = {}) => {
+    const q = new URLSearchParams({ limit: String(limit) })
+    if (since) q.set('since', since)
+    if (until) q.set('until', until)
+    return (await backend(`/api/devices/${id}/readings/?${q.toString()}`)).data
+  },
   live: async (id) => (await backend(`/api/devices/${id}/live/`)).data,
 
   /**

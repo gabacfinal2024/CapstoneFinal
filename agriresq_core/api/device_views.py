@@ -372,7 +372,16 @@ class DeviceReadingsView(OperatorView):
     def get(self, request, pk):
         device = self.get_device(request, pk)
         limit = min(max(int(request.query_params.get('limit', 60)), 1), 3000)
-        return Response([reading_json(r) for r in device.readings.all()[:limit]])
+        readings = device.readings.all()
+        for key, lookup in (('since', 'created_at__gte'), ('until', 'created_at__lte')):
+            value = request.query_params.get(key)
+            if value:
+                from django.utils.dateparse import parse_datetime
+                parsed = parse_datetime(value)
+                if parsed is None:
+                    raise ValidationError({key: 'Enter a valid ISO-8601 datetime.'})
+                readings = readings.filter(**{lookup: parsed})
+        return Response([reading_json(r) for r in readings[:limit]])
 
 
 class DeviceLiveView(OperatorView):

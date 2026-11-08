@@ -1,12 +1,13 @@
 """Camera access: the owner, the people it is shared with, and always the administrator."""
 from unittest import mock
+from urllib.parse import urlencode
 
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from . import device_services
-from .models import Device, DeviceMonitor, DeviceScan, PairingCode
+from .models import Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
 from .supabase_auth import SupabaseUser
 from . import device_views
 from .test_devices import BUYER, OPERATOR, as_user
@@ -39,6 +40,30 @@ class AdminMonitoringTests(TestCase):
             for path in (f'/api/devices/{self.theirs.id}/', f'/api/devices/{self.theirs.id}/scans/',
                          f'/api/devices/{self.theirs.id}/readings/', f'/api/devices/{self.theirs.id}/live/'):
                 self.assertEqual(self.app.get(path).status_code, 200, path)
+
+    def test_device_readings_can_be_filtered_to_a_report_window(self):
+        from datetime import timedelta
+        older = DeviceReading.objects.create(device=self.mine, temperature_c=20, humidity_rh=50)
+        included = DeviceReading.objects.create(device=self.mine, temperature_c=24, humidity_rh=60)
+        newer = DeviceReading.objects.create(device=self.mine, temperature_c=28, humidity_rh=70)
+        now = timezone.now()
+        DeviceReading.objects.filter(pk=older.pk).update(created_at=now - timedelta(days=2))
+        DeviceReading.objects.filter(pk=included.pk).update(created_at=now - timedelta(hours=1))
+        DeviceReading.objects.filter(pk=newer.pk).update(created_at=now + timedelta(hours=1))
+
+        with as_user(ADMIN):
+            response = self.app.get(
+                f'/api/devices/{self.mine.id}/readings/?{urlencode({
+                    "since": (now - timedelta(hours=2)).isoformat(),
+                    "until": now.isoformat(),
+                    "limit": 3000,
+                })}',
+            )
+            invalid = self.app.get(f'/api/devices/{self.mine.id}/readings/?since=not-a-date')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([reading['id'] for reading in response.json()], [included.id])
+        self.assertEqual(invalid.status_code, 400)
 
     def test_admin_can_use_any_camera_but_not_remove_it(self):
         url = f'/api/devices/{self.theirs.id}/'

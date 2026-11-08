@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { deviceApi, isDetected } from './deviceApi'
+import { deviceApi, isDetected, isSensor } from './deviceApi'
 import { dealHistory } from './dealsApi'
 
 /** Everything the Analytics page shows, computed from the operator's own data (nothing is hard-coded). */
@@ -65,13 +65,69 @@ export function scansCsv(scans, devices) {
       s.crop_mismatch, s.feedback_label]))
 }
 
-export async function readingsCsv(devices) {
-  const rows = []
-  for (const d of devices) {
-    const list = await deviceApi.readings(d.id, 1000)
-    for (const r of list) rows.push([d.name, r.created_at, r.temperature_c, r.humidity_rh, r.vpd_kpa])
+const REPORT_TIME_ZONE = 'Asia/Manila'
+const REPORT_CUTOFF_HOUR = 17
+
+function average(values) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : ''
+}
+
+function metricStats(readings, key) {
+  const values = readings
+    .map((reading) => reading[key])
+    .filter((value) => value != null && value !== '')
+    .map(Number)
+    .filter(Number.isFinite)
+  return values.length ? [Math.min(...values), average(values), Math.max(...values)] : ['', '', '']
+}
+
+export async function readingsCsv(devices, reportDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) throw new Error('Choose a valid report date.')
+
+  const [year, month, day] = reportDate.split('-').map(Number)
+  const dateCheck = new Date(Date.UTC(year, month - 1, day))
+  if (dateCheck.getUTCFullYear() !== year || dateCheck.getUTCMonth() !== month - 1 || dateCheck.getUTCDate() !== day) {
+    throw new Error('Choose a valid report date.')
   }
-  downloadCsv('agriresq_sensor_log.csv', ['device', 'time', 'temperature_c', 'humidity_rh', 'vpd_kpa'], rows)
+  const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - 8 * 60 * 60 * 1000)
+  const cutoff = new Date(Date.UTC(year, month - 1, day, REPORT_CUTOFF_HOUR, 0, 0) - 8 * 60 * 60 * 1000)
+  const now = new Date()
+  const until = now < cutoff ? now : cutoff
+  const reportStatus = now >= cutoff ? 'FINAL' : 'PRELIMINARY'
+  const sensors = devices.filter(isSensor)
+  const results = await Promise.all(sensors.map(async (device) => ({
+    device,
+    readings: await deviceApi.readings(device.id, 3000, {
+      since: start.toISOString(),
+      until: until.toISOString(),
+    }),
+  })))
+
+  const summaryHeader = [
+    'device', 'report_date', 'status', 'readings_count',
+    'temperature_min_c', 'temperature_avg_c', 'temperature_max_c',
+    'humidity_min_rh', 'humidity_avg_rh', 'humidity_max_rh',
+    'vpd_min_kpa', 'vpd_avg_kpa', 'vpd_max_kpa',
+  ]
+  const summaryRows = results.map(({ device, readings }) => [
+    device.name, reportDate, readings.length ? reportStatus : 'NO_READINGS', readings.length,
+    ...metricStats(readings, 'temperature_c'),
+    ...metricStats(readings, 'humidity_rh'),
+    ...metricStats(readings, 'vpd_kpa'),
+  ])
+  const readingRows = results.flatMap(({ device, readings }) => readings.map((reading) => [
+    device.name, reading.created_at, reading.temperature_c, reading.humidity_rh, reading.vpd_kpa,
+  ]))
+
+  downloadCsv('agriresq_daily_sensor_report.csv', [], [
+    [`DAILY SENSOR SUMMARY (${REPORT_TIME_ZONE}; daily cutoff ${REPORT_CUTOFF_HOUR}:00)`],
+    summaryHeader,
+    ...summaryRows,
+    [],
+    ['DETAILED READINGS'],
+    ['device', 'time', 'temperature_c', 'humidity_rh', 'vpd_kpa'],
+    ...readingRows,
+  ])
 }
 
 /**

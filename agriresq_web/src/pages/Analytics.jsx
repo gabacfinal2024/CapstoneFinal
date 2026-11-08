@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CROPS, cropLabel, isDetected } from '../api/deviceApi';
+import { CROPS, cropLabel, isDetected, isSensor } from '../api/deviceApi';
 import { loadAnalytics, readingsCsv, rescuesCsv, scansCsv } from '../api/analyticsApi';
 import { usePolling } from '../hooks/usePolling';
 import { buyerTypeLabel, cropEmoji, fmtDate, fmtTime, peso, titleCase } from '../lib/format';
 
 const ICON = { EGGPLANT: '🍆', CUCUMBER: '🥒', CARROT: '🥕' };
 const MIN_REVIEWED = 5; // corrections needed before an accuracy figure is shown
+const reportDateToday = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 const pct = (num, den) => (den > 0 ? (num / den) * 100 : null);
 const fmtPct = (v) => (v == null ? '—' : `${v.toFixed(v % 1 === 0 ? 0 : 1)}%`);
@@ -42,6 +45,7 @@ const Analytics = () => {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [exportMsg, setExportMsg] = useState('');
+  const [sensorReportDate, setSensorReportDate] = useState(reportDateToday);
 
   usePolling(async () => {
     try {
@@ -117,6 +121,7 @@ const Analytics = () => {
   }
 
   const month = new Date().toLocaleString('en-PH', { month: 'long', year: 'numeric' });
+  const hasSensors = data.devices.some(isSensor);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-10">
@@ -266,11 +271,17 @@ const Analytics = () => {
 
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h3 className="text-base font-bold text-slate-800 mb-1">Downloadable data (CSV)</h3>
-        <p className="text-xs text-slate-500 mb-5">Raw exports straight from the cameras and marketplace, ready for spreadsheets or your report</p>
+        <p className="text-xs text-slate-500 mb-5">Export sensor readings with a daily summary, camera scans, and marketplace activity.</p>
+        <label className="mb-4 inline-flex flex-col gap-1 text-xs font-bold text-slate-500">
+          Sensor report date (Asia/Manila; daily cutoff 5:00 PM)
+          <input type="date" value={sensorReportDate} max={reportDateToday()}
+                 onChange={(event) => setSensorReportDate(event.target.value)}
+                 className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-normal text-slate-700" />
+        </label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             ['Scan log', 'Every camera scan: crop, status, freshness, confidence and your corrections.', () => scansCsv(data.scans, data.devices), !data.scans.length],
-            ['Sensor log', 'DHT22 temperature, humidity and VPD readings from all nodes.', () => readingsCsv(data.devices), !data.devices.length],
+            ['Daily sensor report', 'Raw DHT22 readings plus per-sensor min, average, and max temperature, humidity, and VPD. Reports become final at 5:00 PM Manila time.', () => readingsCsv(data.devices, sensorReportDate), !hasSensors || !sensorReportDate],
             ['Rescue transactions', 'Marketplace listings and completed deals: date, crop, kg, price, plus the stall operator and rescue buyer (name, stall / buyer type, email).', () => rescuesCsv(data.listings, data.deals), !data.listings.length && !data.deals.length],
           ].map(([title, text, fn, disabled]) => (
             <button key={title} type="button" disabled={disabled} onClick={() => runExport(fn)}
