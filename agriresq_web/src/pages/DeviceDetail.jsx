@@ -320,23 +320,47 @@ function DeviceDetailView({ id }) {
 
       {notice && <div role="status" className="p-3 rounded-xl bg-slate-800 text-white text-sm">{notice}</div>}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            {!sensor && <LiveCameraView key={id} deviceId={id} online={device.online} scanning={scanning} />}
-            <div className="p-4 flex flex-wrap gap-4 justify-between text-sm text-slate-500">
-              {sensor ? <span className="font-bold text-slate-700">Latest DHT22 reading</span> : <span>{scheduleSummary(device)}</span>}
-              {sensor && (
-                <span className={readingStale ? 'text-amber-600 font-semibold' : ''}>
-                  {device.dht_pin < 0
-                    ? 'No DHT22 configured yet'
-                    : reading
-                      ? `🌡 ${Number(reading.temperature_c).toFixed(1)}°C • 💧 ${Number(reading.humidity_rh).toFixed(0)}% RH • VPD ${reading.vpd_kpa != null ? Number(reading.vpd_kpa).toFixed(2) : '—'} kPa • ${readingStale ? 'stale, ' : ''}${timeAgo(reading.created_at, now)}`
-                      : 'Waiting for the first DHT22 reading'}
-                </span>
-              )}
+      <div className={`grid grid-cols-1 ${sensor ? 'xl:grid-cols-2' : 'xl:grid-cols-3'} gap-6`}>
+        <div className={`${sensor ? '' : 'xl:col-span-2'} space-y-6`}>
+          {!sensor && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <LiveCameraView key={id} deviceId={id} online={device.online} scanning={scanning} />
+              <div className="p-4 flex flex-wrap gap-4 justify-between text-sm text-slate-500">
+                <span>{scheduleSummary(device)}</span>
+              </div>
             </div>
-          </div>
+          )}
+
+          {sensor && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <h2 className="text-lg font-bold text-slate-800">Live sensor readings</h2>
+                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${device.online && reading && !readingStale ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                  {device.online && reading && !readingStale ? 'LIVE' : 'WAITING'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mb-3">
+                {latestReading
+                  ? `Auto-refreshes every 5 seconds · Last reading ${new Date(latestReading.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
+                  : 'Waiting for the first DHT22 reading. The node reports every 30 seconds.'}
+              </p>
+              {readingError && <p role="alert" className="mb-3 rounded-lg bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">Could not refresh sensor readings: {readingError}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                {[
+                  ['Temperature', latestReading ? `${Number(latestReading.temperature_c).toFixed(1)} °C` : '—'],
+                  ['Humidity', latestReading ? `${Number(latestReading.humidity_rh).toFixed(1)} %RH` : '—'],
+                  ['VPD', latestReading?.vpd_kpa != null ? `${Number(latestReading.vpd_kpa).toFixed(2)} kPa` : '—'],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-xl bg-slate-50 p-4">
+                    <p className="text-xs font-semibold text-slate-500">{label}</p>
+                    <p className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <h3 className="text-sm font-bold text-slate-700 mb-2">Temperature & humidity history</h3>
+              <ReadingsChart readings={readings} />
+            </div>
+          )}
 
           {!sensor && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -403,37 +427,6 @@ function DeviceDetailView({ id }) {
                   ← Back to the latest scan
                 </button>
               )}
-            </div>
-          )}
-
-          {sensor && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-              <div className="flex items-center justify-between gap-3 mb-1">
-                <h2 className="text-lg font-bold text-slate-800">Live sensor readings</h2>
-                <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${device.online && reading && !readingStale ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                  {device.online && reading && !readingStale ? 'LIVE' : 'WAITING'}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mb-3">
-                {latestReading
-                  ? `Auto-refreshes every 5 seconds · Last reading ${new Date(latestReading.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
-                  : 'Waiting for the first DHT22 reading. The node reports every 30 seconds.'}
-              </p>
-              {readingError && <p role="alert" className="mb-3 rounded-lg bg-rose-50 border border-rose-100 p-3 text-sm text-rose-700">Could not refresh sensor readings: {readingError}</p>}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                {[
-                  ['Temperature', latestReading ? `${Number(latestReading.temperature_c).toFixed(1)} °C` : '—'],
-                  ['Humidity', latestReading ? `${Number(latestReading.humidity_rh).toFixed(1)} %RH` : '—'],
-                  ['VPD', latestReading?.vpd_kpa != null ? `${Number(latestReading.vpd_kpa).toFixed(2)} kPa` : '—'],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-xl bg-slate-50 p-4">
-                    <p className="text-xs font-semibold text-slate-500">{label}</p>
-                    <p className="mt-1 text-2xl font-bold text-slate-800 tabular-nums">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <h3 className="text-sm font-bold text-slate-700 mb-2">Temperature & humidity history</h3>
-              <ReadingsChart readings={readings} />
             </div>
           )}
 
