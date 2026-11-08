@@ -321,6 +321,24 @@ class MonitorsAndGalleryTests(TestCase):
         self.assertIn(self.s3.id, admin_ids)
         self.assertNotIn(self.s3.id, operator_ids)
 
+    def test_gallery_source_filter_separates_camera_and_photo_scans(self):
+        phone_scan = DeviceScan.objects.create(
+            operator_id=OPERATOR.id, source='PHONE', crop_type='EGGPLANT', state='fresh',
+            freshness_status='GREEN', ml_confidence=0.9,
+        )
+        upload_scan = DeviceScan.objects.create(
+            operator_id=OPERATOR.id, source='UPLOAD', crop_type='EGGPLANT', state='fresh',
+            freshness_status='GREEN', ml_confidence=0.9,
+        )
+        with as_user(OPERATOR):
+            cameras = self.app.get('/api/scans/?source=CAMERA').json()['results']
+            photos = self.app.get('/api/scans/?source=PHOTO').json()['results']
+            invalid = self.app.get('/api/scans/?source=unknown')
+
+        self.assertEqual({scan['id'] for scan in cameras}, {self.s1.id, self.s2.id, self.old.id})
+        self.assertEqual({scan['id'] for scan in photos}, {phone_scan.id, upload_scan.id})
+        self.assertEqual(invalid.status_code, 400)
+
     def test_gallery_pages(self):
         with as_user(ADMIN):
             first = self.app.get('/api/scans/?limit=2').json()

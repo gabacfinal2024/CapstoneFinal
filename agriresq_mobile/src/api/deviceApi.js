@@ -174,11 +174,12 @@ export const deviceApi = {
    * `detected`: true = vegetables only, false = "nothing in view" only, undefined = all.
    * `before` is the `next_before` of the previous page.
    */
-  async gallery({ device, detected, state, since, before, limit = 24 } = {}) {
+  async gallery({ device, detected, source, state, since, before, limit = 24 } = {}) {
     const q = new URLSearchParams()
     if (device != null && device !== '') q.set('device', String(device))
     if (detected === true) q.set('detected', '1')
     else if (detected === false) q.set('detected', '0')
+    if (source) q.set('source', source)
     if (state) q.set('state', state)
     if (since) q.set('since', since)
     if (before != null) q.set('before', String(before))

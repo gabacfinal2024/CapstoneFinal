@@ -6,11 +6,6 @@
   margin-bottom: 6px;
 }
 
-.saved-listings__header p {
-  color: var(--gray-600);
-  font-size: 14px;
-}
-
 .saved-listings .empty-state .btn {
   display: inline-flex;
   justify-content: center;

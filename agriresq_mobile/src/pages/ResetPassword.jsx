@@ -46,7 +46,6 @@ export default function ResetPassword() {
       <div className="auth-header">
         <Link to="/login" className="back-link">← Back</Link>
         <h2>Reset Password</h2>
-        <p>Choose a new password for your account.</p>
       </div>
       <form className="auth-form card" onSubmit={handleSubmit}>
         <div className="input-group">

@@ -401,7 +401,7 @@ function DeviceDetailPage({ id }) {
           <section className="dev-section card">
             <div className="section-head">
               <h3>Recent pictures</h3>
-              <Link to={`/gallery?device=${device.id}`} className="gallery-link">All cameras</Link>
+              <Link to="/gallery" className="gallery-link">Scan gallery</Link>
             </div>
             <ScanGallery deviceId={device.id} pageSize={6} refreshKey={galleryKey} />
           </section>

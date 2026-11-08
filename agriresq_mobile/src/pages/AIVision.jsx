@@ -74,7 +74,6 @@ export default function AIVision() {
       <div className="page page-no-nav ai-vision">
         <Link to="/home" className="dev-back"><ArrowLeft size={16} /> Home</Link>
         <h1 className="dev-title">AI Freshness Scanner</h1>
-        <p className="dev-subtitle">Detects eggplant, cucumber and carrot · fresh / at-risk / rotten</p>
 
         {message && <div className={`notice ${message.type}`}>{message.text}</div>}
         <ErrorNotice message={loadError} onRetry={loadDevices} hint="Check that the AgriResQ server is running and your phone is on the same Wi-Fi." />

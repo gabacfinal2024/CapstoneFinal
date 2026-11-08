@@ -108,7 +108,6 @@ export default function Dashboard() {
       <div className="page dashboard">
         <header className="dash-header">
           <div>
-            <p className="dash-greet">Good day,</p>
             <h1>{user?.full_name || user?.email?.split('@')[0]}</h1>
             <p className="role-tag">{isOperator
               ? `Stall Operator${user?.stall_number ? ` · Stall ${user.stall_number}` : ''}`
@@ -224,7 +223,6 @@ export default function Dashboard() {
             ) : (
               <div className="empty-state card">
                 <p>No listings right now.</p>
-                <p className="muted">Check back soon: vendors list surplus produce at a discount.</p>
               </div>
             )}
           </section>

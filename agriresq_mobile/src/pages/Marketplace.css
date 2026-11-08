@@ -4,12 +4,6 @@
   color: var(--primary);
 }
 
-.market-header p {
-  color: var(--gray-600);
-  font-size: 14px;
-  margin-bottom: 16px;
-}
-
 .search-bar input {
   width: 100%;
   padding: 14px 16px;

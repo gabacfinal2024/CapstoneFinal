@@ -22,11 +22,6 @@
   border-radius: 50%;
 }
 
-.dash-greet {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.72);
-}
-
 .dash-header h1 {
   position: relative;
   z-index: 1;

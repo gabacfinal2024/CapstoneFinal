@@ -30,7 +30,6 @@ export default function ForgotPassword() {
       <div className="auth-header">
         <Link to="/login" className="back-link">← Back</Link>
         <h2>Forgot Password</h2>
-        <p>Enter your email to receive a reset link.</p>
       </div>
       <form className="auth-form card" onSubmit={handleSubmit}>
         <div className="input-group">

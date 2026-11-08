@@ -109,13 +109,12 @@ function Tile({ scan, showCamera, onOpen }) {
 }
 
 /**
- * Grid of recent analysed pictures from GET /api/scans/ with filters, "Load more" and a full-size viewer.
- * `deviceId` fixes it to one camera; otherwise pass `devices` to offer a camera filter.
+ * Grid of recent analysed pictures from GET /api/scans/ with source filtering, "Load more" and a full-size viewer.
+ * `deviceId` fixes it to one camera; otherwise the source filter is shown.
  * Bump `refreshKey` to pull the newest scans right away (e.g. after "Scan now").
  */
-export default function ScanGallery({ deviceId = null, devices = [], pageSize = 12, refreshKey = 0, initialCamera = '' }) {
+export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey = 0 }) {
   const navigate = useNavigate()
-  const [camera, setCamera] = useState(initialCamera)
   const [sourceFilter, setSourceFilter] = useState('ALL')
   const [items, setItems] = useState([])
   const [next, setNext] = useState(null)
@@ -125,8 +124,9 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
   const [moreError, setMoreError] = useState('')
   const [selected, setSelected] = useState(null)
 
-  const device = deviceId ?? (camera || undefined)
-  const key = device ?? ''
+  const device = deviceId ?? undefined
+  const source = sourceFilter === 'ALL' ? undefined : sourceFilter
+  const key = `${device ?? ''}:${sourceFilter}`
   const keyRef = useRef(key)
   keyRef.current = key
   const itemsRef = useRef([])
@@ -135,7 +135,7 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
   const fetchFirst = async (reset) => {
     const myKey = keyRef.current
     try {
-      const page = await deviceApi.gallery({ device, limit: pageSize })
+      const page = await deviceApi.gallery({ device, source, limit: pageSize })
       if (keyRef.current !== myKey) return // filter changed while this request was in flight
       const prev = itemsRef.current
       const overlap = page.results.some((s) => prev.some((p) => p.id === s.id))
@@ -180,7 +180,7 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
     setLoadingMore(true)
     setMoreError('')
     try {
-      const page = await deviceApi.gallery({ device, before: next, limit: pageSize })
+      const page = await deviceApi.gallery({ device, source, before: next, limit: pageSize })
       if (keyRef.current !== myKey) return
       setItems((prev) => mergeNewest(prev, page.results))
       setNext(page.next_before)
@@ -191,28 +191,20 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
     }
   }
 
+  const showSourceFilter = deviceId == null
   const showCamera = deviceId == null
-  const visibleItems = items.filter((scan) => {
-    if (sourceFilter === 'PHONE') return scan.source === 'PHONE' || scan.source === 'UPLOAD'
-    if (sourceFilter === 'CAMERA') return scan.source !== 'PHONE' && scan.source !== 'UPLOAD'
-    return true
-  })
-  const emptyText = 'No analyzed photos yet. Stall-camera captures, phone-camera photos, and uploads appear here.'
+  const visibleItems = items
+  const emptyText = 'No scans found.'
   const useScanForBatch = (scan) => navigate('/new-batch', { state: { scan } })
 
   return (
     <div className="scan-gallery">
       <div className="gal-filters">
-        <div className="gal-seg" role="group" aria-label="Filter photos by capture source">
-          {[['ALL', 'All photos'], ['CAMERA', 'Stall camera'], ['PHONE', 'Phone Camera & uploads']].map(([value, label]) => (
-            <button type="button" key={value} className={`gal-seg__btn${sourceFilter === value ? ' active' : ''}`}
-              onClick={() => setSourceFilter(value)}>{label}</button>
-          ))}
-        </div>
-        {showCamera && devices.length > 0 && (
-          <select className="gal-camera" value={camera} onChange={(e) => setCamera(e.target.value)} aria-label="Camera">
-            <option value="">All cameras</option>
-            {devices.map((d) => <option key={d.id} value={d.id}>{d.name || `Camera #${d.id}`}</option>)}
+        {showSourceFilter && (
+          <select className="gal-camera" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Photo source">
+            <option value="ALL">All cameras</option>
+            <option value="CAMERA">Stall camera</option>
+            <option value="PHOTO">Photo camera</option>
           </select>
         )}
       </div>
@@ -221,7 +213,6 @@ export default function ScanGallery({ deviceId = null, devices = [], pageSize = 
         message={error}
         onRetry={() => { setLoading(true); fetchFirst(true) }}
         retrying={loading}
-        hint={items.length ? 'Showing the last pictures we received.' : undefined}
       />
 
       {loading && items.length === 0 && !error && (

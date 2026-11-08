@@ -31,7 +31,6 @@ export default function Login() {
       <div className="auth-header">
         <Link to="/" className="back-link">← Back</Link>
         <h2>Welcome Back</h2>
-        <p>Sign in to your AgriResQ account</p>
       </div>
       <form className="auth-form card" onSubmit={handleSubmit}>
         <div className="input-group">

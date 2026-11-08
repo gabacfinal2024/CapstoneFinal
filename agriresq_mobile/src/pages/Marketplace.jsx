@@ -69,7 +69,6 @@ export default function Marketplace() {
       <div className="page marketplace">
         <header className="market-header">
           <h1>Rescue Listings</h1>
-          <p>Color-coded freshness · verified listings · chat with vendor</p>
         </header>
 
         <div className="search-bar">
@@ -108,7 +107,6 @@ export default function Marketplace() {
         ) : (
           <div className="empty-state card">
             <p>No listings yet.</p>
-            <p className="muted">At-risk products auto-list with dynamic pricing.</p>
           </div>
         )}
       </div>

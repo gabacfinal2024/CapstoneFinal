@@ -35,7 +35,6 @@ export default function Register() {
       <div className="auth-header">
         <Link to="/" className="back-link">← Back</Link>
         <h2>Create Account</h2>
-        <p>Join the AgriResQ marketplace</p>
       </div>
       {registeredEmail ? (
         <div className="auth-form card">

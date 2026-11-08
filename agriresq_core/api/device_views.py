@@ -718,6 +718,12 @@ class ScanGalleryView(APIView):
         ).select_related('device')
         if q.get('device'):
             scans = scans.filter(device_id=q['device'])
+        if q.get('source') == 'CAMERA':
+            scans = scans.filter(source__in=('AUTO', 'MANUAL'))
+        elif q.get('source') == 'PHOTO':
+            scans = scans.filter(source__in=('PHONE', 'UPLOAD'))
+        elif q.get('source'):
+            raise ValidationError({'source': 'Choose CAMERA or PHOTO.'})
         if q.get('detected') in ('1', 'true'):
             scans = scans.filter(detected=True)
         elif q.get('detected') in ('0', 'false'):
