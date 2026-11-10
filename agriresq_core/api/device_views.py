@@ -715,7 +715,7 @@ class ScanGalleryView(APIView):
         scans = DeviceScan.objects.filter(
             Q(device__in=visible_devices(request.user)) |
             Q(operator_id=request.user.id) if request.user.role != 'ADMIN' else Q()
-        ).select_related('device')
+        ).filter(detected=True, image__gt='').select_related('device')
         if q.get('device'):
             scans = scans.filter(device_id=q['device'])
         if q.get('source') == 'CAMERA':

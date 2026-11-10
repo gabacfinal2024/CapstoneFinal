@@ -301,28 +301,72 @@ class DeviceFlowTests(TestCase):
             self.assertTrue(scan['detected'])
             self.assertTrue(scan['crop_mismatch'])
             self.assertEqual(scan['detected_crop'], 'EGGPLANT')
-            self.assertEqual(scan['image_url'], '')
+            self.assertTrue(scan['image_url'].endswith('.jpg'))
             self.assertIn('looks like eggplant', scan['message'])
             override.assert_not_called()
 
-    def test_only_matching_vegetables_are_stored_and_shown_in_gallery(self):
+    def test_only_detected_vegetable_images_are_stored_and_shown_in_gallery(self):
         self.pair_and_claim()
         with mock.patch.object(device_services, 'analyze_image', side_effect=[
             fake_analysis(detected=False), fake_analysis(detected=False), fake_analysis(),
+            fake_analysis(mismatch=True),
         ]):
             empty_auto = self.upload(solid(), 'AUTO')
             empty_manual = self.upload(solid(), 'MANUAL')
             matching = self.upload(sample('eggplant'), 'AUTO')
+            mismatch = self.upload(sample('eggplant'), 'MANUAL')
         self.assertEqual(empty_auto['image_url'], '')
         self.assertEqual(empty_manual['image_url'], '')
         self.assertTrue(matching['image_url'].endswith('.jpg'))
+        self.assertTrue(mismatch['image_url'].endswith('.jpg'))
         with as_user(OPERATOR):
             dev_id = Device.objects.get().id
-            self.assertEqual(len(self.app.get(f'/api/devices/{dev_id}/scans/').json()), 3)
+            self.assertEqual(len(self.app.get(f'/api/devices/{dev_id}/scans/').json()), 4)
             only = self.app.get(f'/api/devices/{dev_id}/scans/?detected=1').json()
-            self.assertEqual([s['detected'] for s in only], [True])
-            gallery = self.app.get('/api/scans/?detected=1').json()['results']
-            self.assertEqual([s['id'] for s in gallery], [matching['id']])
+            self.assertEqual(len(only), 2)
+            gallery = self.app.get('/api/scans/').json()['results']
+            self.assertEqual({s['id'] for s in gallery}, {matching['id'], mismatch['id']})
+
+    def test_removing_camera_keeps_detected_scan_image_available(self):
+        self.pair_and_claim()
+        with mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()):
+            scan = self.upload(sample('eggplant'))
+        device_id = Device.objects.get().id
+
+        with as_user(OPERATOR):
+            self.assertEqual(self.app.delete(f'/api/devices/{device_id}/').status_code, 204)
+            gallery = self.app.get('/api/scans/').json()['results']
+
+        self.assertEqual([item['id'] for item in gallery], [scan['id']])
+        retained = DeviceScan.objects.get(pk=scan['id'])
+        self.assertIsNone(retained.device_id)
+        image_path = gallery[0]['image_url'].split('testserver', 1)[-1]
+        image_response = self.app.get(image_path)
+        self.assertEqual(image_response.status_code, 200)
+        self.assertEqual(image_response['Content-Type'], 'image/jpeg')
+        image_response.close()
+
+    def test_expired_scan_from_removed_camera_is_still_pruned(self):
+        from datetime import timedelta
+        from django.test import override_settings
+        from django.utils import timezone
+
+        self.pair_and_claim()
+        with mock.patch.object(device_services, 'analyze_image', return_value=fake_analysis()):
+            scan = self.upload(sample('eggplant'))
+        device_id = Device.objects.get().id
+        image_path = Path(MEDIA) / DeviceScan.objects.get(pk=scan['id']).image
+
+        with as_user(OPERATOR):
+            self.assertEqual(self.app.delete(f'/api/devices/{device_id}/').status_code, 204)
+
+        DeviceScan.objects.filter(pk=scan['id']).update(created_at=timezone.now() - timedelta(days=31))
+        with override_settings(SCAN_KEEP_PER_DEVICE=0, SCAN_KEEP_DAYS=30):
+            removed = device_services.prune_scans()
+
+        self.assertEqual(removed, 1)
+        self.assertFalse(DeviceScan.objects.filter(pk=scan['id']).exists())
+        self.assertFalse(image_path.exists())
 
     def test_phone_photo_scan_is_saved_to_the_operator_gallery(self):
         image = SimpleUploadedFile('phone.jpg', solid(), content_type='image/jpeg')

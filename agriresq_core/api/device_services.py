@@ -79,8 +79,8 @@ def run_scan(image_bytes, device=None, source='AUTO', crop_type=None, operator_i
             None if product_id is _DEVICE_BATCH else product_id
         ),
     )
-    # Keep photos only when a supported vegetable matches this camera's configured crop.
-    if result['detected'] and not result['crop_mismatch']:
+    # Keep photos only when the detector recognizes a supported vegetable.
+    if result['detected']:
         folder = f"scans/{device.id if device else 'upload'}"
         image_path = f'{folder}/{scan.id}.jpg'
         raw_path = f'{folder}/{scan.id}_raw.jpg'
@@ -462,9 +462,14 @@ def prune_scans(now=None):
     from .models import Device, DeviceScan
     cutoff = (now or timezone.now()) - timedelta(days=settings.SCAN_KEEP_DAYS)
     removed = 0
-    for device in Device.objects.all():
-        keep = set(device.scans.order_by('-created_at', '-pk').values_list('pk', flat=True)[:settings.SCAN_KEEP_PER_DEVICE])
-        old = (device.scans.filter(created_at__lt=cutoff, feedback_label__isnull=True)
+    scan_groups = [device.scans.all() for device in Device.objects.all()]
+    orphaned = DeviceScan.objects.filter(device__isnull=True)
+    orphan_owners = orphaned.order_by().values_list('operator_id', flat=True).distinct()
+    scan_groups.extend(orphaned.filter(operator_id=owner) for owner in orphan_owners)
+
+    for scans in scan_groups:
+        keep = set(scans.order_by('-created_at', '-pk').values_list('pk', flat=True)[:settings.SCAN_KEEP_PER_DEVICE])
+        old = (scans.filter(created_at__lt=cutoff, feedback_label__isnull=True)
                .exclude(pk__in=keep).only('id', 'image', 'raw_image'))
         for scan in old:
             for rel in (scan.image, scan.raw_image):

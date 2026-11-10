@@ -160,7 +160,7 @@ IOT_TEMP_ALERT_THRESHOLD = float(os.environ.get('IOT_TEMP_ALERT_THRESHOLD', '30'
 ASSUMED_STALL_TEMP_C = float(os.environ.get('ASSUMED_STALL_TEMP_C', '29'))
 ASSUMED_STALL_RH = float(os.environ.get('ASSUMED_STALL_RH', '80'))
 
-# Analysed pictures are kept while they are among a camera's newest SCAN_KEEP_PER_DEVICE or newer than
+# Analysed pictures are kept while they are among a camera/operator's newest SCAN_KEEP_PER_DEVICE or newer than
 # SCAN_KEEP_DAYS days (operator-corrected frames are always kept: they are retraining data).
 SCAN_KEEP_PER_DEVICE = int(os.environ.get('SCAN_KEEP_PER_DEVICE', '500'))
 SCAN_KEEP_DAYS = int(os.environ.get('SCAN_KEEP_DAYS', '30'))

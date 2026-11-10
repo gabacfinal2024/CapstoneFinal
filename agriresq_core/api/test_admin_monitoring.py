@@ -170,9 +170,11 @@ class MonitorsAndGalleryTests(TestCase):
                                          device_token='token-one', product_id=7, ip='192.168.0.50')
         self.other = Device.objects.create(operator_id='33333333-3333-3333-3333-333333333333', name='Other Cam',
                                            mac='AA:BB:CC:DD:EE:02', device_token='token-two')
-        kw = dict(crop_type='EGGPLANT', state='fresh', freshness_status='GREEN', ml_confidence=0.9)
+        kw = dict(crop_type='EGGPLANT', state='fresh', freshness_status='GREEN', ml_confidence=0.9,
+                  image='scans/test.jpg')
         self.s1 = DeviceScan.objects.create(device=self.cam, **kw)
-        self.s2 = DeviceScan.objects.create(device=self.cam, detected=False, **{**kw, 'state': 'none'})
+        self.s2 = DeviceScan.objects.create(device=self.cam, detected=False,
+                                            **{**kw, 'state': 'none', 'image': ''})
         self.s3 = DeviceScan.objects.create(device=self.other, **kw)
         self.old = DeviceScan.objects.create(device=self.cam, **kw)
         DeviceScan.objects.filter(pk=self.old.pk).update(created_at=timezone.now() - timedelta(days=90))
@@ -297,19 +299,19 @@ class MonitorsAndGalleryTests(TestCase):
             ids = {s['id'] for s in self.app.get('/api/scans/').json()['results']}
             only = self.app.get('/api/scans/?detected=1').json()['results']
             empty = self.app.get('/api/scans/?detected=0').json()['results']
-        self.assertEqual(ids, {self.s1.id, self.s2.id, self.old.id})
+        self.assertEqual(ids, {self.s1.id, self.old.id})
         self.assertTrue(all(s['detected'] for s in only))
-        self.assertEqual([s['id'] for s in empty], [self.s2.id])
+        self.assertEqual(empty, [])
         with as_user(ADMIN):
             body = self.app.get('/api/scans/').json()
-            self.assertEqual(len(body['results']), 4)
+            self.assertEqual(len(body['results']), 3)
             self.assertEqual(body['results'][0]['device_name'] in ('Stall 1 Cam', 'Other Cam'), True)
             self.assertEqual(len(self.app.get(f'/api/scans/?device={self.other.id}').json()['results']), 1)
 
     def test_gallery_includes_unattached_phone_scans_for_the_operator_and_admin(self):
         phone_scan = DeviceScan.objects.create(
             operator_id=OPERATOR.id, source='PHONE', crop_type='EGGPLANT', state='fresh',
-            freshness_status='GREEN', ml_confidence=0.9,
+            freshness_status='GREEN', ml_confidence=0.9, image='scans/phone.jpg',
         )
         with as_user(OPERATOR):
             operator_ids = {s['id'] for s in self.app.get('/api/scans/').json()['results']}
@@ -324,18 +326,18 @@ class MonitorsAndGalleryTests(TestCase):
     def test_gallery_source_filter_separates_camera_and_photo_scans(self):
         phone_scan = DeviceScan.objects.create(
             operator_id=OPERATOR.id, source='PHONE', crop_type='EGGPLANT', state='fresh',
-            freshness_status='GREEN', ml_confidence=0.9,
+            freshness_status='GREEN', ml_confidence=0.9, image='scans/phone.jpg',
         )
         upload_scan = DeviceScan.objects.create(
             operator_id=OPERATOR.id, source='UPLOAD', crop_type='EGGPLANT', state='fresh',
-            freshness_status='GREEN', ml_confidence=0.9,
+            freshness_status='GREEN', ml_confidence=0.9, image='scans/upload.jpg',
         )
         with as_user(OPERATOR):
             cameras = self.app.get('/api/scans/?source=CAMERA').json()['results']
             photos = self.app.get('/api/scans/?source=PHOTO').json()['results']
             invalid = self.app.get('/api/scans/?source=unknown')
 
-        self.assertEqual({scan['id'] for scan in cameras}, {self.s1.id, self.s2.id, self.old.id})
+        self.assertEqual({scan['id'] for scan in cameras}, {self.s1.id, self.old.id})
         self.assertEqual({scan['id'] for scan in photos}, {phone_scan.id, upload_scan.id})
         self.assertEqual(invalid.status_code, 400)
 
@@ -344,13 +346,13 @@ class MonitorsAndGalleryTests(TestCase):
             first = self.app.get('/api/scans/?limit=2').json()
             self.assertEqual(len(first['results']), 2)
             rest = self.app.get(f"/api/scans/?limit=2&before={first['next_before']}").json()
-        self.assertEqual(len(rest['results']), 2)
+        self.assertEqual(len(rest['results']), 1)
 
     def test_batch_photos_follow_the_camera_linked_to_the_batch(self):
         with as_user(ADMIN):
             ids = {s['id'] for s in self.app.get('/api/batches/7/photos/').json()}
             self.assertEqual(self.app.get('/api/batches/999/photos/').json(), [])
-        self.assertEqual(ids, {self.s1.id, self.s2.id, self.old.id})
+        self.assertEqual(ids, {self.s1.id, self.old.id})
 
     def test_old_pictures_are_pruned_but_corrected_ones_are_kept(self):
         from django.test import override_settings
