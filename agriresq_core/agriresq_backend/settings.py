@@ -165,6 +165,11 @@ ASSUMED_STALL_RH = float(os.environ.get('ASSUMED_STALL_RH', '80'))
 SCAN_KEEP_PER_DEVICE = int(os.environ.get('SCAN_KEEP_PER_DEVICE', '500'))
 SCAN_KEEP_DAYS = int(os.environ.get('SCAN_KEEP_DAYS', '30'))
 
+# Meta Messenger webhook configuration. PSID logging is temporary setup assistance.
+FB_VERIFY_TOKEN = os.environ.get('FB_VERIFY_TOKEN', '')
+FB_APP_SECRET = os.environ.get('FB_APP_SECRET', '')
+FB_LOG_PSID = os.environ.get('FB_LOG_PSID', 'true').lower() == 'true'
+
 # Freshness CNN (ML/deploy: agriresq_freshness.onnx + model_config.json + predict.py)
 ML_MODEL_DIR = Path(os.environ.get('ML_MODEL_DIR', PROJECT_ROOT / 'ML' / 'deploy'))
 

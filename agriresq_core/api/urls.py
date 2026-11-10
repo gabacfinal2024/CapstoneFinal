@@ -9,6 +9,7 @@ from .views import (
     ChatThreadViewSet, IoTNodeViewSet,
 )
 from . import device_views as dv
+from .messenger_views import messenger_webhook
 from .admin_views import AdminAccountStatusView
 
 class PublicAPIRootRouter(DefaultRouter):
@@ -25,6 +26,7 @@ router.register(r'chat', ChatThreadViewSet, basename='chat')
 router.register(r'nodes', IoTNodeViewSet, basename='nodes')
 
 urlpatterns = [
+    path('messenger/webhook/', messenger_webhook, name='messenger-webhook'),
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/logout/', LogoutView.as_view(), name='logout'),
