@@ -169,6 +169,24 @@ SCAN_KEEP_DAYS = int(os.environ.get('SCAN_KEEP_DAYS', '30'))
 FB_VERIFY_TOKEN = os.environ.get('FB_VERIFY_TOKEN', '')
 FB_APP_SECRET = os.environ.get('FB_APP_SECRET', '')
 FB_LOG_PSID = os.environ.get('FB_LOG_PSID', 'true').lower() == 'true'
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'messenger_console': {
+            'class': 'logging.StreamHandler',
+            'level': 'INFO',
+            'stream': 'ext://sys.stdout',
+        },
+    },
+    'loggers': {
+        'api.messenger_views': {
+            'handlers': ['messenger_console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 # Freshness CNN (ML/deploy: agriresq_freshness.onnx + model_config.json + predict.py)
 ML_MODEL_DIR = Path(os.environ.get('ML_MODEL_DIR', PROJECT_ROOT / 'ML' / 'deploy'))
