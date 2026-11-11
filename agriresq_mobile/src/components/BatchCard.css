@@ -1,9 +1,12 @@
 .batch-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   margin-bottom: 12px;
   transition: transform 0.15s;
 }
+
+.batch-card__main { display: flex; gap: 14px; min-width: 0; color: inherit; }
 
 .batch-card:active {
   transform: scale(0.99);
@@ -82,19 +85,22 @@
 }
 
 .batch-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 10px;
-  align-items: center;
-  justify-content: flex-end;
+  margin-left: 86px;
+  align-items: stretch;
 }
 
 .batch-actions .btn {
-  padding: 6px 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 6px;
   font-size: 13px;
   border-radius: 8px;
-  min-width: auto;
 }
+
+.batch-actions .btn:only-child { grid-column: 2; }
 
 .batch-actions .btn-outline {
   background: transparent;

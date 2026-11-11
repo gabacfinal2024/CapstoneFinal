@@ -118,6 +118,11 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
                 {saving ? 'Please wait…' : isSaved ? <><BookmarkCheck size={15} /> Remove saved</> : <><Bookmark size={15} /> Save listing</>}
               </button>
             )}
+            {user?.role === 'RESCUE_BUYER' && isSaved && (
+              <button type="button" className="btn btn-view-listing btn-sm" onClick={stop(() => navigate(`/produce/${listing.id}`))}>
+                View listing
+              </button>
+            )}
           </div>
           {note && <p className="card-note" role="status"><CheckCircle2 size={14} />{note}</p>}
         </div>

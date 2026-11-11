@@ -31,32 +31,34 @@ export default function BatchCard({ batch }) {
   }
   return (
     <>
-    <Link to={`/batch/${batch.id}`} className="batch-card card">
-      <ProductImage src={batch.image_url} crop={crop} className="batch-img" />
-      <div className="batch-body">
-        <div className="batch-header">
-          <h4>{CROP_LABELS[crop]} Batch #{batch.id}</h4>
-          <StatusBadge status={batch.freshness_status} showPercent percent={batch.freshness_percent} size="sm" />
+    <div className="batch-card card">
+      <Link to={`/batch/${batch.id}`} className="batch-card__main">
+        <ProductImage src={batch.image_url} crop={crop} className="batch-img" />
+        <div className="batch-body">
+          <div className="batch-header">
+            <h4>{CROP_LABELS[crop]} Batch #{batch.id}</h4>
+            <StatusBadge status={batch.freshness_status} showPercent percent={batch.freshness_percent} size="sm" />
+          </div>
+          <p className="batch-meta">
+            {batch.quantity_kg} kg · Stall {batch.profiles?.stall_number || batch.stall_number || '—'}
+          </p>
+          <p className="batch-harvest">Harvested: {batch.harvest_datetime ? new Date(batch.harvest_datetime).toLocaleString('en-PH') : 'Date and time unknown'}</p>
+          {batch.created_at && <p className="batch-harvest">Added to AgriResQ: {new Date(batch.created_at).toLocaleString('en-PH')}</p>}
+          <p className={`card-storage${storage ? '' : ' is-empty'}`} title={storage || undefined}>{storage || 'No sensor reading yet'}</p>
+          <div className="batch-footer">
+            <span>{batch.discount_percent > 0 ? `${batch.discount_percent}% off` : 'Full price'}</span>
+            <span>₱{Number(batch.current_price_per_kg || 0).toFixed(2)}/kg</span>
+            <span>{formatDaysLeft(batch.predicted_shelf_life)}</span>
+          </div>
         </div>
-        <p className="batch-meta">
-          {batch.quantity_kg} kg · Stall {batch.profiles?.stall_number || batch.stall_number || '—'}
-        </p>
-        <p className="batch-harvest">Harvested: {batch.harvest_datetime ? new Date(batch.harvest_datetime).toLocaleString('en-PH') : 'Date and time unknown'}</p>
-        {batch.created_at && <p className="batch-harvest">Added to AgriResQ: {new Date(batch.created_at).toLocaleString('en-PH')}</p>}
-        <p className={`card-storage${storage ? '' : ' is-empty'}`} title={storage || undefined}>{storage || 'No sensor reading yet'}</p>
-        <div className="batch-footer">
-          <span>{batch.discount_percent > 0 ? `${batch.discount_percent}% off` : 'Full price'}</span>
-          <span>₱{Number(batch.current_price_per_kg || 0).toFixed(2)}/kg</span>
-          <span>{formatDaysLeft(batch.predicted_shelf_life)}</span>
-        </div>
-        <div className="batch-actions">
-          {batch.is_listed && <Link to={`/produce/${batch.id}`} className="btn btn-sm">View Listing</Link>}
-          {user && user.role === 'STALL_OPERATOR' && user.id === batch.operator_id && (
-            <button title="Delete batch" className="btn btn-danger" onClick={openConfirm}>Delete</button>
-          )}
-        </div>
+      </Link>
+      <div className="batch-actions">
+        {batch.is_listed && <Link to={`/produce/${batch.id}`} className="btn btn-outline btn-sm">View Listing</Link>}
+        {user && user.role === 'STALL_OPERATOR' && user.id === batch.operator_id && (
+          <button title="Delete batch" className="btn btn-danger" onClick={openConfirm}>Delete</button>
+        )}
       </div>
-    </Link>
+    </div>
     <ConfirmDialog
       open={confirmOpen}
       title="Delete Batch"

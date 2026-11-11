@@ -163,10 +163,6 @@ function DeviceDetailPage({ id }) {
   const [confirm, setConfirm] = useState(null)
   const sensor = isSensor(device) // plain ESP32 + DHT22 node: no camera, no scans
   const what = sensor ? 'sensor node' : 'camera'
-  const dhtPin = device?.dht_pin ?? -1
-  const dhtStatusText = dhtPin >= 0
-    ? `DHT22 connected on ${sensor && dhtPin === 4 ? 'GPIO 4 (D4)' : `GPIO ${dhtPin}`}`
-    : 'DHT22 is not configured'
 
   // the polling callback must always see the current value without restarting the timer
   const dirtyRef = useRef(false)
@@ -692,7 +688,7 @@ function DeviceDetailPage({ id }) {
             {sensor && (
               <div className="input-group">
                 <label>DHT22 temperature/humidity sensor</label>
-                <p className="field-hint" style={{ marginTop: 0 }}>{dhtStatusText}</p>
+                <p className="field-hint" style={{ marginTop: 0 }}>{device.dht_pin >= 0 ? 'DHT22 configured' : 'DHT22 not configured'}</p>
               </div>
             )}
             {!sensor && (

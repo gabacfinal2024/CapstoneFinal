@@ -66,17 +66,13 @@ export default function Messages() {
         ) : (
           <div className="empty-state card">
             <h2>{tab === 'inbox' ? 'No conversations yet' : 'No archived conversations'}</h2>
-            <p className="muted">
-              {tab === 'inbox'
-                ? 'Start a conversation by opening a marketplace listing and selecting “Chat with seller”.'
-                : 'Completed or archived conversations will appear here.'}
-            </p>
-            {user?.role === 'STALL_OPERATOR' && (
-              <p className="muted">To start a buyer conversation, change your account role to Rescue Buyer in Profile.</p>
+            {tab === 'inbox' && user?.role === 'RESCUE_BUYER' && (
+              <p className="muted">Start a conversation by opening a marketplace listing and selecting “Chat with seller”.</p>
             )}
+            {tab === 'archived' && <p className="muted">Completed or archived conversations will appear here.</p>}
             <div className="messages-empty-actions">
-              <button className="btn btn-outline" onClick={() => window.location.href = '/marketplace'}>Browse listings</button>
-              <button className="btn btn-outline" onClick={() => window.location.href = '/profile'}>Open profile</button>
+              {user?.role === 'RESCUE_BUYER' && <Link className="btn btn-outline" to="/marketplace">Browse listings</Link>}
+              <Link className="btn btn-outline" to="/profile">Open profile</Link>
             </div>
           </div>
         )}

@@ -63,6 +63,9 @@
   border: 1px solid var(--primary);
 }
 
+.produce-card .btn-view-listing { color: #fff; background: var(--primary); border: 1px solid var(--primary); }
+.produce-card .btn-view-listing:hover { background: var(--primary-dark); }
+
 .produce-card .btn-save-listing:hover:not(:disabled) {
   background: var(--primary-dark);
   border-color: var(--primary-dark);
