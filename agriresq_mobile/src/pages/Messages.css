@@ -2,6 +2,7 @@
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  width: 100%;
 }
 
 .messages .empty-state {
@@ -26,7 +27,9 @@
 
 .msg-tabs button {
   flex: 1;
-  padding: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 8px;
   border: none;
   border-radius: 10px;
   background: var(--white);

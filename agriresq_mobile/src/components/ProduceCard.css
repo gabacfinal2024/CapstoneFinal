@@ -27,6 +27,11 @@
   margin-bottom: 6px;
 }
 
+.produce-card__topline { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; }
+.produce-card__topline h4 { min-width: 0; }
+.produce-card__readings { display: grid; justify-items: end; gap: 4px; flex: 0 0 auto; }
+.ml-reading { display: inline-flex; align-items: center; gap: 3px; color: var(--gray-600); font-size: 10px; font-weight: 700; line-height: 1.2; }
+
 .card-actions {
   display: flex;
   flex-wrap: wrap;
@@ -38,7 +43,8 @@
 .produce-price .discount-tag { margin-left: 6px; }
 .produce-qty { font-size: 12px; color: var(--gray-600); margin: 2px 0 0; }
 .produce-qty:empty { display: none; }
-.card-note { margin: 6px 0 0; font-size: 12px; color: var(--primary-light); }
+.card-note { display: flex; align-items: flex-start; gap: 5px; margin: 8px 0 0; padding: 7px 8px; border: 1px solid #9CCDB0; border-radius: 7px; background: #EAF6EE; color: #155B35; font-size: 12px; font-weight: 600; line-height: 1.35; }
+.card-note svg { flex: 0 0 auto; margin-top: 1px; }
 
 .produce-card .btn-sm {
   padding: 6px 10px;
@@ -51,10 +57,32 @@
   border: 1px solid #fecaca;
 }
 
-.produce-card .btn-outline {
-  color: var(--primary);
-  background: transparent;
-  border: 1px solid var(--gray-300);
+.produce-card .btn-save-listing {
+  color: #fff;
+  background: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.produce-card .btn-save-listing:hover:not(:disabled) {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+}
+
+.produce-card .btn-save-listing.is-saved {
+  color: #124D2E;
+  background: #EAF6EE;
+  border-color: #9CCDB0;
+  font-weight: 700;
+}
+
+.produce-card .btn-save-listing:focus-visible {
+  outline: 3px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.produce-card .btn-save-listing:disabled {
+  opacity: 0.65;
+  cursor: wait;
 }
 
 .produce-price {
@@ -125,6 +153,9 @@
   min-height: 2.4em;
   line-height: 1.2;
 }
+
+.listing-grid .produce-card__topline { min-height: 46px; }
+.listing-grid .produce-card__topline h4 { min-height: 0; }
 
 .listing-grid .card-actions { margin-top: auto; padding-top: 8px; }
 .listing-grid .card-actions .btn { flex: 1 1 100%; }

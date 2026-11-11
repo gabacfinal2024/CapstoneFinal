@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, ScanLine, Loader2, RotateCw, WifiOff, Trash2, RefreshCw,
-  Plus, X, UserPlus, Users, LogOut,
+  Plus, X, UserPlus, Users, LogOut, Download,
 } from 'lucide-react'
 import { deviceApi, timeAgo, signalLabel, canOperate, canManage, isSharedWithMe, isSensor, deviceFallbackName } from '../api/deviceApi'
 import { api } from '../api/supabaseApi'
@@ -82,6 +82,52 @@ const to12h = (t) => {
 
 const fmt = (n, digits = 1) => (Number.isFinite(Number(n)) && n != null ? Number(n).toFixed(digits) : '—')
 
+function manilaDateInputValue() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]))
+  return `${values.year}-${values.month}-${values.day}`
+}
+
+function dailyWindow(date) {
+  const start = new Date(`${date}T00:00:00+08:00`)
+  if (!Number.isFinite(start.getTime())) throw new Error('Choose a valid report date.')
+  return {
+    since: start.toISOString(),
+    until: new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString(),
+  }
+}
+
+function csvCell(value) {
+  const text = value == null ? '' : String(value)
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+}
+
+function downloadDailyReport({ date, readings, device, stallNumber }) {
+  const average = (key) => readings.length
+    ? readings.reduce((sum, reading) => sum + Number(reading[key]), 0) / readings.length
+    : ''
+  const rows = [
+    ['DAILY DHT22 REPORT', 'Asia/Manila'],
+    ['report_date', 'stall_number', 'stall_location', 'device', 'readings_count', 'average_temperature_c', 'average_humidity_rh'],
+    [date, stallNumber, device.stall_location || '', device.name || deviceFallbackName(device), readings.length,
+      average('temperature_c'), average('humidity_rh')],
+    [],
+    ['READINGS'],
+    ['stall_number', 'device', 'time', 'temperature_c', 'humidity_rh', 'vpd_kpa'],
+    ...readings.map((reading) => [stallNumber, device.name || deviceFallbackName(device), reading.created_at,
+      reading.temperature_c, reading.humidity_rh, reading.vpd_kpa]),
+  ]
+  const content = rows.map((row) => row.map(csvCell).join(',')).join('\n')
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `agriresq-dht22-${stallNumber || 'stall'}-${date}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 /** Remount per camera so one camera's data never flashes on another camera's page. */
 export default function DeviceDetail() {
   const { id } = useParams()
@@ -95,6 +141,11 @@ function DeviceDetailPage({ id }) {
   const [scans, setScans] = useState([]) // vegetable scans only, for "last vegetable seen"
   const [readings, setReadings] = useState([])
   const [readingError, setReadingError] = useState('')
+  const [reportDate, setReportDate] = useState(manilaDateInputValue)
+  const [dailyReadings, setDailyReadings] = useState([])
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportError, setReportError] = useState('')
+  const [ownerStallDetails, setOwnerStallDetails] = useState(null)
   const [galleryKey, setGalleryKey] = useState(0)
   const [monitors, setMonitors] = useState(null)
   const [monitorEmail, setMonitorEmail] = useState('')
@@ -169,10 +220,37 @@ function DeviceDetailPage({ id }) {
   const chuRate = sensor ? stallChuRate(stalls, device) : null
 
   useEffect(() => {
+    if (!sensor || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return undefined
+    let cancelled = false
+    setReportLoading(true)
+    setReportError('')
+    try {
+      const window = dailyWindow(reportDate)
+      deviceApi.readings(id, 3000, window)
+        .then((rows) => { if (!cancelled) setDailyReadings(rows) })
+        .catch((err) => { if (!cancelled) setReportError(err.message || 'Could not load the daily readings.') })
+        .finally(() => { if (!cancelled) setReportLoading(false) })
+    } catch (err) {
+      setReportError(err.message)
+      setReportLoading(false)
+    }
+    return () => { cancelled = true }
+  }, [id, reportDate, sensor])
+
+  useEffect(() => {
     let cancelled = false
     api.batches().then((b) => { if (!cancelled) setBatches(b || []) }).catch(() => { if (!cancelled) setBatches([]) })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    if (!device?.operator_id) return undefined
+    let cancelled = false
+    api.operatorStallDetails(device.operator_id)
+      .then((details) => { if (!cancelled) setOwnerStallDetails(details) })
+      .catch(() => { if (!cancelled) setOwnerStallDetails(null) })
+    return () => { cancelled = true }
+  }, [device?.operator_id])
 
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true) }
 
@@ -332,6 +410,11 @@ function DeviceDetailPage({ id }) {
   const linkedBatch = operate ? batches.find((b) => String(b.id) === String(device.product_id)) : null
   const monitorCount = monitors?.count ?? device.monitor_count ?? 1
   const monitorMax = monitors?.maximum ?? 2
+  const stallNumber = ownerStallDetails?.stall_number || (device.operator_id === user?.id ? user?.stall_number : '') || ''
+  const stallLabel = stallNumber ? `Stall ${stallNumber}` : (device.stall_location || 'Stall number unavailable')
+  const dailyAverage = (key) => dailyReadings.length
+    ? dailyReadings.reduce((sum, reading) => sum + Number(reading[key]), 0) / dailyReadings.length
+    : null
 
   return (
     <div className="app-shell">
@@ -366,6 +449,33 @@ function DeviceDetailPage({ id }) {
             <p className="field-hint">Readings refresh automatically. The sensor reports about once a minute.</p>
             {readingError && <p className="notice error" role="alert">Could not refresh sensor readings: {readingError}</p>}
             <SensorPanel reading={device.latest_reading} readings={readings} dhtPin={device.dht_pin} chuRate={chuRate} />
+            <div className="daily-report">
+              <div className="daily-report__head">
+                <div>
+                  <h4>Daily sensor report</h4>
+                  <p>{stallLabel} · averages and saved readings</p>
+                </div>
+                <label htmlFor="sensor-report-date">Report date</label>
+              </div>
+              <div className="daily-report__controls">
+                <input id="sensor-report-date" type="date" value={reportDate} max={manilaDateInputValue()}
+                  onChange={(event) => setReportDate(event.target.value)} />
+                <button type="button" className="btn btn-green" onClick={() => downloadDailyReport({
+                  date: reportDate, readings: dailyReadings, device, stallNumber,
+                })} disabled={reportLoading || !!reportError}>
+                  <Download size={16} /> Download CSV
+                </button>
+              </div>
+              {reportError ? (
+                <p className="daily-report__message" role="alert">{reportError}</p>
+              ) : (
+                <div className="daily-report__averages" aria-live="polite">
+                  <div><span>Temperature avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(dailyAverage('temperature_c'))}${dailyReadings.length ? '°C' : ''}`}</strong></div>
+                  <div><span>Humidity avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(dailyAverage('humidity_rh'), 0)}${dailyReadings.length ? '%' : ''}`}</strong></div>
+                  <p>{reportLoading ? 'Loading readings…' : `${dailyReadings.length} saved reading${dailyReadings.length === 1 ? '' : 's'} for this day`}</p>
+                </div>
+              )}
+            </div>
           </section>
         ) : (
           <>

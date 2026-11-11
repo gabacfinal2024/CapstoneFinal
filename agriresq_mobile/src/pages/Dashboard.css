@@ -25,11 +25,18 @@
 .dash-header h1 {
   position: relative;
   z-index: 1;
-  font-family: 'Space Grotesk', sans-serif;
   font-size: 26px;
   font-weight: 700;
   color: var(--white);
 }
+
+.home-shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: -10px 0 24px; }
+.home-shortcut { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 68px; padding: 10px; border: 1px solid var(--gray-100); border-radius: 10px; background: var(--white); color: var(--gray-800); box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04); }
+.home-shortcut > svg { flex: 0 0 auto; color: var(--gray-600); }
+.home-shortcut__icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 8px; background: var(--mint-light); color: var(--primary); }
+.home-shortcut__copy { display: grid; gap: 2px; min-width: 0; }
+.home-shortcut__copy strong { display: -webkit-box; overflow: hidden; color: var(--primary); font-size: 12px; line-height: 1.2; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.home-shortcut__copy small { overflow: hidden; color: var(--gray-600); font-size: 10px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 
 .notif-btn {
   position: relative;

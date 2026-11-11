@@ -2,7 +2,9 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
-import { CROP_LABELS, formatTime } from '../utils/helpers'
+import { ArrowLeft, MapPin, Send, Store } from 'lucide-react'
+import { CROP_LABELS, formatCurrency, formatTime } from '../utils/helpers'
+import StatusBadge from '../components/StatusBadge'
 import TransactionExitModal from '../components/TransactionExitModal'
 import RatingModal from '../components/RatingModal'
 import './Chat.css'
@@ -20,6 +22,19 @@ export default function Chat() {
   const listing = thread?.marketplace_listings
   const product = listing?.products
   const cropName = CROP_LABELS[product?.crop_type] || 'Produce listing'
+  const quantity = Number(product?.quantity_kg) || 0
+  const perKg = product?.current_price_per_kg ?? (quantity ? Number(listing?.listed_price || 0) / quantity : listing?.listed_price)
+  const pickupLocation = product?.pickup_location || listing?.profiles?.market_location || 'Pickup location to be confirmed'
+  const stall = listing?.profiles?.stall_number ? `Stall ${listing.profiles.stall_number}` : 'stall'
+  const buyerReplies = [
+    `Hi, I'm interested in your ${cropName} (${quantity || 'available'} kg at ${formatCurrency(perKg)}/kg). Is it still available?`,
+    `I'd like to arrange pickup for ${cropName} at ${pickupLocation}, ${stall}. What time works for you?`,
+  ]
+  const operatorReplies = [
+    `I can confirm ${quantity || 'the listed quantity'} kg of ${cropName} at ${formatCurrency(perKg)}/kg. Pickup is at ${pickupLocation}, ${stall}.`,
+    `Let's arrange a pickup time for ${cropName} at ${pickupLocation}, ${stall}. What time works for you?`,
+  ]
+  const quickReplies = user?.role === 'STALL_OPERATOR' ? operatorReplies : buyerReplies
 
   const load = () => api.chatThread(id).then(setThread).catch(console.error)
 
@@ -83,7 +98,7 @@ export default function Chat() {
       <div className="chat-page">
         <header className="chat-header">
           <div className="chat-header-left">
-            <button type="button" className="back-btn" onClick={handleBackWithPref}>←</button>
+            <button type="button" className="back-btn" onClick={handleBackWithPref} aria-label="Back to messages"><ArrowLeft size={20} /></button>
             <h2>{cropName} · Rescue Deal</h2>
           </div>
           <button type="button" className="complete-btn" onClick={() => setShowExitModal(true)}>
@@ -95,16 +110,21 @@ export default function Chat() {
             {product?.image_url && <img src={product.image_url} alt={cropName} />}
             <span className="chat-listing-details">
               <strong>{cropName}</strong>
-              <span>
-                {product?.quantity_kg != null ? `${product.quantity_kg} kg` : 'Quantity unavailable'}
-                {' · '}
-                ₱{Number(listing.listed_price || product?.current_price_per_kg || 0).toFixed(2)}/kg
-              </span>
-              {product?.pickup_location && <span>Pickup: {product.pickup_location}</span>}
+              <span><Store size={13} /> {listing.profiles?.full_name || 'Stall operator'} · {stall}</span>
+              <span>{quantity ? `${quantity} kg` : 'Quantity unavailable'} · {formatCurrency(perKg)}/kg · {formatCurrency(listing.listed_price)} total</span>
+              <span><MapPin size={13} /> {pickupLocation}</span>
+              {product && <StatusBadge status={product.freshness_status} showPercent percent={product.freshness_percent} size="sm" />}
               <span className="chat-listing-link">View listing details</span>
             </span>
           </Link>
         )}
+        <div className="chat-quick-replies" aria-label="Suggested messages">
+          {quickReplies.map((reply, index) => (
+            <button key={reply} type="button" onClick={() => setText(reply)}>
+              {index === 0 ? (user?.role === 'STALL_OPERATOR' ? 'Confirm details' : 'Ask availability') : 'Arrange pickup'}
+            </button>
+          ))}
+        </div>
         <div className="chat-messages">
           {thread?.messages?.map((m) => (
             <div
@@ -118,8 +138,8 @@ export default function Chat() {
           <div ref={bottomRef} />
         </div>
         <form className="chat-input" onSubmit={send}>
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message..." />
-          <button type="submit" disabled={sending}>Send</button>
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message..." aria-label="Message" />
+          <button type="submit" disabled={sending || !text.trim()}><Send size={16} /> Send</button>
         </form>
       </div>
       <RatingModal open={showRating} threadId={id} operatorName={thread?.operator?.full_name} onDone={() => navigate('/messages')} />

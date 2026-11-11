@@ -146,8 +146,11 @@ export const deviceApi = {
     return strip(await request(`/api/devices/${deviceId}/scans/${scanId}/feedback/`, { method: 'POST', body: { label } }))
   },
 
-  async readings(id, limit = 60) {
-    const data = await request(`/api/devices/${id}/readings/?limit=${limit}`)
+  async readings(id, limit = 60, { since, until } = {}) {
+    const query = new URLSearchParams({ limit: String(limit) })
+    if (since) query.set('since', since)
+    if (until) query.set('until', until)
+    const data = await request(`/api/devices/${id}/readings/?${query.toString()}`)
     return Array.isArray(data) ? data : []
   },
 

@@ -22,6 +22,7 @@
   align-items: center;
   gap: 12px;
   flex: 1;
+  min-width: 0;
 }
 
 .chat-header .back-btn {
@@ -34,11 +35,17 @@
 }
 
 .chat-header h2 {
+  min-width: 0;
   font-size: 17px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .complete-btn {
+  flex: 0 0 auto;
+  max-width: 46%;
   padding: 10px 14px;
   border: 1px solid rgba(255,255,255,0.8);
   background: rgba(255,255,255,0.12);
@@ -81,6 +88,9 @@
   color: var(--gray-600);
 }
 
+.chat-listing-details > span { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.chat-listing-details .status-badge-ui { align-self: flex-start; }
+
 .chat-listing-details strong {
   color: var(--gray-900);
   font-size: 14px;
@@ -90,6 +100,10 @@
   color: var(--primary);
   font-weight: 600;
 }
+
+.chat-quick-replies { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px 16px; background: var(--gray-50); border-bottom: 1px solid var(--gray-100); }
+.chat-quick-replies button { min-width: 0; min-height: 40px; padding: 7px 8px; border: 1px solid var(--gray-200); border-radius: 8px; background: var(--white); color: var(--primary); font-size: 12px; font-weight: 700; line-height: 1.25; }
+.chat-quick-replies button:active { background: var(--mint-light); }
 
 .chat-messages {
   flex: 1;
@@ -140,6 +154,10 @@
 }
 
 .chat-input button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 12px 20px;
   background: var(--primary);
   color: white;
@@ -154,3 +172,11 @@
 }
 
 .bubble-time { display: block; margin-top: 4px; font-size: 10px; opacity: 0.65; }
+
+@media (max-width: 360px) {
+  .chat-header { gap: 6px; padding: 12px; }
+  .chat-header h2 { font-size: 15px; }
+  .complete-btn { padding: 8px; font-size: 11px; }
+  .chat-listing-card { padding: 10px 12px; }
+  .chat-quick-replies, .chat-input { padding-right: 12px; padding-left: 12px; }
+}

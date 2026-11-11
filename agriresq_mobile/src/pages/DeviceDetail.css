@@ -32,6 +32,21 @@
 
 .small-note { font-size: 12px; margin-top: 8px; }
 
+.daily-report { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--gray-100); }
+.daily-report__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 10px; }
+.daily-report__head h4 { font-size: 14px; color: var(--primary); }
+.daily-report__head p, .daily-report__head label { font-size: 11px; color: var(--gray-600); }
+.daily-report__head label { font-weight: 600; }
+.daily-report__controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.daily-report__controls input { min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--white); color: var(--gray-800); }
+.daily-report__controls .btn { min-height: 44px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
+.daily-report__averages { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.daily-report__averages > div { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; padding: 9px 10px; border-radius: 8px; background: var(--gray-50); }
+.daily-report__averages span { font-size: 11px; color: var(--gray-600); }
+.daily-report__averages strong { font-size: 14px; color: var(--gray-800); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.daily-report__averages p, .daily-report__message { grid-column: 1 / -1; margin: 0; font-size: 11px; color: var(--gray-600); }
+.daily-report__message { margin-top: 10px; color: #92400E; }
+
 .history-list { display: flex; flex-direction: column; }
 
 .history-row {

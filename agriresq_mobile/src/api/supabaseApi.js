@@ -580,6 +580,16 @@ export const api = {
   },
 
   // ── Ratings (buyers rate the stall operator; table: supabase/004_operator_ratings.sql) ──
+  async operatorStallDetails(operatorId) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('stall_number, market_location')
+      .eq('id', operatorId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    return data
+  },
+
   async operatorRating(operatorId) {
     const { data, error } = await supabase.from('ratings').select('stars').eq('operator_id', operatorId)
     if (error || !data?.length) return null            // no table yet, or nobody has rated
@@ -648,7 +658,8 @@ export const api = {
         *,
         marketplace_listings:listing_id (
           id, listed_price,
-          products:product_id (crop_type, quantity_kg, current_price_per_kg, pickup_location, image_url, freshness_status, freshness_percent)
+          profiles:operator_id (full_name, stall_number, market_location),
+          products:product_id (crop_type, quantity_kg, current_price_per_kg, pickup_location, image_url, freshness_status, freshness_percent, predicted_shelf_life)
         ),
         operator:operator_id (full_name),
         buyer:buyer_id (full_name)
@@ -667,7 +678,8 @@ export const api = {
         *,
         marketplace_listings:listing_id (
           id, listed_price,
-          products:product_id (crop_type, quantity_kg, current_price_per_kg, pickup_location, image_url, freshness_status, freshness_percent)
+          profiles:operator_id (full_name, stall_number, market_location),
+          products:product_id (crop_type, quantity_kg, current_price_per_kg, pickup_location, image_url, freshness_status, freshness_percent, predicted_shelf_life)
         )
       `)
       .eq('id', id)

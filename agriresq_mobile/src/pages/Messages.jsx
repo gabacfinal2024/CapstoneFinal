@@ -25,9 +25,9 @@ export default function Messages() {
     <div className="app-shell">
       <div className="page messages">
         <h1 className="section-title">Messages</h1>
-        <div className="msg-tabs">
-          <button className={tab === 'inbox' ? 'active' : ''} onClick={() => setTab('inbox')}>Inbox</button>
-          <button className={tab === 'archived' ? 'active' : ''} onClick={() => setTab('archived')}>Archived</button>
+        <div className="msg-tabs" role="tablist" aria-label="Message folders">
+          <button role="tab" aria-selected={tab === 'inbox'} className={tab === 'inbox' ? 'active' : ''} onClick={() => setTab('inbox')}>Inbox</button>
+          <button role="tab" aria-selected={tab === 'archived'} className={tab === 'archived' ? 'active' : ''} onClick={() => setTab('archived')}>Archived</button>
         </div>
         {loading ? (
           <p className="muted">Loading...</p>
@@ -36,6 +36,8 @@ export default function Messages() {
             const product = t.marketplace_listings?.products
             const listing = t.marketplace_listings
             const other = user?.id === t.operator_id ? t.buyer : t.operator
+            const quantity = Number(product?.quantity_kg) || 0
+            const perKg = product?.current_price_per_kg ?? (quantity ? Number(listing?.listed_price || 0) / quantity : listing?.listed_price)
             return (
               <Link key={t.id} to={`/chat/${t.id}`} className="thread-card card">
                 <div className="thread-avatar">💬</div>
@@ -46,10 +48,11 @@ export default function Messages() {
                   </div>
                   {product && (
                     <p className="thread-listing-summary">
-                      {product.quantity_kg != null ? `${product.quantity_kg} kg` : 'Quantity unavailable'}
+                      {quantity ? `${quantity} kg` : 'Quantity unavailable'}
                       {' · '}
-                      ₱{Number(listing?.listed_price || product.current_price_per_kg || 0).toFixed(2)}/kg
+                      ₱{Number(perKg || 0).toFixed(2)}/kg · ₱{Number(listing?.listed_price || 0).toFixed(2)} total
                       {product.pickup_location ? ` · ${product.pickup_location}` : ''}
+                      {listing?.profiles?.stall_number ? ` · Stall ${listing.profiles.stall_number}` : ''}
                     </p>
                   )}
                   {product && (

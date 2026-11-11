@@ -9,7 +9,7 @@ import StallClimateCard from '../components/StallClimateCard'
 import BottomNav from '../components/BottomNav'
 import './Dashboard.css'
 import { supabase } from '../lib/supabase'
-import { Bell, Plus, ArrowUpRight, Camera, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
+import { Bell, Plus, ArrowUpRight, Camera, ChevronRight, AlertTriangle, Thermometer, Droplets, MessageCircle, ShoppingBasket, PackagePlus } from 'lucide-react'
 import { deviceApi, timeAgo, isReadingStale, isSensor, deviceFallbackName } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
 import { useNotifications } from '../context/NotificationsContext'
@@ -117,6 +117,25 @@ export default function Dashboard() {
             <Link to="/notifications" className="notif-btn" aria-label="Notifications"><Bell size={20} strokeWidth={2.2} />{unread > 0 && (<span className="notif-badge">{unread > 9 ? '9+' : unread}</span>)}</Link>
           </div>
         </header>
+
+        <nav className="home-shortcuts" aria-label="Quick links">
+          <Link to={isOperator ? '/batch/new' : '/marketplace'} className="home-shortcut">
+            <span className="home-shortcut__icon">{isOperator ? <PackagePlus size={19} /> : <ShoppingBasket size={19} />}</span>
+            <span className="home-shortcut__copy">
+              <strong>{isOperator ? 'Add produce' : 'Browse listings'}</strong>
+              <small>{isOperator ? 'Create a batch' : 'Find rescue deals'}</small>
+            </span>
+            <ChevronRight size={17} />
+          </Link>
+          <Link to="/messages" className="home-shortcut">
+            <span className="home-shortcut__icon"><MessageCircle size={19} /></span>
+            <span className="home-shortcut__copy">
+              <strong>Messages</strong>
+              <small>{isOperator ? 'Talk with buyers' : 'Contact a stall'}</small>
+            </span>
+            <ChevronRight size={17} />
+          </Link>
+        </nav>
 
         {isOperator && (
           <section className="dash-section">

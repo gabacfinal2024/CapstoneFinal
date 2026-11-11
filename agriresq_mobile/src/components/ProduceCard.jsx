@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { CROP_LABELS, formatCurrency } from '../utils/helpers'
+import { Bookmark, BookmarkCheck, CheckCircle2, ScanLine } from 'lucide-react'
+import { CROP_LABELS, formatCurrency, toPercent } from '../utils/helpers'
 import StatusBadge from './StatusBadge'
 import ProductImage from './ProductImage'
 import ConfirmDialog from './ConfirmDialog'
@@ -23,6 +24,7 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
   const perKg = product?.current_price_per_kg ?? (qty ? listing.listed_price / qty : listing.listed_price)
   const isOwner = user?.role === 'STALL_OPERATOR' && user.id === listing.operator_id
   const productId = product?.id || listing.product_id
+  const mlConfidence = toPercent(product?.ml_confidence ?? listing.ml_confidence)
 
   // The whole card is a link: every button inside must stop the click from opening the listing.
   const stop = (fn) => (e) => { e.preventDefault(); e.stopPropagation(); fn() }
@@ -39,7 +41,7 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
     setSaving(true)
     try {
       await api.saveListing(listing.id)
-      setNote('Saved to your bookmarks')
+      setNote('Listing saved to your bookmarks')
     } catch (err) {
       setNote(`Could not save listing: ${err.message || err}`)
     } finally {
@@ -50,7 +52,7 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
     setSaving(true)
     try {
       await api.removeSavedListing(listing.id)
-      setNote('Removed from saved listings')
+      setNote('Listing removed from saved items')
       onUnsave?.(listing.id)
     } catch (err) {
       setNote(`Could not remove saved listing: ${err.message || err}`)
@@ -82,7 +84,13 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
       <Link to={`/produce/${listing.id}`} className="produce-card card">
         <ProductImage src={product?.image_url} crop={crop} />
         <div className="produce-info">
-          <h4>{CROP_LABELS[crop] || 'Produce'}</h4>
+          <div className="produce-card__topline">
+            <h4>{CROP_LABELS[crop] || 'Produce'}</h4>
+            <div className="produce-card__readings">
+              <StatusBadge status={product?.freshness_status} showPercent percent={product?.freshness_percent} size="sm" />
+              {mlConfidence != null && <span className="ml-reading"><ScanLine size={12} /> ML {mlConfidence}%</span>}
+            </div>
+          </div>
           <p className="producer-name">{listing.profiles?.full_name || 'Vendor'}</p>
           <p className="produce-price">
             {formatCurrency(perKg)}<small>/kg</small>
@@ -90,7 +98,6 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
           </p>
           <p className="produce-qty">{qty ? `${qty} kg available` : ''}</p>
           <p className="produce-loc">📍 {product?.pickup_location || 'Bulua West Terminal'}</p>
-          <StatusBadge status={product?.freshness_status} showPercent percent={product?.freshness_percent} size="sm" />
           <div className="card-actions">
             {!user && <button type="button" className="btn btn-sm" onClick={stop(() => navigate('/login'))}>Sign in to chat</button>}
             {user?.role === 'RESCUE_BUYER' && <button type="button" className="btn btn-sm" onClick={stop(chat)}>Send message</button>}
@@ -101,12 +108,18 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
               </>
             )}
             {user?.role === 'RESCUE_BUYER' && (
-              <button type="button" className="btn btn-outline btn-sm" onClick={stop(isSaved ? unsave : save)} disabled={saving}>
-                {saving ? 'Please wait…' : isSaved ? 'Remove saved' : '🔖 Save'}
+              <button
+                type="button"
+                className={`btn btn-save-listing btn-sm${isSaved ? ' is-saved' : ''}`}
+                onClick={stop(isSaved ? unsave : save)}
+                disabled={saving}
+                aria-pressed={isSaved}
+              >
+                {saving ? 'Please wait…' : isSaved ? <><BookmarkCheck size={15} /> Remove saved</> : <><Bookmark size={15} /> Save listing</>}
               </button>
             )}
           </div>
-          {note && <p className="card-note">{note}</p>}
+          {note && <p className="card-note" role="status"><CheckCircle2 size={14} />{note}</p>}
         </div>
       </Link>
       <ConfirmDialog open={confirmRemove} title="Delete batch" message="Delete this batch and its listing? This action cannot be undone." onConfirm={doRemove} onCancel={() => setConfirmRemove(false)} confirmLabel="Delete" danger />
