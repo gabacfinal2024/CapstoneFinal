@@ -81,7 +81,7 @@ function Body({ loading, error, analysis, children }) {
  * mode 'operator': the full analysis (camera ML, DHT22 rules, agreement, trust badge, explainer).
  * `fallback` ({ days, status, percent }) fills the tiles while the analysis is loading or unavailable.
  */
-export default function FreshnessCheck({ analysis, loading = false, error = '', mode = 'buyer', fallback, signedIn = true, showCamera = true }) {
+export default function FreshnessCheck({ analysis, loading = false, error = '', mode = 'buyer', fallback, signedIn = true, showCamera = true, showHeatUnits = true }) {
   const operator = mode === 'operator'
   const days = analysis?.days_to_spoil ?? fallback?.days
   const status = analysis?.status ?? fallback?.status
@@ -150,7 +150,7 @@ export default function FreshnessCheck({ analysis, loading = false, error = '', 
           <div className="fc-tiles">
             <Tile icon={Timer} label="Days to spoil" value={formatDays(days)} note="Calculated estimate" />
             <Tile icon={Leaf} label="Freshness" value={statusWord(status)} note={num(percent) != null ? `${Math.round(num(percent))} % fresh` : ''} />
-            <Tile icon={Flame} label="Heat units" value={formatChu(c?.chu)} note="°C·h above 25°C" />
+            {showHeatUnits && <Tile icon={Flame} label="Heat units" value={formatChu(c?.chu)} note="°C·h above 25°C" />}
             <Tile icon={Wind} label="VPD" value={c?.vpd_kpa != null ? `${formatVpd(c.vpd_kpa)} kPa` : '—'} note="Low is good" />
             <Tile icon={Thermometer} label="Temperature" value={formatTemp(c?.temperature_c)} note="Air temperature" />
             <Tile icon={Droplets} label="Humidity" value={formatRH(c?.humidity_rh)} note="Relative humidity" />

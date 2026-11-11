@@ -67,7 +67,7 @@ export default function Messages() {
           <div className="empty-state card">
             <h2>{tab === 'inbox' ? 'No conversations yet' : 'No archived conversations'}</h2>
             {tab === 'inbox' && user?.role === 'RESCUE_BUYER' && (
-              <p className="muted">Start a conversation by opening a marketplace listing and selecting “Chat with seller”.</p>
+              <p className="muted">Start a conversation by opening a marketplace listing and selecting “Send message”.</p>
             )}
             {tab === 'archived' && <p className="muted">Completed or archived conversations will appear here.</p>}
             <div className="messages-empty-actions">
