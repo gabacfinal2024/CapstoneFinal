@@ -97,6 +97,9 @@ def run_scan(image_bytes, device=None, source='AUTO', crop_type=None, operator_i
             _save_image(settings.MEDIA_ROOT / raw_path, data=image_bytes)
             scan.image, scan.raw_image = image_path, raw_path
         scan.save(update_fields=['image', 'raw_image'])
+        if device and source in ('AUTO', 'MANUAL'):
+            from .messenger_service import enqueue_scan_notification
+            enqueue_scan_notification(scan.pk)
 
     if device and device.product_id and result['detected'] and not result['crop_mismatch'] \
             and not result['low_confidence']:

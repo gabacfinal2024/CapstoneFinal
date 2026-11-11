@@ -80,6 +80,11 @@ Product photos are analyzed before a product is saved. Photos with no recognized
 a crop mismatch, or low-confidence freshness analysis are rejected; retake the photo or correct the crop
 before saving the product to listings.
 
+If an active, unexpired listing is missing its product details in the Rescue Buyer marketplace, apply
+`supabase/013_buyer_active_listing_visibility.sql` in the Supabase SQL Editor after `012_discount_override.sql`.
+It repairs the `is_listed` mirror flag for valid active listings and lets buyers read non-rotten products
+through their active, unexpired listing. The app still hides expired, sold, cancelled, and rotten produce.
+
 ## 3. What happens on each scan
 Camera JPEG → Django runs the CNN → one of four outcomes:
 

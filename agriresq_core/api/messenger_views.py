@@ -7,7 +7,13 @@ from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
+from .messenger_service import deliver_scan_notification
+from .models import DeviceScan, MessengerDelivery
+from .supabase_auth import SupabaseAuthentication, SupabaseUser
 log = logging.getLogger(__name__)
 
 
@@ -66,3 +72,41 @@ def messenger_webhook(request):
                     log.info('MESSENGER PSID: %s', psid)
 
     return HttpResponse('EVENT_RECEIVED', content_type='text/plain')
+
+
+class MessengerScanTestView(APIView):
+    authentication_classes = [SupabaseAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, scan_id):
+        if not isinstance(request.user, SupabaseUser) or request.user.role != 'ADMIN':
+            return Response({'detail': 'Administrator access is required.'}, status=403)
+
+        scan = DeviceScan.objects.filter(
+            pk=scan_id, source__in=('AUTO', 'MANUAL'), device__isnull=False,
+            detected=True, image__gt='',
+        ).first()
+        if scan is None:
+            return Response({'detail': 'Saved camera image not found.'}, status=404)
+
+        existing = MessengerDelivery.objects.filter(scan=scan).first()
+        if existing and existing.status in ('SENT', 'SENDING', 'UNKNOWN'):
+            return Response({
+                'status': existing.status,
+                'detail': 'This scan already has a delivery attempt; it was not sent again.',
+            }, status=409)
+
+        delivery = deliver_scan_notification(
+            scan, retry_failed=bool(existing and existing.status == 'FAILED'),
+        )
+        if delivery.status == 'SENT':
+            response_status = 200
+        elif delivery.status == 'UNKNOWN':
+            response_status = 504
+        else:
+            response_status = 502
+        return Response({
+            'scan_id': scan.pk,
+            'status': delivery.status,
+            'error_code': delivery.error_code or None,
+        }, status=response_status)

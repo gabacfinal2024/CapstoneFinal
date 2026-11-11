@@ -165,10 +165,15 @@ ASSUMED_STALL_RH = float(os.environ.get('ASSUMED_STALL_RH', '80'))
 SCAN_KEEP_PER_DEVICE = int(os.environ.get('SCAN_KEEP_PER_DEVICE', '500'))
 SCAN_KEEP_DAYS = int(os.environ.get('SCAN_KEEP_DAYS', '30'))
 
-# Meta Messenger webhook configuration. PSID logging is temporary setup assistance.
+# Meta Messenger webhook configuration.
 FB_VERIFY_TOKEN = os.environ.get('FB_VERIFY_TOKEN', '')
 FB_APP_SECRET = os.environ.get('FB_APP_SECRET', '')
-FB_LOG_PSID = os.environ.get('FB_LOG_PSID', 'true').lower() == 'true'
+FB_LOG_PSID = os.environ.get('FB_LOG_PSID', 'false').lower() == 'true'
+FB_PAGE_ID = os.environ.get('FB_PAGE_ID', '')
+FB_PAGE_TOKEN = os.environ.get('FB_PAGE_TOKEN', '')
+FB_API_VERSION = os.environ.get('FB_API_VERSION', 'v25.0')
+FB_RECIPIENT_PSID = os.environ.get('FB_RECIPIENT_PSID', '')
+FB_AUTO_NOTIFY_ENABLED = os.environ.get('FB_AUTO_NOTIFY_ENABLED', 'false').lower() == 'true'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

@@ -332,6 +332,22 @@ class DeviceScan(models.Model):
         ordering = ['-created_at']
 
 
+class MessengerDelivery(models.Model):
+    STATUSES = [
+        ('PENDING', 'Pending'), ('SENDING', 'Sending'), ('SENT', 'Sent'),
+        ('FAILED', 'Failed'), ('UNKNOWN', 'Unknown'),
+    ]
+
+    scan = models.OneToOneField(DeviceScan, on_delete=models.CASCADE, related_name='messenger_delivery')
+    status = models.CharField(max_length=10, choices=STATUSES, default='PENDING')
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error_code = models.CharField(max_length=40, blank=True)
+    message_id = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+
 class DeviceReading(models.Model):
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='readings')
     temperature_c = models.DecimalField(max_digits=5, decimal_places=2)

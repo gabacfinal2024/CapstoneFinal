@@ -279,7 +279,17 @@ export const api = {
     }
     if (!listing) throw new Error('Listing was not returned after saving. Check that the product is visible to your account.')
     console.debug('Listing upserted', listing)
-    await supabase.from('products').update({ is_listed: true }).eq('id', product.id)
+    const { data: updatedProduct, error: productUpdateError } = await supabase.from('products')
+      .update({ is_listed: true })
+      .eq('id', product.id)
+      .select('id')
+      .maybeSingle()
+    if (productUpdateError) {
+      throw new Error(`Listing created, but the batch visibility flag could not be updated: ${productUpdateError.message}`)
+    }
+    if (!updatedProduct) {
+      throw new Error('Listing created, but its batch could not be made visible to buyers.')
+    }
     return listing
   },
 

@@ -66,10 +66,12 @@ export default function ProduceDetail() {
 
   return (
     <div className="app-shell">
-      <div className="produce-detail">
-        <ProductImage src={product?.image_url} crop={crop} className="produce-hero" />
+      <main className="produce-detail">
+        <div className="produce-visual">
+          <ProductImage src={product?.image_url} crop={crop} className="produce-hero" />
+          <Link to="/marketplace" className="detail-back">← Listings</Link>
+        </div>
         <div className="produce-body">
-          <Link to="/marketplace" className="back-link">← Listings</Link>
           <div className="detail-title-row">
             <h1>{CROP_LABELS[crop] || 'Produce'}</h1>
             <StatusBadge status={product?.freshness_status} showPercent percent={product?.freshness_percent} />
@@ -81,51 +83,53 @@ export default function ProduceDetail() {
           {qty > 0 && <p className="produce-total">{qty} kg available · {formatCurrency(listing.listed_price)} for the whole batch</p>}
           <FreshnessGauge percent={product?.freshness_percent} status={product?.freshness_status} daysLeft={product?.predicted_shelf_life} />
 
-          <section className="card detail-block">
-            <h3>Batch Info</h3>
-            <div className="info-row"><span>Quantity</span><strong>{qty ? `${qty} kg` : '—'}</strong></div>
-            <div className="info-row"><span>Harvested</span><strong>{product?.harvest_datetime ? new Date(product.harvest_datetime).toLocaleString('en-PH') : 'Date and time unknown'}</strong></div>
-            <div className="info-row"><span>Added to AgriResQ</span><strong>{product?.created_at ? new Date(product.created_at).toLocaleString('en-PH') : '—'}</strong></div>
-            <div className="info-row"><span>Price per kg</span><strong>{formatCurrency(perKg)}</strong></div>
-            <div className="info-row"><span>Days to spoil</span><strong>{formatDays(product?.predicted_shelf_life)}</strong></div>
-          </section>
-
-          <FreshnessCheck
-            mode={isOwner ? 'operator' : 'buyer'}
-            analysis={analysis.analysis}
-            loading={analysis.loading}
-            error={analysis.error}
-            signedIn={!!user}
-            fallback={{ days: product?.predicted_shelf_life, status: product?.freshness_status, percent: product?.freshness_percent }}
-            showCamera={false}
-          />
-
-          <section className="card detail-block seller-block">
-            <div className="seller-header">
-              <h3>Stall Operator</h3>
-              <span className="verified">✓ Verified</span>
-            </div>
-            <p className="seller-name">{listing.profiles?.full_name || 'Vendor'}{listing.profiles?.stall_number ? ` · Stall ${listing.profiles.stall_number}` : ''}</p>
-            {rating && <p className="seller-rating">★ {rating.average.toFixed(1)} <small>({rating.count} rating{rating.count === 1 ? '' : 's'})</small></p>}
-            <p className="seller-note">{product?.notes || 'IoT-monitored surplus from Bulua Westbound Terminal.'}</p>
-          </section>
-
-          <section className="card detail-block">
-            <h3>📍 Pickup Location</h3>
-            <div className="map-placeholder"><span>{product?.pickup_location || 'Bulua West Terminal, Cagayan de Oro'}</span></div>
-          </section>
-
-          {isBuyer && (
-            <section className="card detail-block inline-chat-block">
-              <h3>Message the vendor</h3>
-              <button type="button" className="send-message-btn" onClick={openChat} disabled={openingChat}>
-                {openingChat ? 'Opening messages…' : 'Send message'}
-              </button>
-              {chatError && <p className="error-text">Chat unavailable: {chatError}</p>}
+          <div className="detail-grid">
+            <section className="card detail-block">
+              <h3>Batch information</h3>
+              <div className="info-row"><span>Quantity</span><strong>{qty ? `${qty} kg` : '—'}</strong></div>
+              <div className="info-row"><span>Harvested</span><strong>{product?.harvest_datetime ? new Date(product.harvest_datetime).toLocaleString('en-PH') : 'Date and time unknown'}</strong></div>
+              <div className="info-row"><span>Added to AgriResQ</span><strong>{product?.created_at ? new Date(product.created_at).toLocaleString('en-PH') : '—'}</strong></div>
+              <div className="info-row"><span>Price per kg</span><strong>{formatCurrency(perKg)}</strong></div>
+              <div className="info-row"><span>Days to spoil</span><strong>{formatDays(product?.predicted_shelf_life)}</strong></div>
             </section>
-          )}
+
+            <FreshnessCheck
+              mode={isOwner ? 'operator' : 'buyer'}
+              analysis={analysis.analysis}
+              loading={analysis.loading}
+              error={analysis.error}
+              signedIn={!!user}
+              fallback={{ days: product?.predicted_shelf_life, status: product?.freshness_status, percent: product?.freshness_percent }}
+              showCamera={false}
+            />
+
+            <section className="card detail-block seller-block">
+              <div className="seller-header">
+                <h3>Stall operator</h3>
+                <span className="verified">✓ Verified</span>
+              </div>
+              <p className="seller-name">{listing.profiles?.full_name || 'Vendor'}{listing.profiles?.stall_number ? ` · Stall ${listing.profiles.stall_number}` : ''}</p>
+              {rating && <p className="seller-rating">★ {rating.average.toFixed(1)} <small>({rating.count} rating{rating.count === 1 ? '' : 's'})</small></p>}
+              <p className="seller-note">{product?.notes || 'IoT-monitored surplus from Bulua Westbound Terminal.'}</p>
+            </section>
+
+            <section className="card detail-block">
+              <h3>Pickup location</h3>
+              <div className="map-placeholder"><span>{product?.pickup_location || 'Bulua West Terminal, Cagayan de Oro'}</span></div>
+            </section>
+
+            {isBuyer && (
+              <section className="card detail-block inline-chat-block">
+                <h3>Message the vendor</h3>
+                <button type="button" className="send-message-btn" onClick={openChat} disabled={openingChat}>
+                  {openingChat ? 'Opening messages…' : 'Send message'}
+                </button>
+                {chatError && <p className="error-text">{chatError}</p>}
+              </section>
+            )}
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

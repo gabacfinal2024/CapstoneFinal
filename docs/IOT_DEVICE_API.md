@@ -183,6 +183,37 @@ Monitors can use shared cameras and sensors; administrators can manage sharing f
 among a camera's newest `SCAN_KEEP_PER_DEVICE` (500) or newer than `SCAN_KEEP_DAYS` (30); frames the operator
 corrected are kept as retraining data.
 
+## Messenger camera-image notifications
+
+When `FB_PAGE_ID`, `FB_PAGE_TOKEN`, and `FB_RECIPIENT_PSID` are configured, an administrator can test
+one existing scan using the endpoint below. `FB_API_VERSION` defaults to `v25.0` and may be overridden
+on the server. The sender uses the Page token in the HTTPS Authorization header and sends the saved
+public Supabase Storage image URL; local media uses a signed HTTPS URL based on `DEVICE_SERVER_URL`.
+No ESP32 firmware or upload API change is required.
+
+To test manually, first use `GET /api/scans/?source=CAMERA&detected=1` to choose a saved camera scan.
+Then an administrator can send that scan once:
+
+```text
+POST /api/messenger/test-scan/<scan_id>/
+Authorization: Bearer <admin Supabase session token>
+```
+
+The request must use an administrator's current Supabase access token; the Page token is never sent by
+the client. Only detected vegetable scans with a saved image from a camera can be sent. A unique
+delivery record prevents sending the same scan twice. Meta rejections are recorded with the error code
+only. A timeout is recorded as
+`UNKNOWN` and is not retried automatically because Meta may have accepted the message before the
+connection timed out. Review the Meta error code and permissions before manually retrying a definite
+failure.
+
+Delivery is subject to Meta's messaging policies, including the standard messaging window and
+eligibility for messages initiated by the Page. A valid PSID and Page token alone do not guarantee
+that Meta will accept a camera notification outside the permitted window. Keep `FB_LOG_PSID=false`
+(the default) after PSID setup; never log or expose the Page token. Automatic upload notifications are
+disabled by default; after the manual send succeeds, set `FB_AUTO_NOTIFY_ENABLED=true` on Render and
+deploy with your approval to turn on background notifications for detected camera scans.
+
 **Who can do what to a device.** The owner, anyone the owner shared it with, and the administrator can use it
 (`can_operate`). Sharing gives access to the same physical camera or sensor; it does not create another device
 registration. Administrators can manage sharing from the web dashboard. Only the owner can remove the device or

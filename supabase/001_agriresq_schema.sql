@@ -210,7 +210,18 @@ CREATE POLICY profiles_update ON profiles FOR UPDATE USING (auth.uid() = id);
 
 -- Products: operators manage own; buyers read listed
 CREATE POLICY products_operator_all ON products FOR ALL USING (auth.uid() = operator_id);
-CREATE POLICY products_buyer_read ON products FOR SELECT USING (is_listed = true AND freshness_status != 'RED');
+CREATE POLICY products_buyer_read ON products FOR SELECT USING (
+  freshness_status != 'RED'
+  AND (
+    is_listed = true
+    OR EXISTS (
+      SELECT 1 FROM marketplace_listings l
+      WHERE l.product_id = products.id
+        AND l.listing_status = 'ACTIVE'
+        AND l.expires_at > now()
+    )
+  )
+);
 
 -- Marketplace: public read active listings
 CREATE POLICY listings_read ON marketplace_listings FOR SELECT USING (listing_status = 'ACTIVE');
