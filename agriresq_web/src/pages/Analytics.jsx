@@ -285,7 +285,7 @@ const Analytics = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             ['Scan log', 'Every camera scan: crop, status, freshness, confidence and your corrections.', () => scansCsv(data.scans, data.devices), !data.scans.length],
-            ['Daily sensor report', 'Raw DHT22 readings plus per-sensor min, average, and max temperature, humidity, and VPD for the selected calendar day.', () => readingsCsv(data.devices, sensorReportDate), !hasSensors || !sensorReportDate],
+            ['Daily sensor report', 'Hourly heat index summary and detailed DHT22 temperature, humidity, and VPD readings for the selected day.', () => readingsCsv(data.devices, sensorReportDate), !hasSensors || !sensorReportDate],
             ['Rescue transactions', 'Marketplace listings and completed deals: date, crop, kg, price, plus the stall operator and rescue buyer (name, stall / buyer type, email).', () => rescuesCsv(data.listings, data.deals), !data.listings.length && !data.deals.length],
           ].map(([title, text, fn, disabled]) => (
             <button key={title} type="button" disabled={disabled} onClick={() => runExport(fn)}

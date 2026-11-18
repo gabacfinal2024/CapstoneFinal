@@ -91,33 +91,31 @@ export async function readingsCsv(devices, reportDate) {
   const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - 8 * 60 * 60 * 1000)
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
   const reportStatus = new Date() >= end ? 'FINAL' : 'PRELIMINARY'
-  const sensors = devices.filter(isSensor)
-  const results = await Promise.all(sensors.map(async (device) => ({
+  const results = await Promise.all(devices.filter(isSensor).map(async (device) => ({
     device,
-    readings: await deviceApi.readings(device.id, 3000, {
-      since: start.toISOString(),
-      until: `${reportDate}T23:59:59.999999+08:00`,
-    }),
+    ...await deviceApi.dailyReport(device.id, reportDate),
   })))
   if (!results.some(({ readings }) => readings.length)) throw new Error('No saved sensor readings for this date.')
 
   const summaryHeader = [
-    'device', 'report_date', 'status', 'readings_count',
+    'device', 'status', 'readings_count', `hours_with_heat_index_at_or_above_${results[0].heat_index_threshold_c}_c`,
     'temperature_min_c', 'temperature_avg_c', 'temperature_max_c',
     'humidity_min_rh', 'humidity_avg_rh', 'humidity_max_rh',
     'vpd_min_kpa', 'vpd_avg_kpa', 'vpd_max_kpa',
   ]
-  const summaryRows = results.map(({ device, readings }) => [
-    device.name, reportDate, readings.length ? reportStatus : 'NO_READINGS', readings.length,
+  const summaryRows = results.map(({ device, readings, high_heat_index_hours: highHours }) => [
+    device.name || `Sensor #${device.id}`, readings.length ? reportStatus : 'NO_READINGS', readings.length,
+    highHours.join(', ') || (readings.length ? 'None recorded' : ''),
     ...metricStats(readings, 'temperature_c'),
     ...metricStats(readings, 'humidity_rh'),
     ...metricStats(readings, 'vpd_kpa'),
   ])
   const readingRows = results.flatMap(({ device, readings }) => readings.map((reading) => [
-    device.name, reading.created_at, reading.temperature_c, reading.humidity_rh, reading.vpd_kpa,
+    device.name || `Sensor #${device.id}`, reading.time, reading.temperature_c, reading.humidity_rh, reading.vpd_kpa,
   ]))
 
   downloadCsv(`agriresq_daily_sensor_report_${reportDate}.csv`, [`DAILY SENSOR SUMMARY (${REPORT_TIME_ZONE})`], [
+    ['report_date', reportDate],
     summaryHeader,
     ...summaryRows,
     [],

@@ -92,15 +92,6 @@ function manilaDateInputValue() {
   return `${values.year}-${values.month}-${values.day}`
 }
 
-function dailyWindow(date) {
-  const start = new Date(`${date}T00:00:00+08:00`)
-  if (!Number.isFinite(start.getTime())) throw new Error('Choose a valid report date.')
-  return {
-    since: start.toISOString(),
-    until: `${date}T23:59:59.999999+08:00`,
-  }
-}
-
 function csvCell(value) {
   const text = value == null ? '' : String(value)
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
@@ -112,18 +103,19 @@ function average(readings, key) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
 }
 
-async function downloadDailyReport({ date, readings, device, stallNumber }) {
+async function downloadDailyReport({ date, report, device, stallNumber }) {
   const name = device.name || deviceFallbackName(device)
+  const { readings, high_heat_index_hours: highHours, heat_index_threshold_c: threshold } = report
   const rows = [
     ['DAILY DHT22 REPORT', 'Asia/Manila'],
-    ['report_date', 'stall_number', 'stall_location', 'device', 'readings_count', 'average_temperature_c', 'average_humidity_rh'],
-    [date, stallNumber, device.stall_location || '', name, readings.length,
-      average(readings, 'temperature_c'), average(readings, 'humidity_rh')],
+    ['report_date', date],
+    ['stall_number', 'stall_location', 'device', 'readings_count', 'average_temperature_c', `hours_with_heat_index_at_or_above_${threshold}_c`],
+    [stallNumber, device.stall_location || '', name, readings.length,
+      average(readings, 'temperature_c'), highHours.join(', ') || 'None recorded'],
     [],
     ['READINGS'],
-    ['stall_number', 'device', 'time', 'temperature_c', 'humidity_rh', 'vpd_kpa'],
-    ...readings.map((reading) => [stallNumber, name, reading.created_at,
-      reading.temperature_c, reading.humidity_rh, reading.vpd_kpa]),
+    ['time', 'temperature_c'],
+    ...readings.map((reading) => [reading.time, reading.temperature_c]),
   ]
   const content = '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
   const filename = `agriresq-dht22-${stallNumber || 'stall'}-${date}.csv`
@@ -229,23 +221,18 @@ function DeviceDetailPage({ id }) {
   const { stalls } = useStallConditions({ enabled: sensor })
   const chuRate = sensor ? stallChuRate(stalls, device) : null
   const latestReadingId = reportDate === manilaDateInputValue() ? device?.latest_reading?.id : null
-  const dailyReadings = report?.date === reportDate ? report.rows : []
+  const dailyReport = report?.date === reportDate ? report.data : null
+  const dailyReadings = dailyReport?.readings || []
 
   useEffect(() => {
     if (!sensor || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return undefined
     let cancelled = false
     setReportLoading(true)
     setReportError('')
-    try {
-      const window = dailyWindow(reportDate)
-      deviceApi.readings(id, 3000, window)
-        .then((rows) => { if (!cancelled) setReport({ date: reportDate, rows }) })
-        .catch((err) => { if (!cancelled) setReportError(err.message || 'Could not load the daily readings.') })
-        .finally(() => { if (!cancelled) setReportLoading(false) })
-    } catch (err) {
-      setReportError(err.message)
-      setReportLoading(false)
-    }
+    deviceApi.dailyReport(id, reportDate)
+      .then((data) => { if (!cancelled) setReport({ date: reportDate, data }) })
+      .catch((err) => { if (!cancelled) setReportError(err.message || 'Could not load the daily report.') })
+      .finally(() => { if (!cancelled) setReportLoading(false) })
     return () => { cancelled = true }
   }, [id, reportDate, sensor, latestReadingId, reportVersion])
 
@@ -425,15 +412,14 @@ function DeviceDetailPage({ id }) {
   const stallNumber = ownerStallDetails?.stall_number || (device.operator_id === user?.id ? user?.stall_number : '') || ''
   const stallLabel = stallNumber ? `Stall ${stallNumber}` : (device.stall_location || 'Stall number unavailable')
   const avgTemperature = average(dailyReadings, 'temperature_c')
-  const avgHumidity = average(dailyReadings, 'humidity_rh')
 
   const exportReport = async () => {
     setExporting(true)
     setExportError('')
     try {
-      const rows = await deviceApi.readings(id, 3000, dailyWindow(reportDate))
-      if (!rows.length) throw new Error('No saved readings for this date.')
-      await downloadDailyReport({ date: reportDate, readings: rows, device, stallNumber })
+      const report = await deviceApi.dailyReport(id, reportDate)
+      if (!report.readings.length) throw new Error('No saved readings for this date.')
+      await downloadDailyReport({ date: reportDate, report, device, stallNumber })
     } catch (err) {
       setExportError(err.message || 'Could not save the sensor report.')
     } finally {
@@ -496,7 +482,10 @@ function DeviceDetailPage({ id }) {
               ) : (
                 <div className="daily-report__averages" aria-live="polite">
                   <div><span>Temperature avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(avgTemperature)}${avgTemperature != null ? '°C' : ''}`}</strong></div>
-                  <div><span>Humidity avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(avgHumidity, 0)}${avgHumidity != null ? '%' : ''}`}</strong></div>
+                  <div><span>High heat index hours</span><strong>{reportLoading ? 'Loading…' : dailyReport?.high_heat_index_hours.length ?? '—'}</strong></div>
+                  {!reportLoading && dailyReadings.length > 0 && (
+                    <p>Hours with a reading at or above {dailyReport.heat_index_threshold_c}°C heat index: {dailyReport.high_heat_index_hours.join(', ') || 'None recorded'}</p>
+                  )}
                   <p>{reportLoading ? 'Loading readings…' : dailyReadings.length
                     ? `${dailyReadings.length} saved reading${dailyReadings.length === 1 ? '' : 's'} for this day`
                     : 'No saved readings for this date.'}</p>

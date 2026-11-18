@@ -1,4 +1,5 @@
 """Camera access: the owner, the people it is shared with, and always the administrator."""
+from datetime import datetime
 from unittest import mock
 from urllib.parse import urlencode
 
@@ -64,6 +65,49 @@ class AdminMonitoringTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual([reading['id'] for reading in response.json()], [included.id])
         self.assertEqual(invalid.status_code, 400)
+
+    def test_daily_sensor_report_summarizes_manila_hours_and_restricts_details(self):
+        self.mine.kind = 'SENSOR'
+        self.mine.save(update_fields=['kind'])
+        for timestamp, temp, humidity in (
+            ('2026-04-01T15:59:59.999999+00:00', 34, 80),
+            ('2026-04-01T16:00:00+00:00', 34, 80),
+            ('2026-04-01T16:17:00+00:00', 35, 80),
+            ('2026-04-02T05:45:00+00:00', 31, 55),
+            ('2026-04-02T15:59:59.999999+00:00', 34, 80),
+            ('2026-04-02T16:00:00+00:00', 34, 80),
+        ):
+            reading = DeviceReading.objects.create(device=self.mine, temperature_c=temp, humidity_rh=humidity, vpd_kpa='1.25')
+            DeviceReading.objects.filter(pk=reading.pk).update(created_at=datetime.fromisoformat(timestamp))
+
+        url = f'/api/devices/{self.mine.id}/daily-report/'
+        params = {'date': '2026-04-02'}
+        with as_user(OPERATOR):
+            summary = self.app.get(url, params)
+            self.assertEqual(self.app.get(url, {**params, 'details': '1'}).status_code, 403)
+            self.assertEqual(self.app.get(url, {'date': '2026-04-31'}).status_code, 400)
+        with as_user(ADMIN):
+            detail = self.app.get(url, {**params, 'details': '1'})
+            empty = self.app.get(url, {'date': '2026-03-30'})
+
+        self.assertEqual(summary.status_code, 200)
+        self.assertEqual(summary.json(), {
+            'heat_index_threshold_c': 42,
+            'high_heat_index_hours': ['00:00', '23:00'],
+            'readings': [
+                {'time': '00:00:00', 'temperature_c': 34.0},
+                {'time': '00:17:00', 'temperature_c': 35.0},
+                {'time': '13:45:00', 'temperature_c': 31.0},
+                {'time': '23:59:59', 'temperature_c': 34.0},
+            ],
+        })
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json()['readings'][0], {
+            'time': '00:00:00', 'temperature_c': 34.0, 'humidity_rh': 80.0, 'vpd_kpa': 1.25,
+        })
+        self.assertEqual(detail.json()['high_heat_index_hours'], ['00:00', '23:00'])
+        self.assertEqual(empty.json()['readings'], [])
+        self.assertEqual(empty.json()['high_heat_index_hours'], [])
 
     def test_admin_can_use_any_camera_but_not_remove_it(self):
         url = f'/api/devices/{self.theirs.id}/'

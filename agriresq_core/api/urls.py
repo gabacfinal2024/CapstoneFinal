@@ -74,6 +74,7 @@ urlpatterns = [
     path('batches/<int:product_id>/analysis/', dv.BatchAnalysisView.as_view(), name='batch-analysis'),
     path('devices/<int:pk>/scans/<int:scan_id>/feedback/', dv.ScanFeedbackView.as_view(), name='device-scan-feedback'),
     path('devices/<int:pk>/readings/', dv.DeviceReadingsView.as_view(), name='device-readings'),
+    path('devices/<int:pk>/daily-report/', dv.DailySensorReportView.as_view(), name='device-daily-report'),
     path('devices/<int:pk>/live/', dv.DeviceLiveView.as_view(), name='device-live'),
     path('devices/<int:pk>/stream/', dv.device_stream, name='device-stream'),
     path('devices/<int:pk>/snapshot/', dv.device_snapshot, name='device-snapshot'),

@@ -154,6 +154,11 @@ export const deviceApi = {
     return Array.isArray(data) ? data : []
   },
 
+  async dailyReport(id, date) {
+    const query = new URLSearchParams({ date })
+    return strip(await request(`/api/devices/${id}/daily-report/?${query}`))
+  },
+
   // ── People with access (optional: the owner may share with ONE other stall operator, 2 people at most; the administrator always has access) ──
   /** { owner, monitors[], count, minimum, maximum, ok, my_access }. Readable by everyone who has access. */
   async monitors(id) {

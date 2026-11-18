@@ -103,6 +103,10 @@ export const deviceApi = {
     if (until) q.set('until', until)
     return (await backend(`/api/devices/${id}/readings/?${q.toString()}`)).data
   },
+  dailyReport: async (id, date) => {
+    const q = new URLSearchParams({ date, details: '1' })
+    return (await backend(`/api/devices/${id}/daily-report/?${q}`)).data
+  },
   live: async (id) => (await backend(`/api/devices/${id}/live/`)).data,
 
   /**

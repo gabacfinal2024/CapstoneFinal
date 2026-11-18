@@ -10,7 +10,7 @@ import socket
 import time
 import urllib.request
 from pathlib import Path
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 
 from django.conf import settings
 from django.core.cache import cache
@@ -29,6 +29,7 @@ from rest_framework.views import APIView
 from .device_services import run_scan, save_reading, stall_summary
 from .analysis import batch_analysis
 from .evidence import reference_payload
+from .sensor_report import daily_sensor_report
 from .supabase_client import has_service_key, supabase_select
 from django.db.models import Q
 
@@ -382,6 +383,30 @@ class DeviceReadingsView(OperatorView):
                     raise ValidationError({key: 'Enter a valid ISO-8601 datetime.'})
                 readings = readings.filter(**{lookup: parsed})
         return Response([reading_json(r) for r in readings[:limit]])
+
+
+class DailySensorReportView(OperatorView):
+    def get(self, request, pk):
+        detailed = request.query_params.get('details') == '1'
+        if detailed and request.user.role != 'ADMIN':
+            raise PermissionDenied('Only administrators can access the detailed sensor report.')
+        device = self.get_device(request, pk)
+        if device.kind != 'SENSOR':
+            raise NotFound('Daily reports are available for sensor nodes.')
+
+        report_date = request.query_params.get('date', '')
+        tz = timezone.get_default_timezone()  # Asia/Manila
+        try:
+            day = date.fromisoformat(report_date)
+            if day.isoformat() != report_date or day > timezone.localdate(timezone=tz):
+                raise ValueError
+            start = datetime.combine(day, datetime.min.time(), tzinfo=tz)
+            end = start + timedelta(days=1)
+        except (ValueError, OverflowError):
+            raise ValidationError({'date': 'Choose a valid report date.'})
+
+        readings = device.readings.filter(created_at__gte=start, created_at__lt=end).order_by('created_at', 'pk')
+        return Response(daily_sensor_report(readings.iterator(), tz, detailed))
 
 
 class DeviceLiveView(OperatorView):
