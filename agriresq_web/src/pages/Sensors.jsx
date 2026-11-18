@@ -552,7 +552,7 @@ export default function Sensors() {
           <h1 className="text-3xl font-bold text-slate-800">Sensor Nodes</h1>
           <p className="text-slate-500 text-sm mt-1">Live DHT22 temperature, humidity and VPD from every stall's sensor nodes. Only sensor nodes are listed here; ESP32-CAM cameras only take pictures and are on the Devices page.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="text-xs font-bold text-slate-500 flex items-center gap-2">
             Chart window
             <select value={windowSize} onChange={(e) => setWindowSize(Number(e.target.value))}

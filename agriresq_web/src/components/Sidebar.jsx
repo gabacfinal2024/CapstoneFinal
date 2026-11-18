@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   Camera, ChartNoAxesCombined, Cpu, Images, LayoutDashboard, LogOut,
-  Microscope, Package, Radio, ShieldCheck, ShoppingBasket, UserRound,
+  Menu, Microscope, Package, Radio, ShieldCheck, ShoppingBasket, UserRound, X,
 } from 'lucide-react';
 import { api } from '../api/supabaseApi';
 import { PROFILE_EVENT } from '../api/avatarApi';
@@ -33,6 +33,9 @@ function storedUser() {
 
 const Sidebar = ({ onLogout }) => {
   const [me, setMe] = useState(storedUser);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menu = useRef(null);
+  const location = useLocation();
 
   // Logged-in user from Supabase (falls back to what the login form stored).
   useEffect(() => {
@@ -44,23 +47,33 @@ const Sidebar = ({ onLogout }) => {
     return () => { alive = false; window.removeEventListener(PROFILE_EVENT, onProfile); };
   }, []);
 
+  useEffect(() => { menu.current?.close(); }, [location.key]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 64rem)');
+    const closeOnDesktop = (event) => { if (event.matches) menu.current?.close(); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
+
   const name = me.full_name || me.name || me.email || 'AgriResQ user';
   const subtitle = [
     ROLE_LABEL[me.role],
     me.stall_number ? `Stall ${me.stall_number}` : null,
   ].filter(Boolean).join(' • ') || me.market_location || 'Bulua Westbound';
 
-  return (
-    <aside className="fixed left-0 top-0 z-20 flex h-dvh w-64 flex-col bg-[#123b35] text-white shadow-lg shadow-slate-900/10">
-
-      <div className="flex shrink-0 items-center gap-3 border-b border-white/10 px-5 py-5">
-        <img src="/agriresq-logo.svg" alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain" />
-        <div>
-          <h1 className="text-lg font-semibold leading-none tracking-tight text-white">AgriResQ</h1>
-          <p className="mt-1 text-[11px] text-emerald-100/70">Admin dashboard</p>
-        </div>
+  const brand = (
+    <div className="flex items-center gap-3">
+      <img src="/agriresq-logo.svg" alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain" />
+      <div>
+        <p className="text-lg font-semibold leading-none tracking-tight text-white">AgriResQ</p>
+        <p className="mt-1 text-[11px] text-emerald-100/70">Admin dashboard</p>
       </div>
+    </div>
+  );
 
+  const linksAndAccount = (
+    <>
       <nav aria-label="Main navigation" className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
         {menuItems.map((item) => (
           <NavLink
@@ -103,7 +116,41 @@ const Sidebar = ({ onLogout }) => {
         </button>
       </div>
 
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <header className="flex shrink-0 items-center justify-between gap-3 bg-[#123b35] px-4 py-2 text-white lg:hidden">
+        {brand}
+        <button type="button" aria-label="Open navigation" aria-haspopup="dialog" aria-controls="admin-mobile-menu" aria-expanded={menuOpen}
+          className="grid size-11 shrink-0 place-items-center rounded-lg bg-white/10 hover:bg-white/20"
+          onClick={() => { menu.current.showModal(); setMenuOpen(true); }}>
+          <Menu size={23} aria-hidden="true" />
+        </button>
+      </header>
+
+      <aside className="fixed left-0 top-0 z-20 hidden h-dvh w-64 flex-col bg-[#123b35] text-white shadow-lg shadow-slate-900/10 lg:flex">
+        <div className="shrink-0 border-b border-white/10 px-5 py-5">{brand}</div>
+        {linksAndAccount}
+      </aside>
+
+      <dialog id="admin-mobile-menu" ref={menu} aria-label="Admin navigation"
+        className="fixed top-0 left-0 m-0 h-dvh max-h-none w-72 max-w-[85vw] overflow-hidden bg-[#123b35] text-white backdrop:bg-slate-950/45 lg:hidden"
+        onClose={() => setMenuOpen(false)}
+        onClick={(event) => { if (event.target === event.currentTarget) menu.current.close(); }}>
+        <div className="flex h-full flex-col">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 py-2">
+            {brand}
+            <button type="button" aria-label="Close navigation" className="grid size-11 shrink-0 place-items-center rounded-lg hover:bg-white/10"
+              onClick={() => menu.current.close()}>
+              <X size={22} aria-hidden="true" />
+            </button>
+          </div>
+          {linksAndAccount}
+        </div>
+      </dialog>
+    </>
   );
 };
 

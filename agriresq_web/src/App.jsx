@@ -99,9 +99,9 @@ function App() {
 
   return (
     <Router>
-      <div className="flex h-dvh min-h-0 overflow-hidden bg-[#f7f8f6]">
+      <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[#f7f8f6] lg:flex-row">
         <Sidebar onLogout={handleLogout} />
-        <main className="ml-64 min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8">
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:ml-64 lg:p-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/batches" element={<Batches />} />
