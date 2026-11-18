@@ -10,6 +10,7 @@ const NotificationsContext = createContext({
   toast: null,
   dismissToast() {},
   openNotification() {},
+  acknowledgeThread() {},
   refresh() {},
   alertsSupported: false,
   alertsPermission: 'denied',
@@ -33,6 +34,7 @@ export function NotificationsProvider({ children }) {
   // ids already announced; null until the first load, so notifications that were already unread stay quiet
   const announced = useRef(null)
   const initialized = useRef(false)
+  const refreshVersion = useRef(0)
   const userId = user?.id
 
   const announce = useCallback((n) => {
@@ -65,7 +67,9 @@ export function NotificationsProvider({ children }) {
 
   const refresh = useCallback(async () => {
     if (!userId) return
+    const version = ++refreshVersion.current
     const rows = await api.unreadNotifications()
+    if (version !== refreshVersion.current) return
     setItems(rows)
     if (!initialized.current) {
       announced.current = new Set([...rows.map((r) => r.id), ...(announced.current || [])])
@@ -76,6 +80,7 @@ export function NotificationsProvider({ children }) {
   }, [userId, announce])
 
   useEffect(() => {
+    refreshVersion.current++
     announced.current = null
     initialized.current = false
     setItems([])
@@ -86,11 +91,28 @@ export function NotificationsProvider({ children }) {
 
   useEffect(() => {
     if (!userId) return undefined
-    return api.subscribeNotifications(userId, (payload) => {
-      if (payload?.new) announce(payload.new)
+    return api.subscribeNotifications(userId, () => {
       refresh().catch((err) => console.error('Failed to refresh notifications after realtime event', err))
     })
-  }, [userId, announce, refresh])
+  }, [userId, refresh])
+
+  const acknowledgeThread = useCallback(async (threadId, through) => {
+    const matchesThread = (n) => n?.notification_type === 'NEW_MESSAGE' && String(n.thread_id) === String(threadId)
+    const acknowledged = (n) => matchesThread(n) && (!through || n.created_at <= through)
+    const clearLocal = () => {
+      refreshVersion.current++
+      setItems((items) => items.filter((n) => !acknowledged(n)))
+      setToast((current) => acknowledged(current) ? null : current)
+    }
+    // A successful archive already excludes the conversation from the unread query.
+    if (!through) clearLocal()
+    try {
+      await api.acknowledgeThreadMessages(threadId, through)
+      clearLocal()
+    } finally {
+      refresh().catch((err) => console.error('Could not refresh notifications', err))
+    }
+  }, [refresh])
 
   useEffect(() => {
     if (!toast) return undefined
@@ -133,11 +155,12 @@ export function NotificationsProvider({ children }) {
     toast,
     dismissToast: () => setToast(null),
     openNotification,
+    acknowledgeThread,
     refresh,
     alertsSupported: canNotify(),
     alertsPermission: permission,
     enableAlerts,
-  }), [items, toast, openNotification, refresh, permission, enableAlerts])
+  }), [items, toast, openNotification, acknowledgeThread, refresh, permission, enableAlerts])
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>
 }

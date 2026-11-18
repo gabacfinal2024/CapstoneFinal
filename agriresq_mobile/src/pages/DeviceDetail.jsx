@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import {
   ArrowLeft, ScanLine, Loader2, RotateCw, WifiOff, Trash2, RefreshCw,
   Plus, X, UserPlus, Users, LogOut, Download,
@@ -24,6 +25,7 @@ import '../styles/devices.css'
 import './DeviceDetail.css'
 
 const REFRESH_MS = 5000
+const CsvExport = registerPlugin('CsvExport')
 const DEFAULT_TIMES = ['07:00', '12:00', '16:00']
 const MAX_TIMES = 6
 const INTERVALS = [
@@ -95,37 +97,45 @@ function dailyWindow(date) {
   if (!Number.isFinite(start.getTime())) throw new Error('Choose a valid report date.')
   return {
     since: start.toISOString(),
-    until: new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString(),
+    until: `${date}T23:59:59.999999+08:00`,
   }
 }
 
 function csvCell(value) {
   const text = value == null ? '' : String(value)
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
-function downloadDailyReport({ date, readings, device, stallNumber }) {
-  const average = (key) => readings.length
-    ? readings.reduce((sum, reading) => sum + Number(reading[key]), 0) / readings.length
-    : ''
+function average(readings, key) {
+  const values = readings.map((reading) => reading[key])
+    .filter((value) => value != null && value !== '').map(Number).filter(Number.isFinite)
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
+}
+
+async function downloadDailyReport({ date, readings, device, stallNumber }) {
+  const name = device.name || deviceFallbackName(device)
   const rows = [
     ['DAILY DHT22 REPORT', 'Asia/Manila'],
     ['report_date', 'stall_number', 'stall_location', 'device', 'readings_count', 'average_temperature_c', 'average_humidity_rh'],
-    [date, stallNumber, device.stall_location || '', device.name || deviceFallbackName(device), readings.length,
-      average('temperature_c'), average('humidity_rh')],
+    [date, stallNumber, device.stall_location || '', name, readings.length,
+      average(readings, 'temperature_c'), average(readings, 'humidity_rh')],
     [],
     ['READINGS'],
     ['stall_number', 'device', 'time', 'temperature_c', 'humidity_rh', 'vpd_kpa'],
-    ...readings.map((reading) => [stallNumber, device.name || deviceFallbackName(device), reading.created_at,
+    ...readings.map((reading) => [stallNumber, name, reading.created_at,
       reading.temperature_c, reading.humidity_rh, reading.vpd_kpa]),
   ]
-  const content = rows.map((row) => row.map(csvCell).join(',')).join('\n')
+  const content = '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
+  const filename = `agriresq-dht22-${stallNumber || 'stall'}-${date}.csv`
+  if (Capacitor.getPlatform() === 'android') {
+    return CsvExport.save({ filename, content })
+  }
   const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
   const link = document.createElement('a')
   link.href = url
-  link.download = `agriresq-dht22-${stallNumber || 'stall'}-${date}.csv`
+  link.download = filename
   link.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 /** Remount per camera so one camera's data never flashes on another camera's page. */
@@ -142,9 +152,12 @@ function DeviceDetailPage({ id }) {
   const [readings, setReadings] = useState([])
   const [readingError, setReadingError] = useState('')
   const [reportDate, setReportDate] = useState(manilaDateInputValue)
-  const [dailyReadings, setDailyReadings] = useState([])
+  const [report, setReport] = useState(null)
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError, setReportError] = useState('')
+  const [reportVersion, setReportVersion] = useState(0)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState('')
   const [ownerStallDetails, setOwnerStallDetails] = useState(null)
   const [galleryKey, setGalleryKey] = useState(0)
   const [monitors, setMonitors] = useState(null)
@@ -203,6 +216,7 @@ function DeviceDetailPage({ id }) {
 
   const refresh = async () => {
     setRefreshing(true)
+    if (sensor) setReportVersion((version) => version + 1)
     await Promise.all([loadDevice(), loadHistory(), sensor ? loadReadings() : null, loadMonitors()])
     setGalleryKey((k) => k + 1)
     setRefreshing(false)
@@ -214,6 +228,8 @@ function DeviceDetailPage({ id }) {
   usePolling(loadReadings, 5000, { enabled: sensor })
   const { stalls } = useStallConditions({ enabled: sensor })
   const chuRate = sensor ? stallChuRate(stalls, device) : null
+  const latestReadingId = reportDate === manilaDateInputValue() ? device?.latest_reading?.id : null
+  const dailyReadings = report?.date === reportDate ? report.rows : []
 
   useEffect(() => {
     if (!sensor || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return undefined
@@ -223,7 +239,7 @@ function DeviceDetailPage({ id }) {
     try {
       const window = dailyWindow(reportDate)
       deviceApi.readings(id, 3000, window)
-        .then((rows) => { if (!cancelled) setDailyReadings(rows) })
+        .then((rows) => { if (!cancelled) setReport({ date: reportDate, rows }) })
         .catch((err) => { if (!cancelled) setReportError(err.message || 'Could not load the daily readings.') })
         .finally(() => { if (!cancelled) setReportLoading(false) })
     } catch (err) {
@@ -231,7 +247,7 @@ function DeviceDetailPage({ id }) {
       setReportLoading(false)
     }
     return () => { cancelled = true }
-  }, [id, reportDate, sensor])
+  }, [id, reportDate, sensor, latestReadingId, reportVersion])
 
   useEffect(() => {
     let cancelled = false
@@ -408,9 +424,22 @@ function DeviceDetailPage({ id }) {
   const monitorMax = monitors?.maximum ?? 2
   const stallNumber = ownerStallDetails?.stall_number || (device.operator_id === user?.id ? user?.stall_number : '') || ''
   const stallLabel = stallNumber ? `Stall ${stallNumber}` : (device.stall_location || 'Stall number unavailable')
-  const dailyAverage = (key) => dailyReadings.length
-    ? dailyReadings.reduce((sum, reading) => sum + Number(reading[key]), 0) / dailyReadings.length
-    : null
+  const avgTemperature = average(dailyReadings, 'temperature_c')
+  const avgHumidity = average(dailyReadings, 'humidity_rh')
+
+  const exportReport = async () => {
+    setExporting(true)
+    setExportError('')
+    try {
+      const rows = await deviceApi.readings(id, 3000, dailyWindow(reportDate))
+      if (!rows.length) throw new Error('No saved readings for this date.')
+      await downloadDailyReport({ date: reportDate, readings: rows, device, stallNumber })
+    } catch (err) {
+      setExportError(err.message || 'Could not save the sensor report.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -455,20 +484,22 @@ function DeviceDetailPage({ id }) {
               </div>
               <div className="daily-report__controls">
                 <input id="sensor-report-date" type="date" value={reportDate} max={manilaDateInputValue()}
-                  onChange={(event) => setReportDate(event.target.value)} />
-                <button type="button" className="btn btn-green" onClick={() => downloadDailyReport({
-                  date: reportDate, readings: dailyReadings, device, stallNumber,
-                })} disabled={reportLoading || !!reportError}>
-                  <Download size={16} /> Download CSV
+                  disabled={exporting} onChange={(event) => { setReportDate(event.target.value); setExportError('') }} />
+                <button type="button" className="btn btn-green" onClick={exportReport}
+                  disabled={exporting || reportLoading || !!reportError || !dailyReadings.length}>
+                  <Download size={16} /> {exporting ? 'Saving…' : 'Download CSV'}
                 </button>
               </div>
+              {exportError && <p className="daily-report__message" role="alert">{exportError}</p>}
               {reportError ? (
                 <p className="daily-report__message" role="alert">{reportError}</p>
               ) : (
                 <div className="daily-report__averages" aria-live="polite">
-                  <div><span>Temperature avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(dailyAverage('temperature_c'))}${dailyReadings.length ? '°C' : ''}`}</strong></div>
-                  <div><span>Humidity avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(dailyAverage('humidity_rh'), 0)}${dailyReadings.length ? '%' : ''}`}</strong></div>
-                  <p>{reportLoading ? 'Loading readings…' : `${dailyReadings.length} saved reading${dailyReadings.length === 1 ? '' : 's'} for this day`}</p>
+                  <div><span>Temperature avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(avgTemperature)}${avgTemperature != null ? '°C' : ''}`}</strong></div>
+                  <div><span>Humidity avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(avgHumidity, 0)}${avgHumidity != null ? '%' : ''}`}</strong></div>
+                  <p>{reportLoading ? 'Loading readings…' : dailyReadings.length
+                    ? `${dailyReadings.length} saved reading${dailyReadings.length === 1 ? '' : 's'} for this day`
+                    : 'No saved readings for this date.'}</p>
                 </div>
               )}
             </div>

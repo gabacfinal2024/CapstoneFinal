@@ -42,17 +42,17 @@ export async function loadAnalytics() {
 
 const csvCell = (v) => {
   const s = v == null ? '' : String(v)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
 export function downloadCsv(filename, header, rows) {
-  const text = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n')
+  const text = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n')
   const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }))
   const a = document.createElement('a')
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export function scansCsv(scans, devices) {
@@ -66,7 +66,6 @@ export function scansCsv(scans, devices) {
 }
 
 const REPORT_TIME_ZONE = 'Asia/Manila'
-const REPORT_CUTOFF_HOUR = 17
 
 function average(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : ''
@@ -90,18 +89,17 @@ export async function readingsCsv(devices, reportDate) {
     throw new Error('Choose a valid report date.')
   }
   const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0) - 8 * 60 * 60 * 1000)
-  const cutoff = new Date(Date.UTC(year, month - 1, day, REPORT_CUTOFF_HOUR, 0, 0) - 8 * 60 * 60 * 1000)
-  const now = new Date()
-  const until = now < cutoff ? now : cutoff
-  const reportStatus = now >= cutoff ? 'FINAL' : 'PRELIMINARY'
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  const reportStatus = new Date() >= end ? 'FINAL' : 'PRELIMINARY'
   const sensors = devices.filter(isSensor)
   const results = await Promise.all(sensors.map(async (device) => ({
     device,
     readings: await deviceApi.readings(device.id, 3000, {
       since: start.toISOString(),
-      until: until.toISOString(),
+      until: `${reportDate}T23:59:59.999999+08:00`,
     }),
   })))
+  if (!results.some(({ readings }) => readings.length)) throw new Error('No saved sensor readings for this date.')
 
   const summaryHeader = [
     'device', 'report_date', 'status', 'readings_count',
@@ -119,8 +117,7 @@ export async function readingsCsv(devices, reportDate) {
     device.name, reading.created_at, reading.temperature_c, reading.humidity_rh, reading.vpd_kpa,
   ]))
 
-  downloadCsv('agriresq_daily_sensor_report.csv', [], [
-    [`DAILY SENSOR SUMMARY (${REPORT_TIME_ZONE}; daily cutoff ${REPORT_CUTOFF_HOUR}:00)`],
+  downloadCsv(`agriresq_daily_sensor_report_${reportDate}.csv`, [`DAILY SENSOR SUMMARY (${REPORT_TIME_ZONE})`], [
     summaryHeader,
     ...summaryRows,
     [],

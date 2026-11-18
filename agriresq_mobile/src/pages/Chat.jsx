@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
+import { useNotifications } from '../context/NotificationsContext'
+import usePolling from '../hooks/usePolling'
 import { ArrowLeft, MapPin, Send, Store } from 'lucide-react'
 import { CROP_LABELS, formatCurrency, formatTime } from '../utils/helpers'
 import StatusBadge from '../components/StatusBadge'
@@ -11,13 +13,20 @@ import './Chat.css'
 
 export default function Chat() {
   const { id } = useParams()
+  return <ChatThread key={id} id={id} />
+}
+
+function ChatThread({ id }) {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { acknowledgeThread } = useNotifications()
   const [thread, setThread] = useState(null)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [showExitModal, setShowExitModal] = useState(false)
   const [showRating, setShowRating] = useState(false)
+  const [completing, setCompleting] = useState(false)
+  const [exitError, setExitError] = useState('')
   const bottomRef = useRef(null)
   const listing = thread?.marketplace_listings
   const product = listing?.products
@@ -37,12 +46,20 @@ export default function Chat() {
   const quickReplies = user?.role === 'STALL_OPERATOR' ? operatorReplies : buyerReplies
 
   const load = () => api.chatThread(id).then(setThread).catch(console.error)
+  usePolling(load, 5000)
 
+  const acknowledgedThrough = useRef(null)
   useEffect(() => {
-    load()
-    const interval = setInterval(load, 5000)
-    return () => clearInterval(interval)
-  }, [id])
+    if (document.hidden || !thread) return
+    const latestIncoming = thread.messages.slice().reverse().find((message) => message.sender_id !== user?.id)
+    const through = latestIncoming?.sent_at
+    if (!through || (acknowledgedThrough.current && acknowledgedThrough.current >= through)) return
+    acknowledgedThrough.current = through
+    acknowledgeThread(id, through).catch((err) => {
+      if (acknowledgedThrough.current === through) acknowledgedThrough.current = null
+      console.error('Could not mark chat as read', err)
+    })
+  }, [id, thread, user?.id, acknowledgeThread])
 
   // scroll down only when a message arrives, not on every 5 s refresh (it jumped while reading history)
   const shown = useRef(0)
@@ -83,7 +100,17 @@ export default function Chat() {
   }
 
   const handleExitConfirm = async (completed) => {
-    await api.completeTransaction(id, completed)
+    setCompleting(true)
+    setExitError('')
+    try {
+      await api.completeTransaction(id, completed)
+    } catch (err) {
+      setExitError(err.message)
+      return
+    } finally {
+      setCompleting(false)
+    }
+    if (completed) acknowledgeThread(id).catch((err) => console.error('Could not mark archived chat as read', err))
     setShowExitModal(false)
     // a buyer who finished the deal can rate the stall operator (once)
     if (completed && user?.role === 'RESCUE_BUYER' && !(await api.myRatingForThread(id))) {
@@ -146,8 +173,10 @@ export default function Chat() {
       <TransactionExitModal
         open={showExitModal}
         onConfirm={handleExitConfirm}
-        onCancel={() => setShowExitModal(false)}
+        onCancel={() => { setExitError(''); setShowExitModal(false) }}
         userId={user?.id}
+        busy={completing}
+        error={exitError}
       />
     </div>
   )

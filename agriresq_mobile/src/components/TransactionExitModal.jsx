@@ -1,7 +1,7 @@
 import './TransactionExitModal.css'
 import { useState } from 'react'
 
-export default function TransactionExitModal({ open, onConfirm, onCancel, userId }) {
+export default function TransactionExitModal({ open, onConfirm, onCancel, userId, busy, error }) {
   const [dontRemind, setDontRemind] = useState(false)
 
   if (!open) return null
@@ -37,10 +37,11 @@ export default function TransactionExitModal({ open, onConfirm, onCancel, userId
           <span>Don't remind me again</span>
         </label>
 
+        {error && <p role="alert" className="notice error">{error}</p>}
         <div className="exit-modal-actions">
-          <button className="btn btn-green" onClick={() => handleConfirm(true)}>Yes, completed</button>
-          <button className="btn btn-outline-dark" onClick={() => handleConfirm(false)}>No, keep in inbox</button>
-          <button className="btn-link" onClick={handleCancel}>Stay in chat</button>
+          <button className="btn btn-green" disabled={busy} onClick={() => handleConfirm(true)}>Yes, completed</button>
+          <button className="btn btn-outline-dark" disabled={busy} onClick={() => handleConfirm(false)}>No, keep in inbox</button>
+          <button className="btn-link" disabled={busy} onClick={handleCancel}>Stay in chat</button>
         </div>
       </div>
     </div>

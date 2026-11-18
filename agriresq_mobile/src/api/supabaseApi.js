@@ -480,9 +480,11 @@ export const api = {
     const userId = await getSessionUserId()
     const { data, error } = await supabase
       .from('notifications')
-      .select('id, notification_type, title, message, product_id, thread_id, device_id, is_read, created_at')
+      .select('id, notification_type, title, message, product_id, thread_id, device_id, is_read, created_at, archived_thread:chat_threads()')
       .eq('user_id', userId)
       .eq('is_read', false)
+      .eq('archived_thread.is_archived', true)
+      .or('notification_type.neq.NEW_MESSAGE,archived_thread.is.null')
       .order('id', { ascending: false })
       .limit(99)
     if (error) throw new Error(error.message)
@@ -496,6 +498,18 @@ export const api = {
 
   async acknowledgeNotif(id) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+  },
+
+  async acknowledgeThreadMessages(threadId, through) {
+    const userId = await getSessionUserId()
+    let query = supabase.from('notifications').update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('thread_id', threadId)
+      .eq('notification_type', 'NEW_MESSAGE')
+      .eq('is_read', false)
+    if (through) query = query.lte('created_at', through)
+    const { error } = await query
+    if (error) throw new Error(error.message)
   },
 
   subscribeNotifications(userId, callback) {
@@ -685,12 +699,14 @@ export const api = {
       .eq('id', id)
       .single()
     if (error) throw new Error(error.message)
-    const { data: messages } = await supabase
+    const { data: messages, error: messagesError } = await supabase
       .from('chat_messages')
       .select('*, profiles:sender_id(full_name)')
       .eq('thread_id', id)
-      .order('sent_at', { ascending: true })
-    return { ...data, messages: messages || [] }
+      .order('sent_at', { ascending: false })
+      .order('id', { ascending: false })
+    if (messagesError) throw new Error(messagesError.message)
+    return { ...data, messages: (messages || []).reverse() }
   },
 
   async startChat(listingId) {
@@ -764,15 +780,17 @@ export const api = {
   /** Exit popup: archive if transaction completed */
   async completeTransaction(threadId, completed) {
     // fetch thread and participant ids
-    const { data: thread } = await supabase.from('chat_threads').select('listing_id, operator_id, buyer_id').eq('id', threadId).single()
+    const { data: thread, error: threadError } = await supabase.from('chat_threads').select('listing_id, operator_id, buyer_id').eq('id', threadId).single()
+    if (threadError) throw new Error(threadError.message)
 
     if (completed) {
       // Archive thread and mark transaction complete
-      await supabase.from('chat_threads').update({
+      const { error } = await supabase.from('chat_threads').update({
         transaction_completed: true,
         is_archived: true,
         updated_at: new Date().toISOString(),
-      }).eq('id', threadId)
+      }).eq('id', threadId).select('id').single()
+      if (error) throw new Error(error.message)
 
       try {
         const currentUser = await getSessionUserId()
@@ -816,11 +834,12 @@ export const api = {
         console.error('Error handling post-completion listing/product changes', e)
       }
     } else {
-      await supabase.from('chat_threads').update({
+      const { error } = await supabase.from('chat_threads').update({
         transaction_completed: false,
         is_archived: false,
         updated_at: new Date().toISOString(),
-      }).eq('id', threadId)
+      }).eq('id', threadId).select('id').single()
+      if (error) throw new Error(error.message)
     }
   },
 
