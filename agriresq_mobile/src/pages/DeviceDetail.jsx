@@ -114,8 +114,8 @@ async function downloadDailyReport({ date, report, device, stallNumber }) {
       average(readings, 'temperature_c'), highHours.join(', ') || 'None recorded'],
     [],
     ['READINGS'],
-    ['time', 'temperature_c'],
-    ...readings.map((reading) => [reading.time, reading.temperature_c]),
+    ['time', 'temperature_c', 'humidity_rh', 'vpd_kpa'],
+    ...readings.map((reading) => [reading.time, reading.temperature_c, reading.humidity_rh, reading.vpd_kpa]),
   ]
   const content = '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
   const filename = `agriresq-dht22-${stallNumber || 'stall'}-${date}.csv`
@@ -417,7 +417,7 @@ function DeviceDetailPage({ id }) {
     setExporting(true)
     setExportError('')
     try {
-      const report = await deviceApi.dailyReport(id, reportDate)
+      const report = await deviceApi.dailyReport(id, reportDate, { details: true })
       if (!report.readings.length) throw new Error('No saved readings for this date.')
       await downloadDailyReport({ date: reportDate, report, device, stallNumber })
     } catch (err) {

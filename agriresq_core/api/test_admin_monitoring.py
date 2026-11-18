@@ -66,9 +66,11 @@ class AdminMonitoringTests(TestCase):
         self.assertEqual([reading['id'] for reading in response.json()], [included.id])
         self.assertEqual(invalid.status_code, 400)
 
-    def test_daily_sensor_report_summarizes_manila_hours_and_restricts_details(self):
+    def test_daily_sensor_report_summarizes_manila_hours_and_checks_device_access(self):
         self.mine.kind = 'SENSOR'
         self.mine.save(update_fields=['kind'])
+        self.theirs.kind = 'SENSOR'
+        self.theirs.save(update_fields=['kind'])
         for timestamp, temp, humidity in (
             ('2026-04-01T15:59:59.999999+00:00', 34, 80),
             ('2026-04-01T16:00:00+00:00', 34, 80),
@@ -84,7 +86,9 @@ class AdminMonitoringTests(TestCase):
         params = {'date': '2026-04-02'}
         with as_user(OPERATOR):
             summary = self.app.get(url, params)
-            self.assertEqual(self.app.get(url, {**params, 'details': '1'}).status_code, 403)
+            download = self.app.get(url, {**params, 'details': '1'})
+            other_sensor = self.app.get(f'/api/devices/{self.theirs.id}/daily-report/', {**params, 'details': '1'})
+            self.assertEqual(other_sensor.status_code, 404)
             self.assertEqual(self.app.get(url, {'date': '2026-04-31'}).status_code, 400)
         with as_user(ADMIN):
             detail = self.app.get(url, {**params, 'details': '1'})
@@ -102,6 +106,8 @@ class AdminMonitoringTests(TestCase):
             ],
         })
         self.assertEqual(detail.status_code, 200)
+        self.assertEqual(download.status_code, 200)
+        self.assertEqual(download.json(), detail.json())
         self.assertEqual(detail.json()['readings'][0], {
             'time': '00:00:00', 'temperature_c': 34.0, 'humidity_rh': 80.0, 'vpd_kpa': 1.25,
         })

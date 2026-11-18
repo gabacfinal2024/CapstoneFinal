@@ -388,8 +388,6 @@ class DeviceReadingsView(OperatorView):
 class DailySensorReportView(OperatorView):
     def get(self, request, pk):
         detailed = request.query_params.get('details') == '1'
-        if detailed and request.user.role != 'ADMIN':
-            raise PermissionDenied('Only administrators can access the detailed sensor report.')
         device = self.get_device(request, pk)
         if device.kind != 'SENSOR':
             raise NotFound('Daily reports are available for sensor nodes.')

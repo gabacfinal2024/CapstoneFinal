@@ -154,8 +154,9 @@ export const deviceApi = {
     return Array.isArray(data) ? data : []
   },
 
-  async dailyReport(id, date) {
+  async dailyReport(id, date, { details = false } = {}) {
     const query = new URLSearchParams({ date })
+    if (details) query.set('details', '1')
     return strip(await request(`/api/devices/${id}/daily-report/?${query}`))
   },
 
