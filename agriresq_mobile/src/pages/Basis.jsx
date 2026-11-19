@@ -89,7 +89,7 @@ export default function Basis() {
   return (
     <div className="app-shell">
       <div className="page page-no-nav basis">
-        <button type="button" className="basis-back" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/profile'))}>
+        <button type="button" className="basis-back" onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/profile', { replace: true }))}>
           <ArrowLeft size={18} /> Back
         </button>
         <h1 className="basis-title">How days-to-spoil is calculated</h1>

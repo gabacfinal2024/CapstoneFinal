@@ -1,5 +1,5 @@
 .market-header h1 {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-heading);
   font-size: 26px;
   font-weight: 700;
   color: var(--primary);

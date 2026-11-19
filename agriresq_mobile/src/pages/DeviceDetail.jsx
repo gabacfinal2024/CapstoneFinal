@@ -109,9 +109,11 @@ async function downloadDailyReport({ date, report, device, stallNumber }) {
   const rows = [
     ['DAILY DHT22 REPORT', 'Asia/Manila'],
     ['report_date', date],
-    ['stall_number', 'stall_location', 'device', 'readings_count', 'average_temperature_c', `hours_with_heat_index_at_or_above_${threshold}_c`],
+    ['stall_number', 'stall_location', 'device', 'readings_count', 'average_temperature_c', 'average_humidity_rh', 'average_vpd_kpa',
+      `hours_with_heat_index_at_or_above_${threshold}_c`],
     [stallNumber, device.stall_location || '', name, readings.length,
-      average(readings, 'temperature_c'), highHours.join(', ') || 'None recorded'],
+      average(readings, 'temperature_c'), average(readings, 'humidity_rh'), average(readings, 'vpd_kpa'),
+      highHours.join(', ') || 'None recorded'],
     [],
     ['READINGS'],
     ['time', 'temperature_c', 'humidity_rh', 'vpd_kpa'],
@@ -229,7 +231,7 @@ function DeviceDetailPage({ id }) {
     let cancelled = false
     setReportLoading(true)
     setReportError('')
-    deviceApi.dailyReport(id, reportDate)
+    deviceApi.dailyReport(id, reportDate, { details: true })
       .then((data) => { if (!cancelled) setReport({ date: reportDate, data }) })
       .catch((err) => { if (!cancelled) setReportError(err.message || 'Could not load the daily report.') })
       .finally(() => { if (!cancelled) setReportLoading(false) })
@@ -412,6 +414,8 @@ function DeviceDetailPage({ id }) {
   const stallNumber = ownerStallDetails?.stall_number || (device.operator_id === user?.id ? user?.stall_number : '') || ''
   const stallLabel = stallNumber ? `Stall ${stallNumber}` : (device.stall_location || 'Stall number unavailable')
   const avgTemperature = average(dailyReadings, 'temperature_c')
+  const avgHumidity = average(dailyReadings, 'humidity_rh')
+  const avgVpd = average(dailyReadings, 'vpd_kpa')
 
   const exportReport = async () => {
     setExporting(true)
@@ -482,6 +486,8 @@ function DeviceDetailPage({ id }) {
               ) : (
                 <div className="daily-report__averages" aria-live="polite">
                   <div><span>Temperature avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(avgTemperature)}${avgTemperature != null ? '°C' : ''}`}</strong></div>
+                  <div><span>Average humidity</span><strong>{reportLoading ? 'Loading…' : avgHumidity == null ? '—' : `${fmt(avgHumidity)}% RH`}</strong></div>
+                  <div><span>Average VPD</span><strong>{reportLoading ? 'Loading…' : avgVpd == null ? '—' : `${fmt(avgVpd, 2)} kPa`}</strong></div>
                   <div><span>High heat index hours</span><strong>{reportLoading ? 'Loading…' : dailyReport?.high_heat_index_hours.length ?? '—'}</strong></div>
                   {!reportLoading && dailyReadings.length > 0 && (
                     <p>Hours with a reading at or above {dailyReport.heat_index_threshold_c}°C heat index: {dailyReport.high_heat_index_hours.join(', ') || 'None recorded'}</p>
@@ -533,7 +539,7 @@ function DeviceDetailPage({ id }) {
           </section>
         )}
 
-        {sensor && readings.length > 1 && (
+        {sensor && readings.length > 0 && (
           <section className="dev-section card">
             <h3>Recent readings</h3>
             <div className="history-list">
@@ -542,6 +548,7 @@ function DeviceDetailPage({ id }) {
                   <span>{formatDateTime(r.created_at)}</span>
                   <span>{fmt(r.temperature_c)}°C</span>
                   <span>{fmt(r.humidity_rh, 0)}% RH</span>
+                  <span>{r.vpd_kpa == null ? '—' : `${fmt(r.vpd_kpa, 2)} kPa`}</span>
                 </div>
               ))}
             </div>

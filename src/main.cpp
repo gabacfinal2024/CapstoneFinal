@@ -370,7 +370,6 @@ border-radius:8px;font-size:15px}button{margin-top:16px;width:100%;padding:12px;
 background:#2A6B48;color:#fff;font-size:16px;font-weight:600}#msg{margin-top:12px;font-size:14px}</style></head>
 <body><div class="card"><h1>AgriResQ Camera Setup</h1>
 <p>Easiest: use <b>Add device</b> in the AgriResQ app. Or enter the details from the app here.</p>
-<p><b>Important:</b> The server address is the backend address shown in the app, not this setup page's address (192.168.4.1).</p>
 <label>Stall Wi-Fi (2.4 GHz)</label><select id="ssid"><option>Scanning...</option></select>
 <input id="ssid2" placeholder="or type the Wi-Fi name" style="margin-top:6px">
 <label>Wi-Fi password</label><input id="pass" type="password">

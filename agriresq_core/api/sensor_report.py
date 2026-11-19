@@ -1,5 +1,6 @@
 from math import sqrt
 
+from .spoilage_engine import calculate_vpd
 
 HIGH_HEAT_INDEX_C = 42  # PAGASA Danger and Extreme Danger categories.
 
@@ -32,7 +33,10 @@ def daily_sensor_report(readings, tz, detailed):
         row = {'time': local_time.strftime('%H:%M:%S'), 'temperature_c': float(reading.temperature_c)}
         if detailed:
             row['humidity_rh'] = float(reading.humidity_rh)
-            row['vpd_kpa'] = float(reading.vpd_kpa) if reading.vpd_kpa is not None else None
+            vpd = reading.vpd_kpa
+            if vpd is None:
+                vpd = round(calculate_vpd(reading.temperature_c, reading.humidity_rh), 4)
+            row['vpd_kpa'] = float(vpd)
         rows.append(row)
     return {
         'readings': rows,

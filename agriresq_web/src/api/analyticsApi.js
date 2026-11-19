@@ -66,6 +66,15 @@ export function scansCsv(scans, devices) {
 }
 
 const REPORT_TIME_ZONE = 'Asia/Manila'
+const reportClock = new Intl.DateTimeFormat('en-GB', {
+  timeZone: REPORT_TIME_ZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+})
+
+function readingTime(reading) {
+  if (/^([01]\d|2[0-3]):[0-5]\d:[0-5]\d$/.test(reading.time)) return reading.time
+  const recordedAt = new Date(reading.created_at ?? reading.time ?? NaN)
+  return Number.isNaN(recordedAt.getTime()) ? '' : reportClock.format(recordedAt)
+}
 
 function average(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : ''
@@ -111,7 +120,7 @@ export async function readingsCsv(devices, reportDate) {
     ...metricStats(readings, 'vpd_kpa'),
   ])
   const readingRows = results.flatMap(({ device, readings }) => readings.map((reading) => [
-    device.name || `Sensor #${device.id}`, reading.time, reading.temperature_c, reading.humidity_rh, reading.vpd_kpa,
+    device.name || `Sensor #${device.id}`, readingTime(reading), reading.temperature_c, reading.humidity_rh, reading.vpd_kpa,
   ]))
 
   downloadCsv(`agriresq_daily_sensor_report_${reportDate}.csv`, [`DAILY SENSOR SUMMARY (${REPORT_TIME_ZONE})`], [

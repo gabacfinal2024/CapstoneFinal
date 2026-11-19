@@ -94,7 +94,8 @@
 
 .gallery-link { font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: underline; min-height: 44px; display: inline-flex; align-items: center; }
 
-.history-row--readings span:not(:first-child) { text-align: right; }
+.history-row--readings { grid-template-columns: minmax(0, 1fr) repeat(3, auto); }
+.history-row--readings span:not(:first-child) { text-align: right; white-space: nowrap; }
 
 .monitor-count { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
 .monitor-count.is-ok { background: #E5F5EC; color: var(--fresh); }

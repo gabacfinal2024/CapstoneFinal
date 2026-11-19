@@ -173,7 +173,7 @@ FB_PAGE_ID = os.environ.get('FB_PAGE_ID', '')
 FB_PAGE_TOKEN = os.environ.get('FB_PAGE_TOKEN', '')
 FB_API_VERSION = os.environ.get('FB_API_VERSION', 'v25.0')
 FB_RECIPIENT_PSID = os.environ.get('FB_RECIPIENT_PSID', '')
-FB_AUTO_NOTIFY_ENABLED = os.environ.get('FB_AUTO_NOTIFY_ENABLED', 'false').lower() == 'true'
+FB_AUTO_NOTIFY_ENABLED = os.environ.get('FB_AUTO_NOTIFY_ENABLED', 'true').lower() == 'true'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

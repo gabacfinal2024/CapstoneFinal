@@ -519,24 +519,43 @@ class DeviceFlowTests(TestCase):
     def test_high_temperature_alert_links_to_live_device(self):
         self.pair_and_claim(kind='SENSOR')
         device = Device.objects.get()
-        previous = device.readings.create(temperature_c=Decimal('35'), humidity_rh=Decimal('55'), vpd_kpa=Decimal('2'))
         with mock.patch.object(device_services, 'has_service_key', return_value=True), \
                 mock.patch.object(device_services, 'supabase_insert') as insert:
-            device_services._alerts(device, timezone.now(), Decimal('37'), Decimal('55'), previous)
+            device_services._alerts(device, timezone.now(), Decimal('37'), Decimal('55'), (Decimal('29'), Decimal('55')))
 
         insert.assert_called_once()
         self.assertEqual(insert.call_args.args[0], 'notifications')
         self.assertEqual(insert.call_args.args[1]['notification_type'], 'IOT_ALERT')
         self.assertEqual(insert.call_args.args[1]['device_id'], device.id)
+        self.assertEqual(insert.call_args.args[1]['user_id'], device.operator_id)
 
-    def test_stable_or_lower_sensor_values_do_not_alert(self):
+    def test_stable_high_readings_remind_the_operator_every_two_hours(self):
         self.pair_and_claim(kind='SENSOR')
         device = Device.objects.get()
-        previous = device.readings.create(temperature_c=Decimal('37'), humidity_rh=Decimal('95'), vpd_kpa=Decimal('1'))
+        now = timezone.now()
+        high = (Decimal('37'), Decimal('95'))
+        device.last_alert_at = now
+        device.save(update_fields=['last_alert_at'])
         with mock.patch.object(device_services, 'has_service_key', return_value=True), \
                 mock.patch.object(device_services, 'supabase_insert') as insert:
-            device_services._alerts(device, timezone.now(), Decimal('37'), Decimal('95'), previous)
-        insert.assert_not_called()
+            device_services._alerts(device, now + timedelta(minutes=119), *high, high)
+            insert.assert_not_called()
+            device_services._alerts(device, now + timedelta(hours=2), *high, high)
+            insert.assert_called_once()
+            self.assertEqual(insert.call_args.args[1]['title'], 'Stall Conditions Still High')
+            device_services._alerts(device, now + timedelta(hours=4), Decimal('25'), Decimal('70'), high)
+            insert.assert_called_once()
+
+    def test_humidity_crossing_alerts_during_the_temperature_reminder_interval(self):
+        self.pair_and_claim(kind='SENSOR')
+        device = Device.objects.get()
+        now = timezone.now()
+        with mock.patch.object(device_services, 'has_service_key', return_value=True), \
+                mock.patch.object(device_services, 'supabase_insert') as insert, \
+                mock.patch.object(device_services, 'age_operator_batches'):
+            device_services.save_reading(device, 37, 85)
+            device_services.save_reading(device, 37, 95)
+        self.assertEqual(insert.call_count, 2)
 
     def test_sustained_heat_queues_an_emergency_snapshot(self):
         self.pair_and_claim()
@@ -545,7 +564,7 @@ class DeviceFlowTests(TestCase):
         for minutes in (118, 95, 70, 40, 10):      # oldest is just inside the 2 h window
             r = device.readings.create(temperature_c=Decimal('37'), humidity_rh=Decimal('55'), vpd_kpa=Decimal('3'))
             device.readings.filter(pk=r.pk).update(created_at=now - timedelta(minutes=minutes))
-        device_services._alerts(device, now, Decimal('37'), Decimal('55'), device.readings.first())
+        device_services._alerts(device, now, Decimal('37'), Decimal('55'), (Decimal('37'), Decimal('55')))
         device.refresh_from_db()
         self.assertEqual(device.pending_command, 'scan_auto')
         self.assertIsNotNone(device.last_emergency_at)

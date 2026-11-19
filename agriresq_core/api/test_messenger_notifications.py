@@ -62,6 +62,7 @@ class MessengerDeliveryTests(TestCase):
         self.assertEqual(request.get_header('Authorization'), 'Bearer test-page-token')
         body = json.loads(request.data)
         self.assertEqual(body['recipient']['id'], '987654321')
+        self.assertEqual(body['messaging_type'], 'UPDATE')
         self.assertEqual(body['message']['attachment']['type'], 'image')
         self.assertEqual(body['message']['attachment']['payload']['url'], self.scan.image)
         self.assertEqual(body['message']['attachment']['payload']['is_reusable'], True)
@@ -155,8 +156,10 @@ class MessengerDeliveryTests(TestCase):
     @override_settings(**MESSENGER_SETTINGS, FB_AUTO_NOTIFY_ENABLED=True)
     def test_auto_camera_scan_is_enqueued_only_once(self):
         with mock.patch('api.messenger_service.threading.Thread') as thread:
-            enqueue_scan_notification(self.scan.pk)
-            enqueue_scan_notification(self.scan.pk)
+            with self.captureOnCommitCallbacks(execute=True):
+                enqueue_scan_notification(self.scan.pk)
+                enqueue_scan_notification(self.scan.pk)
+                thread.assert_not_called()
 
         thread.assert_called_once()
         self.assertEqual(MessengerDelivery.objects.get(scan=self.scan).status, 'PENDING')

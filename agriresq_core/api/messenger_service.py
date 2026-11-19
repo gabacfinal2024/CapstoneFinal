@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.core import signing
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 from django.db.models import F
 from django.utils import timezone
 
@@ -79,6 +79,7 @@ def send_scan_image(scan):
     image_url = _image_url(scan)
     body = json.dumps({
         'recipient': {'id': settings.FB_RECIPIENT_PSID},
+        'messaging_type': 'UPDATE',
         'message': {
             'attachment': {
                 'type': 'image',
@@ -197,15 +198,19 @@ def enqueue_scan_notification(scan_id):
     delivery, created = MessengerDelivery.objects.get_or_create(scan=scan)
     if not created:
         return
-    try:
-        threading.Thread(
-            target=_deliver_in_background,
-            args=(delivery.pk,),
-            name=f'messenger-scan-{scan.pk}',
-            daemon=True,
-        ).start()
-    except RuntimeError:
-        MessengerDelivery.objects.filter(pk=delivery.pk, status='PENDING').update(
-            status='FAILED', error_code='WORKER_START',
-        )
-        log.exception('Could not start Messenger delivery worker for scan %s.', scan.pk)
+
+    def start_delivery():
+        try:
+            threading.Thread(
+                target=_deliver_in_background,
+                args=(delivery.pk,),
+                name=f'messenger-scan-{scan.pk}',
+                daemon=True,
+            ).start()
+        except RuntimeError:
+            MessengerDelivery.objects.filter(pk=delivery.pk, status='PENDING').update(
+                status='FAILED', error_code='WORKER_START',
+            )
+            log.exception('Could not start Messenger delivery worker for scan %s.', scan.pk)
+
+    transaction.on_commit(start_delivery)

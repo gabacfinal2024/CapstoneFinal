@@ -295,7 +295,7 @@ class DeviceDetailView(OperatorView):
                 device.eta_start, device.life_lost = None, 0      # restart the rule-engine countdown
         for k, v in data.items():
             setattr(device, k, v)
-        device.save()
+        device.save(update_fields=data.keys())
         return Response(device_json(request, device))
 
     def delete(self, request, pk):
@@ -505,7 +505,7 @@ class DeviceView(APIView):
         device.last_seen = timezone.now()
         for k, v in fields.items():
             setattr(device, k, v)
-        device.save()
+        device.save(update_fields=['ip', 'last_seen', *fields])
 
 
 class DeviceClaimView(APIView):

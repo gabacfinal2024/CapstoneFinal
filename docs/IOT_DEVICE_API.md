@@ -210,9 +210,10 @@ failure.
 Delivery is subject to Meta's messaging policies, including the standard messaging window and
 eligibility for messages initiated by the Page. A valid PSID and Page token alone do not guarantee
 that Meta will accept a camera notification outside the permitted window. Keep `FB_LOG_PSID=false`
-(the default) after PSID setup; never log or expose the Page token. Automatic upload notifications are
-disabled by default; after the manual send succeeds, set `FB_AUTO_NOTIFY_ENABLED=true` on Render and
-deploy with your approval to turn on background notifications for detected camera scans.
+(the default) after PSID setup; never log or expose the Page token. Automatic delivery starts for
+detected camera scans when the Page ID, Page token, and recipient PSID are configured. On Render,
+set `FB_AUTO_NOTIFY_ENABLED=true` if it was previously disabled. Set it to `false` to pause automatic
+delivery while retaining the administrator test endpoint.
 
 **Who can do what to a device.** The owner, anyone the owner shared it with, and the administrator can use it
 (`can_operate`). Sharing gives access to the same physical camera or sensor; it does not create another device

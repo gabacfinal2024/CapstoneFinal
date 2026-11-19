@@ -20,6 +20,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from .models import BatchClock, Device, DeviceReading, DeviceScan
@@ -36,12 +37,12 @@ log = logging.getLogger(__name__)
 DISCOUNT_RULES = {'GREEN': 0, 'AMBER': 30, 'RED': 100}
 STATUS_LABEL = {'GREEN': 'Fresh', 'AMBER': 'At-Risk', 'RED': 'Rotten'}
 ALERT_TEMP_C = Decimal(str(settings.IOT_TEMP_ALERT_THRESHOLD))
-ALERT_COOLDOWN = timedelta(hours=1)
+ALERT_HUMIDITY_RH = Decimal('90')
+ALERT_REMINDER_INTERVAL = timedelta(hours=2)
 FILTER_WINDOW = 5                       # moving-average filter over the last N readings (paper 3.16.1)
 EMERGENCY_TEMP_C = Decimal('35')        # paper 3.17.2: sustained > 35 C for 2 h -> out-of-schedule snapshot
 EMERGENCY_HOURS = 2
 EMERGENCY_COOLDOWN = timedelta(hours=6)
-MAX_STEP_HOURS = Decimal('2')           # never age a batch by more than 2 h from one reading
 
 
 def _save_image(path, data=None, image=None):
@@ -207,27 +208,32 @@ def ml_override(device, scan):
 
 # ── DHT22 readings: moving-average filter, rule engine, alerts ───────────────
 
+def _filtered_conditions(readings):
+    return (
+        sum(r.temperature_c for r in readings) / len(readings),
+        sum(r.humidity_rh for r in readings) / len(readings),
+    )
+
+
 def save_reading(device, temperature_c, humidity_rh):
-    now = timezone.now()
     t, rh = Decimal(str(temperature_c)), Decimal(str(humidity_rh))
     vpd = calculate_vpd(t, rh).quantize(Decimal('0.0001'))
-    previous = device.readings.first()
-    reading = DeviceReading.objects.create(device=device, temperature_c=t, humidity_rh=rh, vpd_kpa=vpd)
-    recent = list(device.readings.all()[:FILTER_WINDOW])
-    t_f = sum(r.temperature_c for r in recent) / len(recent)      # moving average: ignores one-off spikes
-    rh_f = sum(r.humidity_rh for r in recent) / len(recent)
-    hours = Decimal('0')
-    if device.last_reading_at:
-        hours = min(Decimal(str((now - device.last_reading_at).total_seconds() / 3600)), MAX_STEP_HOURS)
-    device.last_reading_at = now
-    device.save(update_fields=['last_reading_at'])
+    with transaction.atomic():
+        device = Device.objects.select_for_update().get(pk=device.pk)
+        now = timezone.now()
+        previous = list(device.readings.order_by('-created_at', '-pk')[:FILTER_WINDOW])
+        reading = DeviceReading.objects.create(device=device, temperature_c=t, humidity_rh=rh, vpd_kpa=vpd)
+        device.last_reading_at = reading.created_at
+        device.save(update_fields=['last_reading_at'])
+        temp, humidity = _filtered_conditions([reading, *previous[:FILTER_WINDOW - 1]])
+        previous_conditions = _filtered_conditions(previous) if previous else None
+        _alerts(device, now, temp, humidity, previous_conditions)
 
     if has_service_key():
         try:
             age_operator_batches(device.operator_id, now)
         except Exception as exc:
             log.warning('Supabase sensor sync failed: %s', exc)
-    _alerts(device, now, t_f, rh_f, previous)
     return reading
 
 
@@ -251,22 +257,25 @@ def apply_environment(device, t_f, rh_f, hours):
 
 def _alerts(device, now, t_f, rh_f, previous):
     where = device.stall_location or 'your stall'
-    rising_heat = previous is not None and t_f > ALERT_TEMP_C and Decimal(str(t_f)) > previous.temperature_c
-    rising_humidity = previous is not None and rh_f >= Decimal('90') and Decimal(str(rh_f)) > previous.humidity_rh
-    if (rising_heat or rising_humidity) and (not device.last_alert_at or now - device.last_alert_at > ALERT_COOLDOWN) \
-            and has_service_key():
+    hot = t_f > ALERT_TEMP_C
+    humid = rh_f >= ALERT_HUMIDITY_RH
+    new_high = previous is None or (hot and previous[0] <= ALERT_TEMP_C) or (humid and previous[1] < ALERT_HUMIDITY_RH)
+    reminder_due = not device.last_alert_at or now - device.last_alert_at >= ALERT_REMINDER_INTERVAL
+    if (hot or humid) and (new_high or reminder_due) and has_service_key():
         try:
-            reason = 'temperature is rising' if rising_heat else 'humidity is rising'
+            condition = 'temperature and humidity are' if hot and humid else 'temperature is' if hot else 'humidity is'
             supabase_insert('notifications', {
                 'user_id': device.operator_id, 'product_id': device.product_id, 'notification_type': 'IOT_ALERT',
                 'device_id': device.id,
-                'title': 'Stall Conditions Rising',
-                'message': f'{device.name}: {reason} at {where} ({t_f:.1f}°C, {rh_f:.0f}% RH). Check the produce and storage.'})
+                'title': 'High Stall Conditions' if new_high else 'Stall Conditions Still High',
+                'message': f'{device.name}: {condition} high at {where} ({t_f:.1f}°C, {rh_f:.0f}% RH). Check the produce and storage.'})
             device.last_alert_at = now
             device.save(update_fields=['last_alert_at'])
         except Exception as exc:
             log.warning('alert failed: %s', exc)
     # sustained extreme heat -> emergency snapshot (paper 3.17.2): is the heat showing on the produce?
+    if device.kind != 'CAMERA':
+        return
     since = now - timedelta(hours=EMERGENCY_HOURS)
     window = list(device.readings.filter(created_at__gte=since))
     if len(window) >= 5 and min(r.temperature_c for r in window) > EMERGENCY_TEMP_C \
