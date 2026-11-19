@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { useAuth } from './AuthContext'
 import usePolling from '../hooks/usePolling'
+import { alertDeviceId } from '../utils/sensorAlert'
 
 const NotificationsContext = createContext({
   unread: 0,
@@ -37,6 +38,32 @@ export function NotificationsProvider({ children }) {
   const refreshVersion = useRef(0)
   const userId = user?.id
 
+  const openNotification = useCallback(async (n) => {
+    setToast(null)
+    if (!n.is_read) {
+      setItems((cur) => cur.filter((x) => x.id !== n.id))
+      api.acknowledgeNotif(n.id).catch(() => {})
+    }
+    if (n.notification_type === 'NEW_MESSAGE') {
+      return navigate(n.thread_id ? `/chat/${n.thread_id}` : '/messages')
+    }
+    if (n.notification_type === 'IOT_ALERT') {
+      const deviceId = alertDeviceId(n)
+      const iotAlert = { device_id: deviceId, product_id: n.product_id, message: n.message }
+      return navigate(deviceId ? `/devices/${deviceId}` : '/devices', { state: { iotAlert } })
+    }
+    if ((n.notification_type === 'MARKETPLACE' || n.notification_type === 'PRICE_DROP') && n.product_id) {
+      try {
+        const listing = await api.getListingByProduct(n.product_id)
+        if (listing?.id) return navigate(`/produce/${listing.id}`)
+      } catch {
+        /* the listing is gone: fall through to the marketplace */
+      }
+      return navigate('/marketplace')
+    }
+    return navigate('/notifications')
+  }, [navigate])
+
   const announce = useCallback((n) => {
     if (!announced.current) announced.current = new Set()
     if (announced.current.has(n.id)) return
@@ -47,23 +74,13 @@ export function NotificationsProvider({ children }) {
         const notification = new Notification(n.title, { body: n.message, tag: `agriresq-${n.id}` })
         notification.onclick = () => {
           window.focus()
-          if (n.notification_type === 'IOT_ALERT' && n.device_id) navigate(`/devices/${n.device_id}`)
-          else if (n.notification_type === 'NEW_MESSAGE' && n.thread_id) navigate(`/chat/${n.thread_id}`)
-          else if ((n.notification_type === 'MARKETPLACE' || n.notification_type === 'PRICE_DROP') && n.product_id) {
-            api.getListingByProduct(n.product_id)
-              .then((listing) => navigate(listing?.id ? `/produce/${listing.id}` : '/marketplace'))
-              .catch((err) => {
-                console.error('Could not open listing from notification', err)
-                navigate('/marketplace')
-              })
-          }
-          else navigate('/notifications')
+          openNotification(n)
         }
       } catch {
         /* some browsers only allow this from a service worker */
       }
     }
-  }, [navigate])
+  }, [openNotification])
 
   const refresh = useCallback(async () => {
     if (!userId) return
@@ -119,30 +136,6 @@ export function NotificationsProvider({ children }) {
     const t = setTimeout(() => setToast(null), 7000)
     return () => clearTimeout(t)
   }, [toast])
-
-  const openNotification = useCallback(async (n) => {
-    setToast(null)
-    if (!n.is_read) {
-      setItems((cur) => cur.filter((x) => x.id !== n.id))
-      api.acknowledgeNotif(n.id).catch(() => {})
-    }
-    if (n.notification_type === 'NEW_MESSAGE') {
-      return navigate(n.thread_id ? `/chat/${n.thread_id}` : '/messages')
-    }
-    if (n.notification_type === 'IOT_ALERT') {
-      return navigate(n.device_id ? `/devices/${n.device_id}` : '/devices')
-    }
-    if ((n.notification_type === 'MARKETPLACE' || n.notification_type === 'PRICE_DROP') && n.product_id) {
-      try {
-        const listing = await api.getListingByProduct(n.product_id)
-        if (listing?.id) return navigate(`/produce/${listing.id}`)
-      } catch {
-        /* the listing is gone: fall through to the marketplace */
-      }
-      return navigate('/marketplace')
-    }
-    return navigate('/notifications')
-  }, [navigate])
 
   const enableAlerts = useCallback(async () => {
     if (!canNotify()) return

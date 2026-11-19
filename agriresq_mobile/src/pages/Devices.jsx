@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Camera, Plus, Thermometer, Droplets, ChevronRight, Wifi, RefreshCw, Images, AlertTriangle } from 'lucide-react'
 import { deviceApi, timeAgo, signalLabel, isReadingStale, isSensor, deviceFallbackName } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
 import { CROP_LABELS } from '../utils/helpers'
+import { findAlertSensor } from '../utils/sensorAlert'
 import { ScanChip, isNoVegetable } from '../components/ScanResultCard'
 import OnlinePill from '../components/OnlinePill'
 import { AccessBadge, SensorBadge } from '../components/MonitorBadges'
@@ -16,9 +17,15 @@ import './Devices.css'
 const REFRESH_MS = 5000
 
 export default function Devices() {
+  const navigate = useNavigate()
+  const { state } = useLocation()
+  const iotAlert = state?.iotAlert
   const [devices, setDevices] = useState(null)
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const alertSensor = iotAlert && devices
+    ? findAlertSensor(iotAlert, devices.filter((device) => isSensor(device) && device.my_access === 'owner'))
+    : null
 
   const load = async () => {
     try {
@@ -30,6 +37,10 @@ export default function Devices() {
   }
 
   usePolling(load, REFRESH_MS)
+
+  useEffect(() => {
+    if (alertSensor) navigate(`/devices/${alertSensor.id}`, { replace: true })
+  }, [alertSensor, navigate])
 
   const refresh = async () => {
     setRefreshing(true)
@@ -64,6 +75,9 @@ export default function Devices() {
           retrying={refreshing}
           hint={devices ? 'Showing the last information we received.' : 'Check that the AgriResQ server is running and your phone is on the same Wi-Fi.'}
         />
+        {iotAlert && devices && !alertSensor && (
+          <p className="notice" role="status">This alert couldn’t be matched to a sensor. Select a sensor below to view its readings.</p>
+        )}
 
         {devices === null && !error && (
           <div className="devices-list" aria-busy="true">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import {
   ArrowLeft, ScanLine, Loader2, RotateCw, WifiOff, Trash2, RefreshCw,
@@ -140,6 +140,8 @@ export default function DeviceDetail() {
 
 function DeviceDetailPage({ id }) {
   const navigate = useNavigate()
+  const { state } = useLocation()
+  const iotAlert = state?.iotAlert
   const { user } = useAuth()
   const [device, setDevice] = useState(null)
   const [scans, setScans] = useState([]) // vegetable scans only, for "last vegetable seen"
@@ -167,6 +169,7 @@ function DeviceDetailPage({ id }) {
   const [refreshing, setRefreshing] = useState(false)
   const [message, setMessage] = useState(null) // { type, text }
   const [loadError, setLoadError] = useState('')
+  const [deviceUnavailable, setDeviceUnavailable] = useState(false)
   const [confirm, setConfirm] = useState(null)
   const sensor = isSensor(device) // plain ESP32 + DHT22 node: no camera, no scans
   const what = sensor ? 'sensor node' : 'camera'
@@ -177,6 +180,11 @@ function DeviceDetailPage({ id }) {
   const sensorRef = useRef(false) // sensor nodes have no scans to load
   useEffect(() => { dirtyRef.current = dirty }, [dirty])
   useEffect(() => () => clearTimeout(followUp.current), [])
+  useEffect(() => {
+    if (deviceUnavailable && iotAlert) {
+      navigate('/devices', { replace: true, state: { iotAlert } })
+    }
+  }, [deviceUnavailable, iotAlert, navigate])
 
   const loadDevice = async () => {
     try {
@@ -184,9 +192,11 @@ function DeviceDetailPage({ id }) {
       sensorRef.current = isSensor(d)
       setDevice(d)
       setLoadError('')
+      setDeviceUnavailable(false)
       setForm((f) => (f && dirtyRef.current ? f : settingsFrom(d)))
     } catch (err) {
       setLoadError(err.message)
+      setDeviceUnavailable(err.status === 404 || err.status === 403)
     }
   }
 

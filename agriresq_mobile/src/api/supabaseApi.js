@@ -480,7 +480,7 @@ export const api = {
     const userId = await getSessionUserId()
     const { data, error } = await supabase
       .from('notifications')
-      .select('id, notification_type, title, message, product_id, thread_id, device_id, is_read, created_at, archived_thread:chat_threads()')
+      .select('*, archived_thread:chat_threads()')
       .eq('user_id', userId)
       .eq('is_read', false)
       .eq('archived_thread.is_archived', true)
