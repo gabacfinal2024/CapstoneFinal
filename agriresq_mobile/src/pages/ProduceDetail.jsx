@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
 import { CROP_LABELS, formatCurrency, formatDays } from '../utils/helpers'
@@ -52,7 +53,7 @@ export default function ProduceDetail() {
     return (
       <div className="page page-no-nav">
         <p>{listingError}</p>
-        <p><Link to="/marketplace">← Back to listings</Link></p>
+        <p><BackLink to="/marketplace">← Back</BackLink></p>
       </div>
     )
   }
@@ -69,7 +70,7 @@ export default function ProduceDetail() {
       <main className="produce-detail">
         <div className="produce-visual">
           <ProductImage src={product?.image_url} crop={crop} className="produce-hero" />
-          <Link to="/marketplace" className="detail-back">← Listings</Link>
+          <BackLink to="/marketplace" className="detail-back">← Back</BackLink>
         </div>
         <div className="produce-body">
           <div className="detail-title-row">

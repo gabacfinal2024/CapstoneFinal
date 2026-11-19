@@ -1,0 +1,22 @@
+.daily-report { margin-top: 12px; }
+.daily-report__head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 10px; }
+.daily-report__head h2 { font-size: 15px; color: var(--primary); }
+.daily-report__head p, .daily-report__head label { font-size: 11px; color: var(--gray-600); }
+.daily-report__head label { font-weight: 600; }
+.daily-report__controls { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.daily-report__controls input { min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); background: var(--white); color: var(--gray-800); }
+.daily-report__controls .btn { min-height: 44px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
+.daily-report__averages { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.daily-report__averages > div { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; padding: 9px 10px; border-radius: 8px; background: var(--gray-50); }
+.daily-report__averages span { font-size: 11px; color: var(--gray-600); }
+.daily-report__averages strong { font-size: 14px; color: var(--gray-800); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.daily-report__averages p, .daily-report__message { grid-column: 1 / -1; margin: 0; font-size: 11px; color: var(--gray-600); }
+.daily-report__message { margin-top: 10px; color: #92400E; }
+.report-readings { margin-top: 12px; border-top: 1px solid var(--gray-100); }
+.report-readings summary { min-height: 44px; padding: 12px 0; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; }
+.report-readings summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.report-readings table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.report-readings :is(th, td) { padding: 7px 2px; text-align: right; white-space: nowrap; }
+.report-readings :is(th, td):first-child { text-align: left; }
+.report-readings th { color: var(--gray-600); }
+.report-readings td { border-top: 1px solid var(--gray-100); }

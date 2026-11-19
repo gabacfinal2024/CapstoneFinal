@@ -1,8 +1,6 @@
 .stall-climate { margin-top: 10px; }
-.stall-climate > h3 { font-size: 15px; color: var(--primary); margin-bottom: 10px; }
+.stall-climate > h2 { font-size: 15px; color: var(--primary); margin-bottom: 10px; }
 .stall-climate__msg { font-size: 13px; color: var(--gray-600); line-height: 1.5; }
-
-.stall-climate__block + .stall-climate__block { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--gray-100); }
 
 .stall-climate__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; min-height: 24px; }
 .stall-climate__who { font-size: 13px; font-weight: 600; color: var(--gray-800); min-width: 0; }
@@ -17,5 +15,26 @@
 
 .stall-climate__time { font-size: 12px; color: var(--gray-600); line-height: 1.4; margin: 8px 0 0; }
 
-.stall-climate__aging { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
-.stall-climate__aging li { font-size: 12px; line-height: 1.4; color: var(--gray-800); padding: 6px 0; border-top: 1px solid var(--gray-100); }
+.stall-climate__aging { margin-top: 12px; border-top: 1px solid var(--gray-100); }
+.stall-climate__aging summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 0;
+  list-style: none;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.stall-climate__aging summary::-webkit-details-marker { display: none; }
+.stall-climate__aging summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.stall-climate__aging summary svg { flex: none; }
+.stall-climate__aging[open] summary svg { transform: rotate(180deg); }
+.stall-climate__aging p { margin: 0 0 4px; font-size: 12px; line-height: 1.4; color: var(--gray-600); }
+.stall-climate__aging dl > div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; font-size: 13px; }
+.stall-climate__aging dl > div + div { border-top: 1px solid var(--gray-100); }
+.stall-climate__aging dd { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }

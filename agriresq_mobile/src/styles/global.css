@@ -26,6 +26,25 @@
   --font-heading: 'Space Grotesk Variable', var(--font-body);
 }
 
+.back-exit-toast {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: calc(var(--nav-height) + var(--safe-bottom) + 12px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--gray-800);
+  color: var(--white);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

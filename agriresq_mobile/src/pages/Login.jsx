@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { useAuth } from '../context/AuthContext'
 import './Auth.css'
 
 export default function Login() {
   const { login } = useAuth()
-  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -18,7 +18,6 @@ export default function Login() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/home')
     } catch (err) {
       setError(err.message)
     } finally {
@@ -29,7 +28,7 @@ export default function Login() {
   return (
    <div className="auth-page auth-page--bulua page-no-nav">
       <div className="auth-header">
-        <Link to="/" className="back-link">← Back</Link>
+        <BackLink to="/" className="back-link">← Back</BackLink>
         <h2>Welcome Back</h2>
       </div>
       <form className="auth-form card" onSubmit={handleSubmit}>

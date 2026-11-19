@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { api } from '../api/supabaseApi'
 import { useNotifications } from '../context/NotificationsContext'
 import { formatDateTime } from '../utils/helpers'
@@ -36,7 +36,7 @@ export default function Notifications() {
     <div className="app-shell">
       <div className="page page-no-nav notifications">
         <header className="notif-header">
-          <Link to="/home" className="back-link">← Back</Link>
+          <BackLink to="/home" className="back-link">← Back</BackLink>
           <div className="notif-title-row">
             <h1>Notifications</h1>
             <button onClick={markAll} className="mark-read">Mark all read</button>

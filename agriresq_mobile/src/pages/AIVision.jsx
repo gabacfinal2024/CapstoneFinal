@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { ArrowLeft, ScanLine, Loader2, Plus, Settings2 } from 'lucide-react'
 import { deviceApi, isSensor } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
@@ -72,7 +73,7 @@ export default function AIVision() {
   return (
     <div className="app-shell">
       <div className="page page-no-nav ai-vision">
-        <Link to="/home" className="dev-back"><ArrowLeft size={16} /> Home</Link>
+        <BackLink to="/home" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
         <h1 className="dev-title">AI Freshness Scanner</h1>
 
         {message && <div className={`notice ${message.type}`}>{message.text}</div>}

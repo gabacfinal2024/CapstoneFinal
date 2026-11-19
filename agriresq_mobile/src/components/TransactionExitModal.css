@@ -53,16 +53,6 @@
   padding: 8px;
 }
 
-.dont-remind {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  justify-content: center;
-  color: var(--gray-700);
-}
-.dont-remind input { width: 16px; height: 16px; }
-.dont-remind span { font-size: 13px; }
 
 .rating-stars { display: flex; justify-content: center; gap: 6px; margin: 12px 0; }
 .rating-stars .star { background: none; border: none; font-size: 36px; line-height: 1; color: var(--gray-300); padding: 0 2px; cursor: pointer; }

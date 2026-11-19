@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { api } from '../api/supabaseApi'
 import './Auth.css'
 
@@ -28,7 +29,7 @@ export default function ForgotPassword() {
   return (
     <div className="auth-page auth-page--bulua page-no-nav">
       <div className="auth-header">
-        <Link to="/login" className="back-link">← Back</Link>
+        <BackLink to="/login" className="back-link">← Back</BackLink>
         <h2>Forgot Password</h2>
       </div>
       <form className="auth-form card" onSubmit={handleSubmit}>

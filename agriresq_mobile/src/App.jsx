@@ -1,7 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { App as CapacitorApp } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BackNavigationProvider } from './context/BackNavigationContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import NotificationToast from './components/NotificationToast';
@@ -25,6 +23,7 @@ import AccountSettings from './pages/AccountSettings';
 import Devices from './pages/Devices';
 import AddDevice from './pages/AddDevice';
 import DeviceDetail from './pages/DeviceDetail';
+import SensorReadingsReport from './pages/SensorReadingsReport';
 import Gallery from './pages/Gallery';
 import Basis from './pages/Basis';
 
@@ -42,47 +41,12 @@ function PublicRoute({ children }) {
   return children;
 }
 
-function MobileBackNavigation() {
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const { user, loading } = useAuth();
-  const handleBack = useRef(null);
-
-  useLayoutEffect(() => {
-    handleBack.current = () => {
-      if (loading) return;
-      const main = user ? '/home' : '/login';
-      // React Router's index counts entries inside this app, including after a reload.
-      if (window.history.state?.idx > 0) navigate(-1);
-      else if (pathname !== main) navigate(main, { replace: true });
-    };
-  }, [loading, navigate, pathname, user]);
-
-  useEffect(() => {
-    if (Capacitor.getPlatform() !== 'android') return undefined;
-    let cancelled = false;
-    let listener;
-
-    CapacitorApp.addListener('backButton', () => handleBack.current?.()).then((handle) => {
-      if (cancelled) handle.remove();
-      else listener = handle;
-    });
-
-    return () => {
-      cancelled = true;
-      listener?.remove();
-    };
-  }, []);
-
-  return null;
-}
-
 export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <MobileBackNavigation />
-        <NotificationsProvider>
+        <BackNavigationProvider>
+          <NotificationsProvider>
         <NotificationToast />
         <Routes>
           {/* Public Routes */}
@@ -111,12 +75,14 @@ export default function App() {
           <Route path="/devices" element={<PrivateRoute><Devices /></PrivateRoute>} />
           <Route path="/devices/add" element={<PrivateRoute><AddDevice /></PrivateRoute>} />
           <Route path="/devices/:id" element={<PrivateRoute><DeviceDetail /></PrivateRoute>} />
+          <Route path="/devices/:id/report" element={<PrivateRoute><SensorReadingsReport /></PrivateRoute>} />
           <Route path="/gallery" element={<PrivateRoute><Gallery /></PrivateRoute>} />
           <Route path="/ai-test" element={<PrivateRoute><AIVision /></PrivateRoute>} />
           
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        </NotificationsProvider>
+          </NotificationsProvider>
+        </BackNavigationProvider>
       </BrowserRouter>
     </AuthProvider>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import useEntryState from '../hooks/useEntryState'
 import { Link } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import BottomNav from '../components/BottomNav'
@@ -9,7 +10,7 @@ import './Messages.css'
 
 export default function Messages() {
   const { user } = useAuth()
-  const [tab, setTab] = useState('inbox')
+  const [tab, setTab] = useEntryState('tab', 'inbox')
   const [threads, setThreads] = useState([])
   const [loading, setLoading] = useState(true)
 

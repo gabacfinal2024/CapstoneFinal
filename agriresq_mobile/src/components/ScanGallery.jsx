@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ImageOff, X, ExternalLink, Loader2 } from 'lucide-react'
 import { deviceApi, backendAsset } from '../api/deviceApi'
+import { useBackNavigation } from '../context/BackNavigationContext'
 import usePolling from '../hooks/usePolling'
 import { CROP_LABELS, formatDateTime, formatDays } from '../utils/helpers'
 import { ScanChip, isNoVegetable, confidencePct } from './ScanResultCard'
@@ -123,6 +124,11 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
   const [error, setError] = useState('')
   const [moreError, setMoreError] = useState('')
   const [selected, setSelected] = useState(null)
+  const { registerGuard } = useBackNavigation()
+  useLayoutEffect(() => {
+    if (!selected) return undefined
+    return registerGuard(() => { setSelected(null); return true })
+  }, [registerGuard, selected])
 
   const device = deviceId ?? undefined
   const source = sourceFilter === 'ALL' ? undefined : sourceFilter
@@ -195,7 +201,7 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
   const showCamera = deviceId == null
   const visibleItems = items
   const emptyText = 'No scans found.'
-  const useScanForBatch = (scan) => navigate('/new-batch', { state: { scan } })
+  const useScanForBatch = (scan) => navigate('/batch/new', { state: { scan } })
 
   return (
     <div className="scan-gallery">
@@ -227,7 +233,7 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
         <div className="gal-grid">
           {visibleItems.map((s) => {
             const age = Date.now() - new Date(s.created_at).getTime()
-            const canList = Number.isFinite(age) && age < 7 * 60 * 60 * 1000
+            const canList = Number.isFinite(age) && age >= 0 && age < 7 * 60 * 60 * 1000
             return (
               <div className="gal-entry" key={`${s.source}-${s.id}`}>
                 <Tile scan={s} showCamera={showCamera} onOpen={setSelected} />

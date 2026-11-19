@@ -1,30 +1,8 @@
 import './TransactionExitModal.css'
-import { useState } from 'react'
 
-export default function TransactionExitModal({ open, onConfirm, onCancel, userId, busy, error }) {
-  const [dontRemind, setDontRemind] = useState(false)
-
+export default function TransactionExitModal({ open, onConfirm, onCancel, busy, error }) {
   if (!open) return null
 
-  const savePref = () => {
-    if (!dontRemind) return
-    try {
-      const key = `agriresq.no_transaction_exit_reminder.${userId || 'anon'}`
-      localStorage.setItem(key, '1')
-    } catch (e) {
-      // ignore storage errors
-    }
-  }
-
-  const handleConfirm = (val) => {
-    savePref()
-    onConfirm(val)
-  }
-
-  const handleCancel = () => {
-    savePref()
-    onCancel()
-  }
 
   return (
     <div className="exit-modal-overlay">
@@ -32,16 +10,12 @@ export default function TransactionExitModal({ open, onConfirm, onCancel, userId
         <h3>Transaction completed?</h3>
         <p>If yes, this chat will be moved to archives. If not, it stays in your inbox.</p>
 
-        <label className="dont-remind">
-          <input type="checkbox" checked={dontRemind} onChange={(e) => setDontRemind(e.target.checked)} />
-          <span>Don't remind me again</span>
-        </label>
 
         {error && <p role="alert" className="notice error">{error}</p>}
         <div className="exit-modal-actions">
-          <button className="btn btn-green" disabled={busy} onClick={() => handleConfirm(true)}>Yes, completed</button>
-          <button className="btn btn-outline-dark" disabled={busy} onClick={() => handleConfirm(false)}>No, keep in inbox</button>
-          <button className="btn-link" disabled={busy} onClick={handleCancel}>Stay in chat</button>
+          <button className="btn btn-green" disabled={busy} onClick={() => onConfirm(true)}>Yes, completed</button>
+          <button className="btn btn-outline-dark" disabled={busy} onClick={() => onConfirm(false)}>No, keep in inbox</button>
+          <button className="btn-link" disabled={busy} onClick={onCancel}>Stay in chat</button>
         </div>
       </div>
     </div>

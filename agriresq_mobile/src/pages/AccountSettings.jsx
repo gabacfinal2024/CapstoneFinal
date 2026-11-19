@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { useAuth } from '../context/AuthContext'
 import BottomNav from '../components/BottomNav'
 import { supabase } from '../lib/supabase'
@@ -79,7 +79,7 @@ export default function AccountSettings() {
   return (
     <div className="app-shell">
       <div className="page account-settings">
-        <Link to="/profile" className="back-link">← Back</Link>
+        <BackLink to="/profile" className="back-link">← Back</BackLink>
         <h2>Account Settings</h2>
 
         <form className="card settings-card" onSubmit={saveProfile}>

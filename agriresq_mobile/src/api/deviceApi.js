@@ -44,7 +44,14 @@ async function request(path, { method = 'GET', body, timeoutMs = 60000 } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }, timeoutMs)
   } catch (err) {
-    if (err.name === 'AbortError') throw new Error('The AgriResQ server took too long to respond.')
+    if (err.name === 'AbortError') {
+      const localLike = /^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?=[:/]|$)/i.test(BACKEND_URL)
+      throw new Error(
+        localLike
+          ? `The AgriResQ server did not respond at ${BACKEND_URL}. Update VITE_BACKEND_URL to your laptop's LAN IP or the hosted backend URL.`
+          : `The AgriResQ server took too long to respond at ${BACKEND_URL}. Check your internet connection and try again.`
+      )
+    }
     throw new Error(`Cannot connect to the AgriResQ server at ${BACKEND_URL}. Check your internet connection and the server's app access settings.`)
   }
   if (!res.ok) {

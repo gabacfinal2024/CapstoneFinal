@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { ArrowLeft, ExternalLink, Thermometer, Droplets, Flame, Gauge } from 'lucide-react'
 import { deviceApi } from '../api/deviceApi'
 import { CROP_LABELS } from '../utils/helpers'
@@ -61,7 +61,6 @@ function Study({ s }) {
 }
 
 export default function Basis() {
-  const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -89,9 +88,9 @@ export default function Basis() {
   return (
     <div className="app-shell">
       <div className="page page-no-nav basis">
-        <button type="button" className="basis-back" onClick={() => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/profile', { replace: true }))}>
+        <BackLink to="/profile" className="basis-back">
           <ArrowLeft size={18} /> Back
-        </button>
+        </BackLink>
         <h1 className="basis-title">How days-to-spoil is calculated</h1>
         <p className="basis-sub">The “days to spoil” you see is an estimate. Here is how it works and what it is based on.</p>
 
@@ -168,7 +167,7 @@ export default function Basis() {
           </>
         )}
 
-        <Link to="/profile" className="basis-foot">Back to Profile</Link>
+        <BackLink to="/profile" className="basis-foot">Back</BackLink>
       </div>
     </div>
   )

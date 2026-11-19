@@ -130,12 +130,11 @@ export function storageLine(product) {
   return `Storage ${parts.join(', ')}`
 }
 
-/** 'At this climate one real day uses 1.4 days of eggplant shelf life' for a /api/stall/conditions/ aging entry. */
-export function agingLine(crop, aging) {
+export function formatShelfLifeUsage(aging) {
   const n = numOrNull(aging?.days_used_per_day)
-  if (n == null) return ''
-  const name = (CROP_LABELS[crop] || String(crop || 'produce')).toLowerCase()
-  return `At this climate one real day uses ${n.toFixed(1)} days of ${name} shelf life`
+  if (n == null) return 'No estimate yet'
+  const days = n.toFixed(1)
+  return `${days} ${days === '1.0' ? 'day' : 'days'}`
 }
 
 export function formatDaysLeft(n) {

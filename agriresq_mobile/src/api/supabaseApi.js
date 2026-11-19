@@ -7,11 +7,13 @@ const PRODUCT_SELECT = `
 `
 
 // Buyers never read sensor data: listings are selected without the climate table.
-const LISTING_SELECT = `
+const listingSelect = (productRelation) => `
   *,
-  products:product_id (${PRODUCT_SELECT}),
+  ${productRelation} (${PRODUCT_SELECT}),
   profiles:operator_id (full_name, stall_number)
 `
+const LISTING_SELECT = listingSelect('products:product_id')
+const ACTIVE_LISTING_SELECT = listingSelect('products!inner')
 
 // Operator queries also embed the private product_climate row (object, array or null). The table only exists
 // after supabase/010_sensor_columns.sql, so if the embed is rejected the same query is retried without it.
@@ -235,7 +237,7 @@ export const api = {
       notes: body.notes || '',
       pickup_location: body.pickup_location || 'Bulua West Terminal',
       iot_node_id: body.iot_node_id || null,
-      is_listed: status !== 'RED' && body.is_listed !== false && (status === 'AMBER' || body.is_listed),
+      is_listed: false,
     }
     const { data, error } = await supabase.from('products').insert(payload).select().single()
     if (error) throw new Error(error.message)
@@ -248,13 +250,22 @@ export const api = {
       source: body.ml_confidence ? 'VISION_ML' : 'MANUAL',
     })
 
-    if (data.is_listed && status !== 'RED') {
-      await api._ensureListing(data)
+    const shouldPublish = status !== 'RED' && body.is_listed !== false && (status === 'AMBER' || body.is_listed)
+    if (shouldPublish) {
+      try {
+        await api._ensureListing(data)
+        return { ...data, is_listed: true }
+      } catch (err) {
+        return { ...data, listingError: err.message || 'Could not publish the listing.' }
+      }
     }
     return data
   },
 
   async _ensureListing(product) {
+    if (product.freshness_status === 'RED' || !(Number(product.quantity_kg) > 0)) {
+      throw new Error('This batch is no longer eligible to be listed.')
+    }
     const pricing = computeDynamicPrice(
       product.base_price_per_kg,
       product.quantity_kg,
@@ -423,9 +434,11 @@ export const api = {
   async marketplace(params = {}) {
     let query = supabase
       .from('marketplace_listings')
-      .select(LISTING_SELECT)
+      .select(ACTIVE_LISTING_SELECT)
       .eq('listing_status', 'ACTIVE')
       .gt('expires_at', new Date().toISOString())
+      .neq('products.freshness_status', 'RED')
+      .gt('products.quantity_kg', 0)
       .order('created_at', { ascending: false })
     if (params.crop_type) {
       query = query.eq('products.crop_type', params.crop_type)
@@ -437,7 +450,7 @@ export const api = {
         throw new Error(error.message || error)
       }
       console.debug('marketplace fetch', params, (data || []).length)
-      return data
+      return data || []
     } catch (err) {
       console.error('marketplace exception', err)
       throw err

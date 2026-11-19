@@ -63,3 +63,16 @@
 .scan-warn { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.45; color: #92400E; text-align: left; }
 .scan-warn svg { flex-shrink: 0; margin-top: 2px; }
 .analysis-none .btn, .analysis-mismatch .btn { width: 100%; }
+.publish-recovery {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.publish-recovery__actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}

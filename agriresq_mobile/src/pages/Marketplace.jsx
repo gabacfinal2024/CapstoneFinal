@@ -1,7 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useLayoutEffect, useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown } from 'lucide-react'
+import useEntryState from '../hooks/useEntryState'
+import usePolling from '../hooks/usePolling'
 import { api } from '../api/supabaseApi'
+import { useBackNavigation } from '../context/BackNavigationContext'
 import ProduceCard from '../components/ProduceCard'
 import BottomNav from '../components/BottomNav'
+import ErrorNotice from '../components/ErrorNotice'
 import './Marketplace.css'
 
 const TABS = [
@@ -17,42 +22,65 @@ const CROP_LABELS = {
   CARROT: 'Carrot',
 }
 
+const SORT_OPTIONS = [
+  { id: 'newest', label: 'Newest' },
+  { id: 'price_asc', label: 'Price, low to high' },
+  { id: 'price_desc', label: 'Price, high to low' },
+  { id: 'freshness', label: 'Freshness' },
+]
+
 export default function Marketplace() {
+  const { registerGuard } = useBackNavigation()
   const [listings, setListings] = useState([])
-  const [tab, setTab] = useState('all')
-  const [search, setSearch] = useState('')
-  const [producer, setProducer] = useState('')
-  const [sort, setSort] = useState('newest')
+  const [tab, setTab] = useEntryState('tab', 'all')
+  const [search, setSearch] = useEntryState('search', '')
+  const [producer, setProducer] = useEntryState('producer', '')
+  const [sort, setSort] = useEntryState('sort', 'newest')
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortTrigger = useRef(null)
+  const request = useRef(0)
+  const selectedSort = SORT_OPTIONS.find((option) => option.id === sort) || SORT_OPTIONS[0]
 
+  const refresh = useCallback(async () => {
+    const current = ++request.current
+    try {
+      const data = await api.marketplace()
+      if (current !== request.current) return
+      setListings(data)
+      setLoadError('')
+    } catch (err) {
+      if (current === request.current) setLoadError(err.message || 'Could not load the listings.')
+    } finally {
+      if (current === request.current) setLoading(false)
+    }
+  }, [])
+
+  usePolling(refresh, 30000)
   useEffect(() => {
-    setLoading(true)
-    const params = tab !== 'all' ? { crop_type: tab } : {}
-    api.marketplace(params)
-      .then((data) => { setListings(data); setLoadError('') })
-      .catch((err) => {
-        console.error('Marketplace load failed', err)
-        setListings([])
-        setLoadError(err.message || 'Could not load the listings')
-      })
-      .finally(() => setLoading(false))
-  }, [tab])
+    const unsubscribe = api.subscribeMarketplace(refresh)
+    return () => { request.current += 1; unsubscribe() }
+  }, [refresh])
 
-  useEffect(() => {
-    const unsub = api.subscribeMarketplace(() => {
-      const params = tab !== 'all' ? { crop_type: tab } : {}
-      api.marketplace(params).then((data) => setListings(data)).catch((err) => { console.error('marketplace refresh failed', err); setListings([]) })
-    })
-    return () => unsub()
-  }, [tab])
+  const closeSort = useCallback(() => {
+    setSortOpen(false)
+    sortTrigger.current?.focus()
+  }, [])
+  useLayoutEffect(() => {
+    if (!sortOpen) return undefined
+    return registerGuard(() => { closeSort(); return true })
+  }, [closeSort, registerGuard, sortOpen])
 
+  const query = search.trim().toLowerCase()
+  const vendor = producer.trim().toLowerCase()
+  const hasFilters = tab !== 'all' || Boolean(query || vendor)
   const filtered = listings.filter((l) => {
     const crop = l.products?.crop_type || ''
     const cropLabel = (CROP_LABELS[crop] || crop).toLowerCase()
     const matchesTab = tab === 'all' ? true : crop === tab
-    const matchesSearch = !search || cropLabel.includes(search.toLowerCase()) || (l.products?.notes || '').toLowerCase().includes(search.toLowerCase())
-    const matchesProducer = !producer || (l.profiles?.full_name || '').toLowerCase().includes(producer.toLowerCase())
+    const matchesSearch = !query || cropLabel.includes(query) || (l.products?.notes || '').toLowerCase().includes(query)
+    const matchesProducer = !vendor || (l.profiles?.full_name || '').toLowerCase().includes(vendor)
     return matchesTab && matchesSearch && matchesProducer
   })
 
@@ -72,41 +100,53 @@ export default function Marketplace() {
         </header>
 
         <div className="search-bar">
-          <input type="search" placeholder="Search produce (crop or notes)" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <input type="search" placeholder="Filter by vendor name" value={producer} onChange={(e) => setProducer(e.target.value)} />
+          <input type="search" aria-label="Search produce" placeholder="Search produce (crop or notes)" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input type="search" aria-label="Vendor name" placeholder="Filter by vendor name" value={producer} onChange={(e) => setProducer(e.target.value)} />
         </div>
 
-          <div className="category-tabs">
+        <div className="category-tabs" role="group" aria-label="Crop type">
           {TABS.map((t) => (
-            <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+            <button type="button" key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} aria-pressed={tab === t.id} onClick={() => setTab(t.id)}>
               {t.label}
             </button>
           ))}
-          <div className="sort-select">
-            <label>Sort:</label>
-            <select value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="newest">Newest</option>
-              <option value="price_asc">Price: Low → High</option>
-              <option value="price_desc">Price: High → Low</option>
-              <option value="freshness">Freshness</option>
-            </select>
+        </div>
+
+        <div className="market-sort" onKeyDown={(event) => {
+          if (sortOpen && event.key === 'Escape') { event.preventDefault(); closeSort() }
+        }}>
+          <button type="button" ref={sortTrigger} className="market-sort__trigger"
+            aria-expanded={sortOpen} aria-controls="market-sort-options" onClick={() => setSortOpen(!sortOpen)}>
+            <span>Sort by</span>
+            <strong>{selectedSort.label}</strong>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          <div id="market-sort-options" role="group" aria-label="Sort options" hidden={!sortOpen} className="market-sort__options">
+            {SORT_OPTIONS.map((option) => (
+              <button type="button" key={option.id} aria-pressed={selectedSort.id === option.id}
+                onClick={() => { setSort(option.id); closeSort() }}>
+                {option.label}
+                {selectedSort.id === option.id && <Check size={17} aria-hidden="true" />}
+              </button>
+            ))}
           </div>
         </div>
 
+        <ErrorNotice message={loadError} onRetry={refresh} />
         {loading ? (
           <p className="muted">Loading listings…</p>
         ) : sorted.length ? (
           <div className="listing-grid">
             {sorted.map((l) => <ProduceCard key={l.id} listing={l} />)}
           </div>
-        ) : loadError ? (
+        ) : !loadError && (
           <div className="empty-state card">
-            <p>Could not load the listings.</p>
-            <p className="muted">{loadError}. Check your connection and pull to refresh.</p>
-          </div>
-        ) : (
-          <div className="empty-state card">
-            <p>No listings yet.</p>
+            <p>{hasFilters ? 'No listings match these filters.' : 'No active listings right now.'}</p>
+            {hasFilters && <button type="button" className="btn btn-ghost" onClick={() => {
+              setTab('all')
+              setSearch('')
+              setProducer('')
+            }}>Clear filters</button>}
           </div>
         )}
       </div>

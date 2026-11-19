@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone } from 'lucide-react'
 import { deviceApi, deviceSetup, signalLabel } from '../api/deviceApi'
 import { useAuth } from '../context/AuthContext'
@@ -245,7 +246,7 @@ export default function AddDevice() {
   return (
     <div className="app-shell">
       <div className="page page-no-nav add-device">
-        <Link to="/devices" className="dev-back"><ArrowLeft size={16} /> Devices</Link>
+        <BackLink to="/devices" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
         <h1 className="dev-title">Add a {isSensorSetup ? 'sensor node' : 'camera'}</h1>
         <p className="dev-subtitle">{isSensorSetup
           ? 'Pair your ESP32 DHT22 node to your stall account.'

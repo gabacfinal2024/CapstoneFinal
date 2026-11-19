@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import IoTReadings from '../components/IoTReadings'
 import BatchCard from '../components/BatchCard'
 import ProduceCard from '../components/ProduceCard'
-import StallClimateCard from '../components/StallClimateCard'
 import BottomNav from '../components/BottomNav'
 import './Dashboard.css'
 import { supabase } from '../lib/supabase'
@@ -159,7 +158,6 @@ export default function Dashboard() {
                 <Plus size={16} /> Add a sensor node to see live temperature and humidity
               </Link>
             )}
-            <StallClimateCard crops={(data?.active_batches || []).map((b) => b.crop_type)} />
           </section>
         )}
 

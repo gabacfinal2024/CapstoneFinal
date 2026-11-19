@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { useAuth } from '../context/AuthContext'
 import './Auth.css'
 
@@ -33,7 +34,7 @@ export default function Register() {
   return (
     <div className="auth-page auth-page--bulua page-no-nav">
       <div className="auth-header">
-        <Link to="/" className="back-link">← Back</Link>
+        <BackLink to="/" className="back-link">← Back</BackLink>
         <h2>Create Account</h2>
       </div>
       {registeredEmail ? (

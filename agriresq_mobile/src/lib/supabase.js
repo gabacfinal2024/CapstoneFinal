@@ -17,10 +17,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 })
 
-// In local development, a phone may open the Vite server through the laptop's LAN IP. Hosted builds and
-// the APK use the configured backend URL, so sensors and apps use the same cloud API.
+// In local development, a phone may open the Vite dev server through the laptop's LAN IP. For the APK and
+// packaged builds, the backend should not silently fall back to localhost because the device will always
+// resolve that to itself. Prefer the explicit Vite env, then the laptop's LAN IP in dev, and finally the
+// hosted API used by the production app.
 const pageHost = typeof window !== 'undefined' ? window.location.hostname : ''
-const fromLaptop = import.meta.env.DEV && pageHost && !['localhost', '127.0.0.1', ''].includes(pageHost)
-export const BACKEND_URL = fromLaptop
-  ? `${window.location.protocol}//${pageHost}:8000`
-  : import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
+const fromLaptop = import.meta.env.DEV && pageHost && !['localhost', '127.0.0.1', '0.0.0.0', ''].includes(pageHost)
+export const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || (fromLaptop ? `${window.location.protocol}//${pageHost}:8000` : 'https://agriresq.onrender.com')).replace(/\/$/, '')

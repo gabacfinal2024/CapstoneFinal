@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Capacitor, registerPlugin } from '@capacitor/core'
+import { BackLink } from '../context/BackNavigationContext'
 import {
   ArrowLeft, ScanLine, Loader2, RotateCw, WifiOff, Trash2, RefreshCw,
-  Plus, X, UserPlus, Users, LogOut, Download,
+  Plus, X, UserPlus, Users, LogOut, ChevronRight,
 } from 'lucide-react'
 import { deviceApi, timeAgo, signalLabel, canOperate, canManage, isSharedWithMe, isSensor, deviceFallbackName } from '../api/deviceApi'
 import { api } from '../api/supabaseApi'
@@ -15,7 +15,6 @@ import LiveCameraView from '../components/LiveCameraView'
 import ScanResultCard, { isNoVegetable, scanSummary } from '../components/ScanResultCard'
 import ScanGallery from '../components/ScanGallery'
 import { SensorPanel } from '../components/CameraSensorCard'
-import StallClimateCard from '../components/StallClimateCard'
 import { AccessBadge, SensorBadge } from '../components/MonitorBadges'
 import OnlinePill from '../components/OnlinePill'
 import ErrorNotice from '../components/ErrorNotice'
@@ -25,7 +24,6 @@ import '../styles/devices.css'
 import './DeviceDetail.css'
 
 const REFRESH_MS = 5000
-const CsvExport = registerPlugin('CsvExport')
 const DEFAULT_TIMES = ['07:00', '12:00', '16:00']
 const MAX_TIMES = 6
 const INTERVALS = [
@@ -84,54 +82,6 @@ const to12h = (t) => {
 
 const fmt = (n, digits = 1) => (Number.isFinite(Number(n)) && n != null ? Number(n).toFixed(digits) : '—')
 
-function manilaDateInputValue() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(new Date())
-  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]))
-  return `${values.year}-${values.month}-${values.day}`
-}
-
-function csvCell(value) {
-  const text = value == null ? '' : String(value)
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
-function average(readings, key) {
-  const values = readings.map((reading) => reading[key])
-    .filter((value) => value != null && value !== '').map(Number).filter(Number.isFinite)
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
-}
-
-async function downloadDailyReport({ date, report, device, stallNumber }) {
-  const name = device.name || deviceFallbackName(device)
-  const { readings, high_heat_index_hours: highHours, heat_index_threshold_c: threshold } = report
-  const rows = [
-    ['DAILY DHT22 REPORT', 'Asia/Manila'],
-    ['report_date', date],
-    ['stall_number', 'stall_location', 'device', 'readings_count', 'average_temperature_c', 'average_humidity_rh', 'average_vpd_kpa',
-      `hours_with_heat_index_at_or_above_${threshold}_c`],
-    [stallNumber, device.stall_location || '', name, readings.length,
-      average(readings, 'temperature_c'), average(readings, 'humidity_rh'), average(readings, 'vpd_kpa'),
-      highHours.join(', ') || 'None recorded'],
-    [],
-    ['READINGS'],
-    ['time', 'temperature_c', 'humidity_rh', 'vpd_kpa'],
-    ...readings.map((reading) => [reading.time, reading.temperature_c, reading.humidity_rh, reading.vpd_kpa]),
-  ]
-  const content = '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
-  const filename = `agriresq-dht22-${stallNumber || 'stall'}-${date}.csv`
-  if (Capacitor.getPlatform() === 'android') {
-    return CsvExport.save({ filename, content })
-  }
-  const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  link.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-}
-
 /** Remount per camera so one camera's data never flashes on another camera's page. */
 export default function DeviceDetail() {
   const { id } = useParams()
@@ -147,14 +97,6 @@ function DeviceDetailPage({ id }) {
   const [scans, setScans] = useState([]) // vegetable scans only, for "last vegetable seen"
   const [readings, setReadings] = useState([])
   const [readingError, setReadingError] = useState('')
-  const [reportDate, setReportDate] = useState(manilaDateInputValue)
-  const [report, setReport] = useState(null)
-  const [reportLoading, setReportLoading] = useState(false)
-  const [reportError, setReportError] = useState('')
-  const [reportVersion, setReportVersion] = useState(0)
-  const [exporting, setExporting] = useState(false)
-  const [exportError, setExportError] = useState('')
-  const [ownerStallDetails, setOwnerStallDetails] = useState(null)
   const [galleryKey, setGalleryKey] = useState(0)
   const [monitors, setMonitors] = useState(null)
   const [monitorEmail, setMonitorEmail] = useState('')
@@ -220,7 +162,6 @@ function DeviceDetailPage({ id }) {
 
   const refresh = async () => {
     setRefreshing(true)
-    if (sensor) setReportVersion((version) => version + 1)
     await Promise.all([loadDevice(), loadHistory(), sensor ? loadReadings() : null, loadMonitors()])
     setGalleryKey((k) => k + 1)
     setRefreshing(false)
@@ -232,36 +173,11 @@ function DeviceDetailPage({ id }) {
   usePolling(loadReadings, 5000, { enabled: sensor })
   const { stalls } = useStallConditions({ enabled: sensor })
   const chuRate = sensor ? stallChuRate(stalls, device) : null
-  const latestReadingId = reportDate === manilaDateInputValue() ? device?.latest_reading?.id : null
-  const dailyReport = report?.date === reportDate ? report.data : null
-  const dailyReadings = dailyReport?.readings || []
-
-  useEffect(() => {
-    if (!sensor || !/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) return undefined
-    let cancelled = false
-    setReportLoading(true)
-    setReportError('')
-    deviceApi.dailyReport(id, reportDate, { details: true })
-      .then((data) => { if (!cancelled) setReport({ date: reportDate, data }) })
-      .catch((err) => { if (!cancelled) setReportError(err.message || 'Could not load the daily report.') })
-      .finally(() => { if (!cancelled) setReportLoading(false) })
-    return () => { cancelled = true }
-  }, [id, reportDate, sensor, latestReadingId, reportVersion])
-
   useEffect(() => {
     let cancelled = false
     api.batches().then((b) => { if (!cancelled) setBatches(b || []) }).catch(() => { if (!cancelled) setBatches([]) })
     return () => { cancelled = true }
   }, [])
-
-  useEffect(() => {
-    if (!device?.operator_id) return undefined
-    let cancelled = false
-    api.operatorStallDetails(device.operator_id)
-      .then((details) => { if (!cancelled) setOwnerStallDetails(details) })
-      .catch(() => { if (!cancelled) setOwnerStallDetails(null) })
-    return () => { cancelled = true }
-  }, [device?.operator_id])
 
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setDirty(true) }
 
@@ -392,7 +308,7 @@ function DeviceDetailPage({ id }) {
     return (
       <div className="app-shell">
         <div className="page page-no-nav">
-          <Link to="/devices" className="dev-back"><ArrowLeft size={16} /> Devices</Link>
+          <BackLink to="/devices" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
           <ErrorNotice message={loadError} onRetry={refresh} retrying={refreshing} />
         </div>
       </div>
@@ -403,7 +319,7 @@ function DeviceDetailPage({ id }) {
     return (
       <div className="app-shell">
         <div className="page page-no-nav" aria-busy="true">
-          <Link to="/devices" className="dev-back"><ArrowLeft size={16} /> Devices</Link>
+          <BackLink to="/devices" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
           <Skeleton height={26} width="55%" style={{ marginBottom: 14 }} />
           <Skeleton height={220} radius={14} style={{ marginBottom: 14 }} />
           <SkeletonCard lines={4} />
@@ -421,30 +337,10 @@ function DeviceDetailPage({ id }) {
   const linkedBatch = operate ? batches.find((b) => String(b.id) === String(device.product_id)) : null
   const monitorCount = monitors?.count ?? device.monitor_count ?? 1
   const monitorMax = monitors?.maximum ?? 2
-  const stallNumber = ownerStallDetails?.stall_number || (device.operator_id === user?.id ? user?.stall_number : '') || ''
-  const stallLabel = stallNumber ? `Stall ${stallNumber}` : (device.stall_location || 'Stall number unavailable')
-  const avgTemperature = average(dailyReadings, 'temperature_c')
-  const avgHumidity = average(dailyReadings, 'humidity_rh')
-  const avgVpd = average(dailyReadings, 'vpd_kpa')
-
-  const exportReport = async () => {
-    setExporting(true)
-    setExportError('')
-    try {
-      const report = await deviceApi.dailyReport(id, reportDate, { details: true })
-      if (!report.readings.length) throw new Error('No saved readings for this date.')
-      await downloadDailyReport({ date: reportDate, report, device, stallNumber })
-    } catch (err) {
-      setExportError(err.message || 'Could not save the sensor report.')
-    } finally {
-      setExporting(false)
-    }
-  }
-
   return (
     <div className="app-shell">
       <div className="page page-no-nav device-detail">
-        <Link to="/devices" className="dev-back"><ArrowLeft size={16} /> Devices</Link>
+        <BackLink to="/devices" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
 
         <div className="device-detail__head">
           <div>
@@ -474,40 +370,11 @@ function DeviceDetailPage({ id }) {
             <p className="field-hint">Readings refresh automatically. The sensor reports about once a minute.</p>
             {readingError && <p className="notice error" role="alert">Could not refresh sensor readings: {readingError}</p>}
             <SensorPanel reading={device.latest_reading} readings={readings} dhtPin={device.dht_pin} chuRate={chuRate} />
-            <div className="daily-report">
-              <div className="daily-report__head">
-                <div>
-                  <h4>Daily sensor report</h4>
-                  <p>{stallLabel} · averages and saved readings</p>
-                </div>
-                <label htmlFor="sensor-report-date">Report date</label>
-              </div>
-              <div className="daily-report__controls">
-                <input id="sensor-report-date" type="date" value={reportDate} max={manilaDateInputValue()}
-                  disabled={exporting} onChange={(event) => { setReportDate(event.target.value); setExportError('') }} />
-                <button type="button" className="btn btn-green" onClick={exportReport}
-                  disabled={exporting || reportLoading || !!reportError || !dailyReadings.length}>
-                  <Download size={16} /> {exporting ? 'Saving…' : 'Download CSV'}
-                </button>
-              </div>
-              {exportError && <p className="daily-report__message" role="alert">{exportError}</p>}
-              {reportError ? (
-                <p className="daily-report__message" role="alert">{reportError}</p>
-              ) : (
-                <div className="daily-report__averages" aria-live="polite">
-                  <div><span>Temperature avg</span><strong>{reportLoading ? 'Loading…' : `${fmt(avgTemperature)}${avgTemperature != null ? '°C' : ''}`}</strong></div>
-                  <div><span>Average humidity</span><strong>{reportLoading ? 'Loading…' : avgHumidity == null ? '—' : `${fmt(avgHumidity)}% RH`}</strong></div>
-                  <div><span>Average VPD</span><strong>{reportLoading ? 'Loading…' : avgVpd == null ? '—' : `${fmt(avgVpd, 2)} kPa`}</strong></div>
-                  <div><span>High heat index hours</span><strong>{reportLoading ? 'Loading…' : dailyReport?.high_heat_index_hours.length ?? '—'}</strong></div>
-                  {!reportLoading && dailyReadings.length > 0 && (
-                    <p>Hours with a reading at or above {dailyReport.heat_index_threshold_c}°C heat index: {dailyReport.high_heat_index_hours.join(', ') || 'None recorded'}</p>
-                  )}
-                  <p>{reportLoading ? 'Loading readings…' : dailyReadings.length
-                    ? `${dailyReadings.length} saved reading${dailyReadings.length === 1 ? '' : 's'} for this day`
-                    : 'No saved readings for this date.'}</p>
-                </div>
-              )}
-            </div>
+            {operate && (
+              <Link to={`/devices/${id}/report`} className="btn btn-green sensor-report-link">
+                Sensor Readings Report <ChevronRight size={18} />
+              </Link>
+            )}
           </section>
         ) : (
           <>
@@ -537,8 +404,6 @@ function DeviceDetailPage({ id }) {
           </>
         )}
 
-        {sensor && operate && <StallClimateCard crops={batches.map((b) => b.crop_type)} className="dev-section" />}
-
         {!sensor && (
           <section className="dev-section card">
             <div className="section-head">
@@ -566,15 +431,12 @@ function DeviceDetailPage({ id }) {
         )}
 
         <section className="dev-section card">
-          <div className="section-head">
-            <h3><Users size={16} style={{ verticalAlign: '-3px' }} /> {sensor ? 'Sensor access' : 'Camera access'}</h3>
-            <span className="monitor-count is-ok">
-              {monitorCount} of {monitorMax} people have access
+          <div className="section-head device-access__head">
+            <h3><Users size={16} aria-hidden="true" /> {sensor ? 'Sensor access' : 'Camera access'}</h3>
+            <span className="monitor-count is-ok" aria-label={`${monitorCount} of ${monitorMax} people have access`}>
+              {monitorCount} of {monitorMax}
             </span>
           </div>
-          <p className="field-hint" style={{ marginTop: 0, marginBottom: 10 }}>
-            The owner may share this {what} with one other stall operator. Administrators can manage access from the web Devices page.
-          </p>
 
           <ul className="monitor-list">
             <li>
@@ -602,16 +464,15 @@ function DeviceDetailPage({ id }) {
               </li>
             ))}
             {monitors && monitors.monitors.length === 0 && (
-              <li className="monitor-empty">No one else has access (optional).</li>
+              <li className="monitor-empty">No shared operators yet.</li>
             )}
           </ul>
-          <p className="field-hint">Administrator: always has access</p>
 
           {monitorMsg && <div className={`notice ${monitorMsg.type}`} style={{ marginTop: 10, marginBottom: 0 }}>{monitorMsg.text}</div>}
 
           {manage && monitorCount < monitorMax && (
             <form className="monitor-form" onSubmit={addMonitor}>
-              <label htmlFor="monitor-email">Give access to another stall operator (email)</label>
+              <label htmlFor="monitor-email">Share with a stall operator</label>
               <div className="monitor-form__row">
                 <input id="monitor-email" type="email" inputMode="email" autoCapitalize="none" autoComplete="off" placeholder="operator@example.com"
                   value={monitorEmail} onChange={(e) => setMonitorEmail(e.target.value)} />

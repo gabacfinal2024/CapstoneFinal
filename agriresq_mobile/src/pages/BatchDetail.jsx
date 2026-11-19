@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { useParams, Link, useLocation } from 'react-router-dom'
+import { useParams, useLocation } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { Camera, Loader2 } from 'lucide-react'
 import { api } from '../api/supabaseApi'
 import { CROP_LABELS, formatCurrency, formatDateTime, formatDays } from '../utils/helpers'
@@ -44,7 +45,7 @@ export default function BatchDetail() {
     return (
       <div className="app-shell">
         <div className="page page-no-nav">
-          <Link to="/home" className="back-link">← Back to Dashboard</Link>
+          <BackLink to="/home" className="back-link">← Back</BackLink>
           {location.state?.warning && <p className="notice warning" role="status">{location.state.warning}</p>}
           {error ? <p className="error-text">{error}</p> : <p className="muted">Loading...</p>}
         </div>
@@ -91,7 +92,7 @@ export default function BatchDetail() {
   return (
     <div className="app-shell">
       <div className="page batch-detail page-no-nav" style={{ paddingBottom: 24 }}>
-        <Link to="/home" className="back-link">← Back to Dashboard</Link>
+        <BackLink to="/home" className="back-link">← Back</BackLink>
         <ProductImage src={batch.image_url} crop={crop} className="detail-hero" />
         <div className="detail-title-row">
           <h1>{CROP_LABELS[crop]} #{batch.id}</h1>

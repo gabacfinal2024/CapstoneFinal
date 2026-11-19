@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { BackLink } from '../context/BackNavigationContext'
 import { api } from '../api/supabaseApi'
 import { computeDynamicPrice, daysLeftSinceHarvest, statusFromDays, worseStatus } from '../api/pricing'
 import StatusBadge from '../components/StatusBadge'
@@ -16,6 +17,7 @@ export default function NewBatch() {
   const navigate = useNavigate()
   const location = useLocation()
   const fileInputRef = useRef(null)
+  const submitting = useRef(false)
   const [nodes, setNodes] = useState([])
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
@@ -32,10 +34,9 @@ export default function NewBatch() {
   const [harvestKnown, setHarvestKnown] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [listingMissing, setListingMissing] = useState(false)
+  const [savedBatch, setSavedBatch] = useState(null)
   const [publishLoading, setPublishLoading] = useState(false)
   const [publishError, setPublishError] = useState('')
-  const [lastBatchId, setLastBatchId] = useState(null)
   const [camLoading, setCamLoading] = useState(false)
 
   useEffect(() => {
@@ -169,6 +170,7 @@ export default function NewBatch() {
   /** Step 4–5: Save product + freshness to Supabase → listings */
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (submitting.current || savedBatch) return
     const canListAtSubmit = Number.isFinite(captureTime) &&
       Date.now() - captureTime >= 0 && Date.now() - captureTime < 7 * 60 * 60 * 1000
     if (harvestKnown && !form.harvest_datetime) {
@@ -197,6 +199,7 @@ export default function NewBatch() {
       return
     }
 
+    submitting.current = true
     setLoading(true)
     setError('')
     try {
@@ -231,7 +234,6 @@ export default function NewBatch() {
         image_url: imageUrl || '',
         is_listed: status !== 'RED' && canListAtSubmit,
       })
-      setLastBatchId(batch.id)
       const selectedDevice = nodes.find((node) => String(node.id) === String(form.iot_node_id))
       if (selectedDevice && !isSensor(selectedDevice)) {
         try {
@@ -248,58 +250,36 @@ export default function NewBatch() {
           scanLinkWarning = 'The batch was saved, but its photo scan could not be linked to the freshness history. Contact support if this continues.'
         }
       }
-      if (batch.is_listed) {
-        try {
-          let listing = await api.getListingByProduct(batch.id)
-          const start = Date.now()
-          while (!listing && Date.now() - start < 10000) {
-            await new Promise((r) => setTimeout(r, 800))
-            listing = await api.getListingByProduct(batch.id)
-          }
-          if (!listing) setListingMissing(true)
-        } catch (err) {
-          console.warn('Listing check failed', err)
-          setListingMissing(true)
-        }
+      if (batch.listingError) {
+        setSavedBatch({ id: batch.id, warning: scanLinkWarning, captureTime })
+        setPublishError(batch.listingError)
+        return
       }
 
-      navigate(`/batch/${batch.id}`, { state: { warning: scanLinkWarning } })
+      navigate(`/batch/${batch.id}`, { replace: true, state: { warning: scanLinkWarning } })
     } catch (err) {
       setError(err.message)
     } finally {
+      submitting.current = false
       setLoading(false)
     }
   }
 
-  const forcePublish = async () => {
-    if (!Number.isFinite(captureTime) || Date.now() - captureTime < 0 ||
-        Date.now() - captureTime >= 7 * 60 * 60 * 1000) {
+  const openSavedBatch = () => navigate(`/batch/${savedBatch.id}`, { replace: true, state: { warning: savedBatch.warning } })
+
+  const retryPublish = async () => {
+    if (publishLoading) return
+    const age = Date.now() - savedBatch.captureTime
+    if (!Number.isFinite(age) || age < 0 || age >= 7 * 60 * 60 * 1000) {
       setPublishError('This photo is more than 7 hours old. It can remain in inventory, but it can no longer be listed.')
       return
     }
     setPublishLoading(true)
     setPublishError('')
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const uid = user?.id
-      const prodId = lastBatchId
-      const { data: product } = await supabase.from('products').select('*').eq('id', prodId).maybeSingle()
-      if (!product) throw new Error('Product not found')
-      // Call _ensureListing with the batch returned earlier by createBatch
-      await api._ensureListing({
-        id: product.id, operator_id: uid, base_price_per_kg: product.base_price_per_kg,
-        quantity_kg: product.quantity_kg, freshness_status: product.freshness_status,
-        auto_discount_enabled: product.auto_discount_enabled,
-        discount_override_percent: product.discount_override_percent,
-      })
-      // re-check
-      const listing = await api.getListingByProduct(product.id)
-      if (listing) {
-        setListingMissing(false)
-        alert('Listing published successfully')
-      } else {
-        setPublishError('Listing still not found after publish attempt')
-      }
+      const product = await api.batch(savedBatch.id)
+      await api._ensureListing(product)
+      openSavedBatch()
     } catch (err) {
       console.error(err)
       setPublishError(err.message || String(err))
@@ -328,7 +308,7 @@ export default function NewBatch() {
   return (
     <div className="app-shell">
       <div className="page page-no-nav auth-page">
-        <Link to="/home" className="back-link">← Back</Link>
+        <BackLink to="/home" className="back-link">← Back</BackLink>
         <h2 className="page-heading">Add Batch</h2>
         <p className="flow-hint">Capture a photo, confirm the AI analysis, then save the batch to inventory or list it for rescue.</p>
 
@@ -503,17 +483,17 @@ export default function NewBatch() {
           </div>
 
           {error && <p className="error-text">{error}</p>}
-          <button type="submit" className="btn btn-green" disabled={loading || analyzing || !imageFile || !analysis || rejectedPhoto}>
+          <button type="submit" className="btn btn-green" disabled={!!savedBatch || loading || analyzing || !imageFile || !analysis || rejectedPhoto}>
             {loading ? 'Saving batch...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo to list' : photoCanBeListed ? 'Save batch & list' : 'Save batch to inventory'}
           </button>
-          {listingMissing && (
-            <div className="card warning-block" style={{ marginTop: 12 }}>
-              <p>Listing was not found in the marketplace automatically.</p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-green" onClick={forcePublish} disabled={publishLoading}>{publishLoading ? 'Publishing...' : 'Force Publish Listing'}</button>
-                <button className="btn btn-outline" onClick={() => { setListingMissing(false); setPublishError('') }}>Dismiss</button>
+          {savedBatch && (
+            <div className="publish-recovery">
+              <p>The batch is saved. You can retry publishing it or open the saved batch.</p>
+              {publishError && <p className="error-text" role="alert">{publishError}</p>}
+              <div className="publish-recovery__actions">
+                <button type="button" className="btn btn-green" onClick={retryPublish} disabled={publishLoading}>{publishLoading ? 'Publishing…' : 'Retry publishing'}</button>
+                <button type="button" className="btn btn-outline" onClick={openSavedBatch} disabled={publishLoading}>Open batch</button>
               </div>
-              {publishError && <p className="error-text">{publishError}</p>}
             </div>
           )}
         </form>

@@ -1,8 +1,9 @@
-import { useEffect, useState, useRef } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useState, useRef } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationsContext'
+import { useBackNavigation } from '../context/BackNavigationContext'
 import usePolling from '../hooks/usePolling'
 import { ArrowLeft, MapPin, Send, Store } from 'lucide-react'
 import { CROP_LABELS, formatCurrency, formatTime } from '../utils/helpers'
@@ -18,6 +19,7 @@ export default function Chat() {
 
 function ChatThread({ id }) {
   const navigate = useNavigate()
+  const { goBack, registerGuard } = useBackNavigation()
   const { user } = useAuth()
   const { acknowledgeThread } = useNotifications()
   const [thread, setThread] = useState(null)
@@ -85,19 +87,13 @@ function ChatThread({ id }) {
   }
 
 
-  const handleBackWithPref = () => {
-    try {
-      const key = `agriresq.no_transaction_exit_reminder.${user?.id || 'anon'}`
-      const val = localStorage.getItem(key)
-      if (val === '1') {
-        navigate('/messages')
-        return
-      }
-    } catch (e) {
-      // ignore storage errors
-    }
-    setShowExitModal(true)
-  }
+  useLayoutEffect(() => registerGuard(() => {
+    if (completing) return true
+    if (!showExitModal) return false
+    setExitError('')
+    setShowExitModal(false)
+    return true
+  }), [completing, registerGuard, showExitModal])
 
   const handleExitConfirm = async (completed) => {
     setCompleting(true)
@@ -125,7 +121,7 @@ function ChatThread({ id }) {
       <div className="chat-page">
         <header className="chat-header">
           <div className="chat-header-left">
-            <button type="button" className="back-btn" onClick={handleBackWithPref} aria-label="Back to messages"><ArrowLeft size={20} /></button>
+            <button type="button" className="back-btn" onClick={() => goBack()} aria-label="Back"><ArrowLeft size={20} /></button>
             <h2>{cropName} · Rescue Deal</h2>
           </div>
           <button type="button" className="complete-btn" onClick={() => setShowExitModal(true)}>
@@ -174,7 +170,6 @@ function ChatThread({ id }) {
         open={showExitModal}
         onConfirm={handleExitConfirm}
         onCancel={() => { setExitError(''); setShowExitModal(false) }}
-        userId={user?.id}
         busy={completing}
         error={exitError}
       />
