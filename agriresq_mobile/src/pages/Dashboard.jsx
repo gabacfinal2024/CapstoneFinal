@@ -11,24 +11,22 @@ import BottomNav from '../components/BottomNav'
 import ErrorNotice from '../components/ErrorNotice'
 import marketHarvest from '../assets/market-harvest.webp'
 import './Dashboard.css'
-import { supabase } from '../lib/supabase'
-import { Bell, Plus, ArrowRight, MessageCircle, Camera, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
+import { Bell, Plus, ArrowRight, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
 import { deviceApi, timeAgo, isReadingStale, isSensor, deviceFallbackName } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
 import useEntryState from '../hooks/useEntryState'
 import { useNotifications } from '../context/NotificationsContext'
-import { scanSummary } from '../components/ScanResultCard'
 
 export default function Dashboard() {
   const { user, isOperator } = useAuth()
-  const { unread, unreadMessages } = useNotifications()
+  const { unread } = useNotifications()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [recommended, setRecommended] = useState(null)
   const [homeError, setHomeError] = useState('')
   const [recommendationsError, setRecommendationsError] = useState('')
-  const prevSafeRef = useRef(true)
   const [devices, setDevices] = useState(null)
+  const [sensorError, setSensorError] = useState('')
   const [batchView, setBatchView] = useEntryState('home-batches', 'all')
   const batchSection = useRef(null)
 
@@ -45,10 +43,10 @@ export default function Dashboard() {
       .catch((error) => setRecommendationsError(error.message || 'Could not load available produce.'))
   }
 
-  const loadDevices = () => {
-    // keep the last good list if a refresh fails (a flaky Wi-Fi blip should not blank the card)
-    deviceApi.devices().then(setDevices).catch(() => {})
-  }
+  const loadDevices = () =>
+    deviceApi.devices()
+      .then((result) => { setDevices(result); setSensorError('') })
+      .catch((error) => setSensorError(error.message || 'Could not load stall sensors.'))
 
   // polling pauses while the tab is hidden and always cleans up on unmount
   usePolling(loadDevices, 15000, { enabled: !!isOperator })
@@ -57,46 +55,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isOperator) loadRecommended()
   }, [isOperator])
-
-  const alertReading = (devices || []).filter((d) => isSensor(d)).map((d) => d.latest_reading).filter(Boolean)
-    .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0]
-
-  useEffect(() => {
-    // Only notify operators, from the stall's sensor node (the only source of temperature/humidity)
-    if (!user || !alertReading) return
-    const isOperator = user?.role === 'STALL_OPERATOR'
-    if (!isOperator) return
-    if (isReadingStale(alertReading.created_at)) return
-    const temp = alertReading.temperature_c
-    const humidity = alertReading.humidity_rh
-    const overThreshold = (temp != null && temp > 30) || (humidity != null && humidity > 85)
-    if (overThreshold && prevSafeRef.current) {
-      // create an in-app notification for the operator
-      // (a Supabase query builder has no .catch: await it inside try/catch instead)
-      const alertText = `Sensor reading outside safe range: ${temp != null ? `${Number(temp).toFixed(1)}°C` : ''} ${humidity != null ? `${Number(humidity)}% RH` : ''}`
-      ;(async () => {
-        try {
-          const { error } = await supabase.from('notifications').insert({
-            user_id: user.id,
-            notification_type: 'IOT_ALERT',
-            title: 'IoT Alert',
-            message: alertText,
-          })
-          if (error) console.error(error)
-        } catch (err) {
-          console.error(err)
-        }
-      })()
-      prevSafeRef.current = false
-    }
-    if (!overThreshold) prevSafeRef.current = true
-  }, [alertReading?.created_at, user])
-
-  // Newest scan from any camera (to show "Nothing detected" vs a real result)
-  const latestDeviceScan = (devices || [])
-    .map((d) => d.latest_scan)
-    .filter(Boolean)
-    .sort((x, y) => new Date(y.created_at) - new Date(x.created_at))[0]
 
   // Only sensor nodes carry a DHT22 reading (cameras have none): newest reading across the stall's sensor nodes
   const sensorNodes = (devices || []).filter((d) => isSensor(d))
@@ -111,9 +69,9 @@ export default function Dashboard() {
     : null
   const showTemp = latestDeviceReading?.temperature_c
   const showHum = latestDeviceReading?.humidity_rh
-  const onlineDevices = devices?.filter((device) => device.online).length
   const batches = data?.active_batches ?? []
   const visibleBatches = batchView === 'at-risk' ? batches.filter((batch) => batch.freshness_status === 'AMBER') : batches
+  const Greeting = isOperator ? 'h1' : 'p'
 
   const showBatches = (view) => {
     setBatchView(view)
@@ -126,7 +84,7 @@ export default function Dashboard() {
       <div className="page dashboard">
         <header className="dash-header">
           <div>
-            <p className="dashboard-greeting">{user?.full_name || user?.email?.split('@')[0]}</p>
+            <Greeting className="dashboard-greeting">{user?.full_name || user?.email?.split('@')[0] || 'Home'}</Greeting>
             <p className="role-tag">{isOperator
               ? `Stall Operator${user?.stall_number ? ` · Stall ${user.stall_number}` : ''}`
               : 'Rescue Buyer'}</p>
@@ -134,9 +92,11 @@ export default function Dashboard() {
           <Link to="/notifications" className="notif-btn" aria-label="Notifications"><Bell size={20} aria-hidden="true" />{unread > 0 && (<span className="notif-badge">{unread > 9 ? '9+' : unread}</span>)}</Link>
         </header>
 
-        <header className="page-title-header">
-          <PageTitle>Home</PageTitle>
-        </header>
+        {!isOperator && (
+          <header className="page-title-header">
+            <PageTitle>Home</PageTitle>
+          </header>
+        )}
 
         {isOperator ? (
           <section className="stall-overview dash-section" aria-labelledby="stall-overview-title">
@@ -152,7 +112,6 @@ export default function Dashboard() {
                 aria-pressed={batchView === 'at-risk'} onClick={() => showBatches('at-risk')}>
                 <strong>{data?.at_risk_count ?? '—'}</strong><span>At-risk batches</span>
               </button>
-              <Link to="/devices"><strong>{onlineDevices ?? '—'}</strong><span>Devices online</span></Link>
             </div>
           </section>
         ) : (
@@ -166,15 +125,7 @@ export default function Dashboard() {
           </section>
         )}
 
-        {isOperator ? (
-          <div className="home-shortcuts">
-            <Link to="/devices"><Camera size={19} aria-hidden="true" /><span>My devices</span><ChevronRight size={16} aria-hidden="true" /></Link>
-            <Link to="/messages">
-              <MessageCircle size={19} aria-hidden="true" /><span>Messages</span>
-              {unreadMessages > 0 ? <small aria-label={`${unreadMessages} unread messages`}>{unreadMessages > 9 ? '9+' : unreadMessages}</small> : <ChevronRight size={16} aria-hidden="true" />}
-            </Link>
-          </div>
-        ) : (
+        {!isOperator && (
           <section className="dash-section home-crops" aria-labelledby="home-crops-title">
             <h2 id="home-crops-title" className="section-title">Shop by crop</h2>
             <div className="home-crops__grid">
@@ -229,13 +180,14 @@ export default function Dashboard() {
         {isOperator && (
           <section className="dash-section">
             <h2 className="section-title">Stall sensors</h2>
+            <ErrorNotice message={sensorError} onRetry={loadDevices} hint={devices ? 'Showing the last information we received.' : undefined} />
             <IoTReadings temp={showTemp} humidity={showHum} vpd={latestDeviceReading?.vpd_kpa} />
             {latestDeviceReading ? (
               <p className={`sensor-caption${freshestIsStale ? ' is-stale' : ''}`}>
                 {freshestIsStale && <AlertTriangle size={13} />}
                 {freshestDevice?.name || 'Sensor node'} DHT22 · {freshestIsStale ? `old reading, ${timeAgo(latestDeviceReading.created_at)}. Check the sensor.` : `updated ${timeAgo(latestDeviceReading.created_at)}`}
               </p>
-            ) : (
+            ) : !sensorError && (
               <p className="sensor-caption">
                 {devices === null
                   ? 'Loading sensors…'
@@ -267,30 +219,6 @@ export default function Dashboard() {
                 <Plus size={16} /> Add a sensor node to see live temperature and humidity
               </Link>
             )}
-          </section>
-        )}
-
-        {isOperator && (
-          <section className="dash-section">
-            <Link to="/devices" className="card dash-devices">
-              <div className="dash-devices__icon"><Camera size={22} /></div>
-              <div className="dash-devices__text">
-                <strong>My devices</strong>
-                <span>
-                  {devices === null
-                    ? 'ESP32-CAM scanners and sensor nodes'
-                    : devices.length === 0
-                      ? 'No device yet: tap to add one'
-                      : `${onlineDevices} of ${devices.length} online`}
-                </span>
-                {latestDeviceScan && (
-                  <span className="dash-devices__scan">
-                    {scanSummary(latestDeviceScan)} · {timeAgo(latestDeviceScan.created_at)}
-                  </span>
-                )}
-              </div>
-              <ChevronRight size={18} />
-            </Link>
           </section>
         )}
 

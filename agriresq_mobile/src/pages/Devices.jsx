@@ -1,5 +1,5 @@
 import PageTitle from '../components/PageTitle'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Camera, Plus, Thermometer, Droplets, ChevronRight, Wifi, RefreshCw, Images, AlertTriangle } from 'lucide-react'
 import { deviceApi, timeAgo, signalLabel, isReadingStale, isSensor, deviceFallbackName } from '../api/deviceApi'
@@ -24,17 +24,17 @@ export default function Devices() {
   const [devices, setDevices] = useState(null)
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const pendingLoad = useRef(null)
   const alertSensor = iotAlert && devices
     ? findAlertSensor(iotAlert, devices.filter((device) => isSensor(device) && device.my_access === 'owner'))
     : null
 
-  const load = async () => {
-    try {
-      setDevices(await deviceApi.devices())
-      setError('')
-    } catch (err) {
-      setError(err.message)
-    }
+  const load = () => {
+    pendingLoad.current ??= deviceApi.devices()
+      .then((result) => { setDevices(result); setError('') })
+      .catch((err) => setError(err.message || 'Could not load your devices.'))
+      .finally(() => { pendingLoad.current = null })
+    return pendingLoad.current
   }
 
   usePolling(load, REFRESH_MS)
@@ -55,18 +55,16 @@ export default function Devices() {
     <div className="app-shell">
       <div className="page devices-page">
         <header className="page-title-header devices-header">
-          <div>
-            <PageTitle>My Devices</PageTitle>
-            <p className="dev-subtitle">
-              {devices ? `${onlineCount} of ${devices.length} online` : 'ESP32-CAM scanners and sensor nodes'}
-            </p>
-          </div>
+          <PageTitle>My Devices</PageTitle>
+          <p className="dev-subtitle">
+            {devices ? `${onlineCount} of ${devices.length} online` : 'ESP32-CAM scanners and sensor nodes'}
+          </p>
           <div className="devices-actions">
             <button type="button" className="icon-action" onClick={refresh} disabled={refreshing} aria-label="Refresh devices">
               <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
             </button>
             <Link to="/gallery" className="icon-action" aria-label="Scan gallery"><Images size={18} /></Link>
-            <Link to="/devices/add" className="devices-add"><Plus size={18} /> Add</Link>
+            <Link to="/devices/add" className="devices-add" aria-label="Add device"><Plus size={18} /> Add</Link>
           </div>
         </header>
 
@@ -74,7 +72,7 @@ export default function Devices() {
           message={error}
           onRetry={refresh}
           retrying={refreshing}
-          hint={devices ? 'Showing the last information we received.' : 'Check that the AgriResQ server is running and your phone is on the same Wi-Fi.'}
+          hint={devices ? 'Showing the last information we received.' : undefined}
         />
         {iotAlert && devices && !alertSensor && (
           <p className="notice" role="status">This alert couldn’t be matched to a sensor. Select a sensor below to view its readings.</p>
@@ -107,7 +105,7 @@ export default function Devices() {
                 <div className="device-card__icon">{isSensor(d) ? <Thermometer size={22} /> : <Camera size={22} />}</div>
                 <div className="device-card__name">
                   <strong>{d.name || deviceFallbackName(d)}</strong>
-                  <span>{d.stall_location || 'No stall set'} · {CROP_LABELS[d.crop_type] || d.crop_type}</span>
+                  <span>{d.stall_location || 'No stall set'}{d.crop_type && ` · ${CROP_LABELS[d.crop_type] || d.crop_type}`}</span>
                 </div>
                 <OnlinePill online={d.online} />
               </div>
@@ -128,8 +126,8 @@ export default function Devices() {
                 {isSensor(d) && (
                   <div className="device-card__env" title={d.latest_reading ? `Sensor updated ${timeAgo(d.latest_reading.created_at)}` : 'No sensor reading'}
                     style={d.latest_reading && isReadingStale(d.latest_reading.created_at) ? { opacity: 0.55 } : undefined}>
-                    <span><Thermometer size={14} /> {d.latest_reading ? `${Number(d.latest_reading.temperature_c).toFixed(1)}°C` : '—'}</span>
-                    <span><Droplets size={14} /> {d.latest_reading ? `${Number(d.latest_reading.humidity_rh).toFixed(1)}%` : '—'}</span>
+                    <span><Thermometer size={14} /> {d.latest_reading?.temperature_c != null ? `${Number(d.latest_reading.temperature_c).toFixed(1)}°C` : '—'}</span>
+                    <span><Droplets size={14} /> {d.latest_reading?.humidity_rh != null ? `${Number(d.latest_reading.humidity_rh).toFixed(1)}%` : '—'}</span>
                     {d.latest_reading && isReadingStale(d.latest_reading.created_at) && <span style={{ color: '#92400E' }}><AlertTriangle size={13} /> old</span>}
                   </div>
                 )}
@@ -149,7 +147,7 @@ export default function Devices() {
               )}
 
               <div className="device-card__foot">
-                <span><Wifi size={13} /> {d.online ? 'Online' : 'Offline'} · last seen {timeAgo(d.last_seen)}</span>
+                <span><Wifi size={13} /> {d.last_seen ? `Last seen ${timeAgo(d.last_seen)}` : 'No connection recorded'}</span>
                 <ChevronRight size={18} />
               </div>
             </Link>

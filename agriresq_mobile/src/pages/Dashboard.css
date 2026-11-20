@@ -27,6 +27,7 @@
   z-index: 1;
   font-size: 26px;
   font-weight: 700;
+  margin: 0;
   color: var(--white);
   overflow-wrap: anywhere;
 }
@@ -130,37 +131,6 @@
   color: var(--primary-dark);
 }
 
-.home-shortcuts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: -12px 0 24px;
-}
-
-.home-shortcuts a {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 48px;
-  padding: 7px 9px;
-  border: 1px solid var(--gray-200);
-  border-radius: 12px;
-  background: var(--white);
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.home-shortcuts a span { flex: 1; line-height: 1.25; }
-.home-shortcuts a svg { flex: none; }
-.home-shortcuts small {
-  min-width: 20px;
-  padding: 3px;
-  border-radius: 10px;
-  background: var(--mint-light);
-  text-align: center;
-}
-
 .home-crops {
   margin-top: -5px;
 }
@@ -211,11 +181,11 @@
 
 .stall-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
-.stall-metrics > :is(button, a) {
+.stall-metrics > button {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -311,32 +281,6 @@
 .legend-dot.fresh { background: var(--fresh); }
 .legend-dot.at-risk { background: var(--at-risk); }
 .legend-dot.spoiled { background: var(--spoiled); }
-
-.dash-devices {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--gray-800);
-}
-
-.dash-devices__icon {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--mint-light);
-  color: var(--primary);
-  flex-shrink: 0;
-}
-
-.dash-devices__text { flex: 1; }
-.dash-devices__text strong { display: block; font-size: 15px; color: var(--primary); }
-.dash-devices__text span { font-size: 13px; color: var(--gray-600); }
-
-.dash-devices__text .dash-devices__scan { display: block; margin-top: 2px; font-size: 12px; color: var(--primary); font-weight: 600; }
-
-.dash-devices__text { min-width: 0; }
 
 .sensor-caption { display: flex; align-items: flex-start; gap: 5px; margin-top: 8px; font-size: 12px; color: var(--gray-600); line-height: 1.4; }
 .sensor-caption svg { flex-shrink: 0; margin-top: 1px; }

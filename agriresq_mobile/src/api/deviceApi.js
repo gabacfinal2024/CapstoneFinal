@@ -115,7 +115,8 @@ export const deviceApi = {
   // ── Devices ──────────────────────────────────────
   async devices() {
     const data = await request('/api/devices/')
-    return Array.isArray(data) ? data : []
+    if (!Array.isArray(data)) throw new Error('The AgriResQ server returned an invalid device list.')
+    return data
   },
 
   async device(id) {
