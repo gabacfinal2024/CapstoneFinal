@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { Bookmark, BookmarkCheck, CheckCircle2 } from 'lucide-react'
+import { Bookmark, BookmarkCheck, CheckCircle2, MapPin } from 'lucide-react'
 import { CROP_LABELS, formatCurrency } from '../utils/helpers'
 import StatusBadge from './StatusBadge'
 import ProductImage from './ProductImage'
@@ -24,9 +24,6 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
   const perKg = product?.current_price_per_kg ?? (qty ? listing.listed_price / qty : listing.listed_price)
   const isOwner = user?.role === 'STALL_OPERATOR' && user.id === listing.operator_id
   const productId = product?.id || listing.product_id
-
-  // The whole card is a link: every button inside must stop the click from opening the listing.
-  const stop = (fn) => (e) => { e.preventDefault(); e.stopPropagation(); fn() }
 
   const chat = async () => {
     try {
@@ -80,11 +77,11 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
 
   return (
     <>
-      <Link to={`/produce/${listing.id}`} className="produce-card card">
-        <ProductImage src={product?.image_url} crop={crop} />
+      <article className="produce-card card">
+        <ProductImage src={product?.image_url} crop={crop} className="produce-card__image" alt="" />
         <div className="produce-info">
           <div className="produce-card__topline">
-            <h4>{CROP_LABELS[crop] || 'Produce'}</h4>
+            <h4><Link to={`/produce/${listing.id}`} className="produce-card__link">{CROP_LABELS[crop] || 'Produce'}</Link></h4>
             <div className="produce-card__readings">
               <StatusBadge status={product?.freshness_status} showPercent percent={product?.freshness_percent} size="sm" />
             </div>
@@ -95,21 +92,21 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
             {listing.discount_percent > 0 && <span className="discount-tag">-{listing.discount_percent}%</span>}
           </p>
           <p className="produce-qty">{qty ? `${qty} kg available` : ''}</p>
-          <p className="produce-loc">📍 {product?.pickup_location || 'Bulua West Terminal'}</p>
+          <p className="produce-loc"><MapPin size={14} aria-hidden="true" />{product?.pickup_location || 'Bulua West Terminal'}</p>
           <div className="card-actions">
-            {!user && <button type="button" className="btn btn-sm" onClick={stop(() => navigate('/login'))}>Sign in to chat</button>}
-            {user?.role === 'RESCUE_BUYER' && <button type="button" className="btn btn-sm" onClick={stop(chat)}>Send message</button>}
+            {!user && <button type="button" className="btn btn-sm btn-listing-secondary" onClick={() => navigate('/login')}>Sign in to chat</button>}
+            {user?.role === 'RESCUE_BUYER' && <button type="button" className="btn btn-sm btn-listing-secondary" onClick={chat}>Send message</button>}
             {isOwner && (
               <>
-                <button type="button" className="btn btn-sm" onClick={stop(() => setConfirmFinalize(true))}>Mark sold</button>
-                <button type="button" className="btn btn-danger btn-sm" onClick={stop(() => setConfirmRemove(true))}>Delete</button>
+                <button type="button" className="btn btn-sm btn-listing-secondary" onClick={() => setConfirmFinalize(true)}>Mark sold</button>
+                <button type="button" className="btn btn-danger btn-sm" onClick={() => setConfirmRemove(true)}>Delete</button>
               </>
             )}
             {user?.role === 'RESCUE_BUYER' && (
               <button
                 type="button"
                 className={`btn btn-save-listing btn-sm${isSaved ? ' is-saved' : ''}`}
-                onClick={stop(isSaved ? unsave : save)}
+                onClick={isSaved ? unsave : save}
                 disabled={saving}
                 aria-pressed={isSaved}
               >
@@ -117,14 +114,14 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
               </button>
             )}
             {user?.role === 'RESCUE_BUYER' && isSaved && (
-              <button type="button" className="btn btn-view-listing btn-sm" onClick={stop(() => navigate(`/produce/${listing.id}`))}>
+              <button type="button" className="btn btn-view-listing btn-sm" onClick={() => navigate(`/produce/${listing.id}`)}>
                 View listing
               </button>
             )}
           </div>
           {note && <p className="card-note" role="status"><CheckCircle2 size={14} />{note}</p>}
         </div>
-      </Link>
+      </article>
       <ConfirmDialog open={confirmRemove} title="Delete batch" message="Delete this batch and its listing? This action cannot be undone." onConfirm={doRemove} onCancel={() => setConfirmRemove(false)} confirmLabel="Delete" danger />
       <ConfirmDialog open={confirmFinalize} title="Mark listing as sold" message="Mark this listing as sold? It will be removed from the marketplace." onConfirm={doFinalize} onCancel={() => setConfirmFinalize(false)} confirmLabel="Mark sold" />
     </>

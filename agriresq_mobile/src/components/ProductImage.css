@@ -1,0 +1,6 @@
+span.product-image-placeholder {
+  display: grid;
+  place-items: center;
+  background: var(--mint-light);
+  color: var(--primary);
+}
