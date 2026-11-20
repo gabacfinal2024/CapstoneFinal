@@ -161,6 +161,33 @@
   text-align: center;
 }
 
+.home-crops {
+  margin-top: -5px;
+}
+
+.home-crops__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.home-crops__grid a {
+  display: grid;
+  grid-template-rows: 58px auto;
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.home-crops__grid img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.home-crops__grid span { padding: 7px 3px; }
+
 .stall-overview {
   padding: 15px;
   border: 1px solid #c9ded4;
@@ -188,21 +215,40 @@
   gap: 6px;
 }
 
-.stall-metrics div {
+.stall-metrics > :is(button, a) {
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 3px;
   padding: 9px 6px;
+  border: 1px solid transparent;
   border-radius: 11px;
   background: rgb(255 255 255 / 80%);
   color: var(--primary-dark);
   text-align: center;
+  cursor: pointer;
 }
 
-.stall-metrics dt { font-size: 11px; line-height: 1.2; color: var(--gray-600); }
-.stall-metrics dd { font: 700 26px/1 var(--font-heading); font-variant-numeric: tabular-nums; }
+.stall-metrics span { font-size: 11px; line-height: 1.2; color: var(--gray-600); }
+.stall-metrics strong { font: 700 26px/1 var(--font-heading); font-variant-numeric: tabular-nums; }
+.stall-metrics [aria-pressed="true"] { border-color: var(--primary); }
 .stall-metrics .is-attention { background: #fff1df; color: #85410b; }
-.stall-metrics .is-attention dt { color: inherit; }
+.stall-metrics .is-attention span { color: inherit; }
+.stall-metrics .is-attention[aria-pressed="true"] { border-color: currentColor; }
+.stall-metrics > :focus-visible,
+.home-crops__grid a:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.home-batches { scroll-margin-top: 12px; }
+.home-batches .section-row { gap: 8px; }
+.home-batches__reset {
+  min-height: 44px;
+  margin: -6px 0 6px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
 
 .section-row {
   display: flex;
@@ -217,19 +263,6 @@
   color: var(--primary);
   font-weight: 600;
   font-size: 14px;
-}
-
-.alert-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #FFF3E0;
-  color: #85410b;
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 20px;
 }
 
 .empty-state {

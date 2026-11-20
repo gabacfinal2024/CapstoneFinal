@@ -1,5 +1,6 @@
 import PageTitle from '../components/PageTitle'
 import { useCallback, useLayoutEffect, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Check, ChevronDown, LayoutGrid, Search, X } from 'lucide-react'
 import useEntryState from '../hooks/useEntryState'
 import usePolling from '../hooks/usePolling'
@@ -26,9 +27,11 @@ const SORT_OPTIONS = [
 ]
 
 export default function Marketplace() {
+  const { state } = useLocation()
   const { registerGuard } = useBackNavigation()
   const [listings, setListings] = useState([])
-  const [tab, setTab] = useEntryState('tab', 'all')
+  const initialCrop = TABS.some(({ id }) => id === state?.crop) ? state.crop : 'all'
+  const [tab, setTab] = useEntryState('tab', initialCrop)
   const [savedSearch, setSearch] = useEntryState('search', '')
   const [legacyVendor, setLegacyVendor] = useEntryState('producer', '')
   const [sort, setSort] = useEntryState('sort', 'newest')

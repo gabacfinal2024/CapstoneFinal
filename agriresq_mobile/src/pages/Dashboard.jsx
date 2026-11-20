@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
+import { CROP_IMAGES, CROP_LABELS } from '../utils/helpers'
 import IoTReadings from '../components/IoTReadings'
 import BatchCard from '../components/BatchCard'
 import ProduceCard from '../components/ProduceCard'
@@ -11,9 +12,10 @@ import ErrorNotice from '../components/ErrorNotice'
 import marketHarvest from '../assets/market-harvest.webp'
 import './Dashboard.css'
 import { supabase } from '../lib/supabase'
-import { Bell, Plus, ArrowRight, Bookmark, MessageCircle, Camera, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
+import { Bell, Plus, ArrowRight, MessageCircle, Camera, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
 import { deviceApi, timeAgo, isReadingStale, isSensor, deviceFallbackName } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
+import useEntryState from '../hooks/useEntryState'
 import { useNotifications } from '../context/NotificationsContext'
 import { scanSummary } from '../components/ScanResultCard'
 
@@ -27,6 +29,8 @@ export default function Dashboard() {
   const [recommendationsError, setRecommendationsError] = useState('')
   const prevSafeRef = useRef(true)
   const [devices, setDevices] = useState(null)
+  const [batchView, setBatchView] = useEntryState('home-batches', 'all')
+  const batchSection = useRef(null)
 
   const load = () => {
     api.dashboard()
@@ -48,7 +52,7 @@ export default function Dashboard() {
 
   // polling pauses while the tab is hidden and always cleans up on unmount
   usePolling(loadDevices, 15000, { enabled: !!isOperator })
-  usePolling(load, 30000)
+  usePolling(load, 30000, { enabled: !!isOperator })
 
   useEffect(() => {
     if (!isOperator) loadRecommended()
@@ -108,6 +112,14 @@ export default function Dashboard() {
   const showTemp = latestDeviceReading?.temperature_c
   const showHum = latestDeviceReading?.humidity_rh
   const onlineDevices = devices?.filter((device) => device.online).length
+  const batches = data?.active_batches ?? []
+  const visibleBatches = batchView === 'at-risk' ? batches.filter((batch) => batch.freshness_status === 'AMBER') : batches
+
+  const showBatches = (view) => {
+    setBatchView(view)
+    batchSection.current?.focus({ preventScroll: true })
+    batchSection.current?.scrollIntoView({ block: 'start' })
+  }
 
   return (
     <div className="app-shell">
@@ -132,11 +144,16 @@ export default function Dashboard() {
               <h2 id="stall-overview-title">Stall overview</h2>
               <Link to="/batch/new" className="home-primary-action"><Plus size={18} aria-hidden="true" /> Add batch</Link>
             </div>
-            <dl className="stall-metrics">
-              <div><dt>Active batches</dt><dd>{data?.active_batches?.length ?? '—'}</dd></div>
-              <div className={data?.at_risk_count > 0 ? 'is-attention' : ''}><dt>At risk</dt><dd>{data?.at_risk_count ?? '—'}</dd></div>
-              <div><dt>Devices online</dt><dd>{onlineDevices ?? '—'}</dd></div>
-            </dl>
+            <div className="stall-metrics" role="group" aria-label="Stall activity">
+              <button type="button" aria-controls="home-batches" aria-pressed={batchView === 'all'} onClick={() => showBatches('all')}>
+                <strong>{data ? batches.length : '—'}</strong><span>Active batches</span>
+              </button>
+              <button type="button" className={data?.at_risk_count > 0 ? 'is-attention' : ''} aria-controls="home-batches"
+                aria-pressed={batchView === 'at-risk'} onClick={() => showBatches('at-risk')}>
+                <strong>{data?.at_risk_count ?? '—'}</strong><span>At-risk batches</span>
+              </button>
+              <Link to="/devices"><strong>{onlineDevices ?? '—'}</strong><span>Devices online</span></Link>
+            </div>
           </section>
         ) : (
           <section className="buyer-feature dash-section" aria-labelledby="buyer-feature-title">
@@ -149,45 +166,49 @@ export default function Dashboard() {
           </section>
         )}
 
-        <div className="home-shortcuts">
-          {isOperator ? (
+        {isOperator ? (
+          <div className="home-shortcuts">
             <Link to="/devices"><Camera size={19} aria-hidden="true" /><span>My devices</span><ChevronRight size={16} aria-hidden="true" /></Link>
-          ) : (
-            <Link to="/saved-listings"><Bookmark size={19} aria-hidden="true" /><span>Saved listings</span><ChevronRight size={16} aria-hidden="true" /></Link>
-          )}
-          <Link to="/messages">
-            <MessageCircle size={19} aria-hidden="true" /><span>Messages</span>
-            {unreadMessages > 0 ? <small aria-label={`${unreadMessages} unread messages`}>{unreadMessages > 9 ? '9+' : unreadMessages}</small> : <ChevronRight size={16} aria-hidden="true" />}
-          </Link>
-        </div>
-
-        {isOperator && data?.at_risk_count > 0 && (
-          <div className="alert-banner">
-            <AlertTriangle size={17} aria-hidden="true" />
-            {data.at_risk_count === 1 ? '1 active batch is at risk.' : `${data.at_risk_count} active batches are at risk.`}
+            <Link to="/messages">
+              <MessageCircle size={19} aria-hidden="true" /><span>Messages</span>
+              {unreadMessages > 0 ? <small aria-label={`${unreadMessages} unread messages`}>{unreadMessages > 9 ? '9+' : unreadMessages}</small> : <ChevronRight size={16} aria-hidden="true" />}
+            </Link>
           </div>
+        ) : (
+          <section className="dash-section home-crops" aria-labelledby="home-crops-title">
+            <h2 id="home-crops-title" className="section-title">Shop by crop</h2>
+            <div className="home-crops__grid">
+              {Object.entries(CROP_IMAGES).map(([crop, image]) => (
+                <Link key={crop} to="/marketplace" state={{ crop }}>
+                  <img src={image} alt="" width="100" height="60" />
+                  <span>{CROP_LABELS[crop]}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
 
         {isOperator ? (
-          <section className="dash-section">
+          <section ref={batchSection} className="dash-section home-batches" id="home-batches" tabIndex={-1} aria-labelledby="home-batches-title">
             <div className="section-row">
-              <h2 className="section-title">My Batches</h2>
+              <h2 id="home-batches-title" className="section-title">{batchView === 'at-risk' ? 'At-risk batches' : 'My Batches'}</h2>
+              {batchView === 'at-risk' && <button className="add-link home-batches__reset" type="button" onClick={() => showBatches('all')}>Show all batches</button>}
             </div>
             <ErrorNotice message={homeError} onRetry={load} />
             {loading ? (
               <p className="muted">Loading...</p>
-            ) : data?.active_batches?.length ? (
-              data.active_batches.map((b) => <BatchCard key={b.id} batch={b} />)
+            ) : visibleBatches.length ? (
+              visibleBatches.map((batch) => <BatchCard key={batch.id} batch={batch} />)
             ) : !homeError && (
               <div className="empty-state card">
-                <p>No active batches yet. Add a batch to start listing produce.</p>
+                <p>{batchView === 'at-risk' ? 'No at-risk batches right now.' : 'No active batches yet. Add a batch to start listing produce.'}</p>
               </div>
             )}
           </section>
         ) : (
           <section className="dash-section">
             <div className="section-row">
-              <h2 className="section-title">Fresh Picks</h2>
+              <h2 className="section-title">Available to rescue</h2>
               <Link to="/marketplace" className="add-link">See all <ChevronRight size={16} /></Link>
             </div>
             <ErrorNotice message={recommendationsError} onRetry={loadRecommended} />

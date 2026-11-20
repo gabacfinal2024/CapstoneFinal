@@ -139,7 +139,8 @@ export const api = {
   // ── Dashboard ─────────────────────────────────────
   async dashboard() {
     const userId = await getSessionUserId()
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', userId).single()
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('role').eq('id', userId).single()
+    if (profileError) throw new Error(profileError.message)
     const isOperator = profile?.role === 'STALL_OPERATOR'
 
     const buildProducts = (select) => {
@@ -153,7 +154,8 @@ export const api = {
       return q
     }
     // Operators also get their private climate row; buyers never read sensor data (no sensor_logs here).
-    const { data: active_batches } = isOperator ? await withClimate(buildProducts) : await buildProducts(PRODUCT_SELECT)
+    const { data: active_batches, error: batchesError } = isOperator ? await withClimate(buildProducts) : await buildProducts(PRODUCT_SELECT)
+    if (batchesError) throw new Error(batchesError.message)
 
     const { count: unread_notifications } = await supabase
       .from('notifications')
