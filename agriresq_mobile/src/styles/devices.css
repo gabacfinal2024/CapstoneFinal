@@ -9,13 +9,6 @@
   margin-bottom: 12px;
 }
 
-.dev-title {
-  font-family: var(--font-heading);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--primary);
-}
-
 .dev-subtitle { font-size: 13px; color: var(--gray-600); margin-top: 2px; }
 
 .btn-ghost {

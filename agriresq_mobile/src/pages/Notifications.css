@@ -1,17 +1,7 @@
-.notif-header {
-  margin-bottom: 20px;
-}
-
 .notif-title-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.notif-title-row h1 {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--primary);
 }
 
 .mark-read {

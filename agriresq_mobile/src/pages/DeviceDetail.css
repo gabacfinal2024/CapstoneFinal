@@ -5,7 +5,6 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 14px;
 }
 
 .device-detail .card > h3 { font-size: 15px; color: var(--primary); margin-bottom: 12px; }
@@ -58,7 +57,6 @@
 
 /* prevent long names from pushing the actions off a 390px screen */
 .device-detail__head > div:first-child { min-width: 0; }
-.device-detail__head .dev-title { overflow-wrap: anywhere; }
 .device-detail__head .devices-actions { flex-shrink: 0; }
 
 .env-grid > div { min-width: 0; }

@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Capacitor, registerPlugin } from '@capacitor/core'
@@ -158,8 +159,8 @@ function ReportPage({ id }) {
     <div className="app-shell">
       <main className="page page-no-nav sensor-report">
         <BackLink to={`/devices/${id}`} className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
-        <header>
-          <h1 className="dev-title">Sensor Readings Report</h1>
+        <header className="page-title-header">
+          <PageTitle>Sensor Readings Report</PageTitle>
           {device && <p className="dev-subtitle">{device.name || deviceFallbackName(device)}</p>}
         </header>
 

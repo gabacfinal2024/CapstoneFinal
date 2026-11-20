@@ -22,6 +22,7 @@
   --nav-height: 72px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --page-gutter: 18px;
+  --page-title-gap: 12px;
   --font-body: 'DM Sans Variable', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-heading: 'Space Grotesk Variable', var(--font-body);
 }
@@ -206,6 +207,23 @@ button, input, textarea, select {
   color: var(--spoiled);
   font-size: 13px;
   margin-top: 8px;
+}
+
+.page-title {
+  min-width: 0;
+  margin: 0;
+  color: var(--primary);
+  font-family: var(--font-heading);
+  font-size: clamp(1.625rem, calc(1.5rem + 0.5vw), 1.75rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.page-title-header {
+  margin-block-end: var(--page-title-gap);
 }
 
 .section-title {

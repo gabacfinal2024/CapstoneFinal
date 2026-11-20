@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import PageTitle from '../components/PageTitle'
 import { BackLink } from '../context/BackNavigationContext'
 import { ArrowLeft, ExternalLink, Thermometer, Droplets, Flame, Gauge } from 'lucide-react'
 import { deviceApi } from '../api/deviceApi'
@@ -91,8 +92,10 @@ export default function Basis() {
         <BackLink to="/profile" className="basis-back">
           <ArrowLeft size={18} /> Back
         </BackLink>
-        <h1 className="basis-title">How days-to-spoil is calculated</h1>
-        <p className="basis-sub">The “days to spoil” you see is an estimate. Here is how it works and what it is based on.</p>
+        <header className="page-title-header">
+          <PageTitle>How days-to-spoil is calculated</PageTitle>
+          <p className="basis-sub">The “days to spoil” you see is an estimate. Here is how it works and what it is based on.</p>
+        </header>
 
         <section className="basis-card card">
           <h2><Thermometer size={18} /> Warmth speeds up ageing</h2>

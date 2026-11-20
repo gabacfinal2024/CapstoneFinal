@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import PageTitle from '../components/PageTitle'
 import { useNavigate } from 'react-router-dom'
 import { BackLink } from '../context/BackNavigationContext'
 import { ArrowLeft, Camera, CheckCircle2, Lock, RefreshCw, Wifi, WifiOff, Loader2, Smartphone } from 'lucide-react'
@@ -247,10 +248,12 @@ export default function AddDevice() {
     <div className="app-shell">
       <div className="page page-no-nav add-device">
         <BackLink to="/devices" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
-        <h1 className="dev-title">Add a {isSensorSetup ? 'sensor node' : 'camera'}</h1>
-        <p className="dev-subtitle">{isSensorSetup
-          ? 'Pair your ESP32 DHT22 node to your stall account.'
-          : 'Connect your AgriResQ ESP32-CAM to your stall Wi-Fi.'}</p>
+        <header className="page-title-header">
+          <PageTitle>Add a {isSensorSetup ? 'sensor node' : 'camera'}</PageTitle>
+          <p className="dev-subtitle">{isSensorSetup
+            ? 'Pair your ESP32 DHT22 node to your stall account.'
+            : 'Connect your AgriResQ ESP32-CAM to your stall Wi-Fi.'}</p>
+        </header>
 
         {step < 3 && (
           <div className="notice warn wifi-band-note">

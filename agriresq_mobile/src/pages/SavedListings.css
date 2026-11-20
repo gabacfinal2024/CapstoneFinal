@@ -1,11 +1,3 @@
-.saved-listings__header {
-  margin-bottom: 16px;
-}
-
-.saved-listings__header h1 {
-  margin-bottom: 6px;
-}
-
 .saved-listings .empty-state .btn {
   display: inline-flex;
   justify-content: center;

@@ -14,15 +14,7 @@
   cursor: pointer;
 }
 
-.basis-title {
-  font-family: var(--font-heading);
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--primary);
-  line-height: 1.2;
-}
-
-.basis-sub { font-size: 13px; color: var(--gray-600); margin: 6px 0 16px; line-height: 1.5; }
+.basis-sub { font-size: 13px; color: var(--gray-600); margin-top: 6px; line-height: 1.5; }
 
 .basis-heading { font-size: 18px; color: var(--primary); margin: 22px 0 10px; }
 

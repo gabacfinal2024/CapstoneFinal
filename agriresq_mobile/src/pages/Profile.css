@@ -1,6 +1,14 @@
-.profile { padding: 20px 16px 24px; display: flex; flex-direction: column; gap: 16px; }
+.profile {
+  --profile-gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--profile-gap);
+}
 
-.profile-title { font-size: 22px; font-weight: 700; margin: 0; }
+/* The flex gap already contributes to the space below the title. */
+.profile > .page-title-header {
+  margin-block-end: calc(var(--page-title-gap) - var(--profile-gap));
+}
 
 /* hero card */
 .profile-hero {

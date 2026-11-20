@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api/supabaseApi'
@@ -36,8 +37,8 @@ export default function SavedListings() {
   return (
     <div className="app-shell">
       <div className="page saved-listings">
-        <header className="saved-listings__header">
-          <h1 className="section-title">Saved Listings</h1>
+        <header className="page-title-header">
+          <PageTitle>Saved Listings</PageTitle>
         </header>
 
         {!isBuyer ? (

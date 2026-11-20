@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import PageTitle from '../components/PageTitle'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BackLink } from '../context/BackNavigationContext'
 import {
@@ -342,9 +343,9 @@ function DeviceDetailPage({ id }) {
       <div className="page page-no-nav device-detail">
         <BackLink to="/devices" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
 
-        <div className="device-detail__head">
+        <div className="page-title-header device-detail__head">
           <div>
-            <h1 className="dev-title">{device.name || deviceFallbackName(device)}</h1>
+            <PageTitle>{device.name || deviceFallbackName(device)}</PageTitle>
             <p className="dev-subtitle">{device.stall_location || 'No stall set'} · {CROP_LABELS[device.crop_type] || device.crop_type}</p>
             {(sensor || shared) && (
               <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>

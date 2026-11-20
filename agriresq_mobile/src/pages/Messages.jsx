@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useEffect, useState } from 'react'
 import useEntryState from '../hooks/useEntryState'
 import { Link } from 'react-router-dom'
@@ -25,7 +26,9 @@ export default function Messages() {
   return (
     <div className="app-shell">
       <div className="page messages">
-        <h1 className="section-title">Messages</h1>
+        <header className="page-title-header">
+          <PageTitle>Messages</PageTitle>
+        </header>
         <div className="msg-tabs" role="tablist" aria-label="Message folders">
           <button role="tab" aria-selected={tab === 'inbox'} className={tab === 'inbox' ? 'active' : ''} onClick={() => setTab('inbox')}>Inbox</button>
           <button role="tab" aria-selected={tab === 'archived'} className={tab === 'archived' ? 'active' : ''} onClick={() => setTab('archived')}>Archived</button>

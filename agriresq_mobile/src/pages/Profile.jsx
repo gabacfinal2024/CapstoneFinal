@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Camera, ChevronRight, UserCog, Receipt, Bell, Cpu, LogOut, Pencil, Images, FlaskConical } from 'lucide-react'
@@ -102,7 +103,9 @@ export default function Profile() {
   return (
     <div className="app-shell">
       <div className="page profile">
-        <h1 className="profile-title">Profile</h1>
+        <header className="page-title-header">
+          <PageTitle>Profile</PageTitle>
+        </header>
 
         <section className="profile-hero card">
           <div className="avatar-wrap">

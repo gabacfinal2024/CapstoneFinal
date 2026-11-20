@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BackLink } from '../context/BackNavigationContext'
@@ -74,7 +75,9 @@ export default function AIVision() {
     <div className="app-shell">
       <div className="page page-no-nav ai-vision">
         <BackLink to="/home" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
-        <h1 className="dev-title">AI Freshness Scanner</h1>
+        <header className="page-title-header">
+          <PageTitle>AI Freshness Scanner</PageTitle>
+        </header>
 
         {message && <div className={`notice ${message.type}`}>{message.text}</div>}
         <ErrorNotice message={loadError} onRetry={loadDevices} hint="Check that the AgriResQ server is running and your phone is on the same Wi-Fi." />

@@ -42,14 +42,12 @@
   background: transparent;
 }
 
-.detail-title-row {
+.produce-detail .detail-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-
-.detail-title-row h1 { min-width: 0; }
 
 .produce-price-lg small { font-size: 14px; font-weight: 500; color: var(--gray-600); }
 .produce-total { margin: -8px 0 18px; font-size: 13px; color: var(--gray-600); }
@@ -68,13 +66,6 @@
 }
 
 .send-message-btn:disabled { opacity: 0.6; cursor: wait; }
-
-.produce-body h1 {
-  font-size: clamp(24px, 6vw, 30px);
-  font-weight: 700;
-  color: var(--primary);
-  margin: 0;
-}
 
 .produce-price-lg {
   font-size: 28px;

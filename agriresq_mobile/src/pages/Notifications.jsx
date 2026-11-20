@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useEffect, useState } from 'react'
 import { BackLink } from '../context/BackNavigationContext'
 import { api } from '../api/supabaseApi'
@@ -35,10 +36,10 @@ export default function Notifications() {
   return (
     <div className="app-shell">
       <div className="page page-no-nav notifications">
-        <header className="notif-header">
+        <header className="page-title-header">
           <BackLink to="/home" className="back-link">← Back</BackLink>
           <div className="notif-title-row">
-            <h1>Notifications</h1>
+            <PageTitle>Notifications</PageTitle>
             <button onClick={markAll} className="mark-read">Mark all read</button>
           </div>
           {alertsSupported && alertsPermission === 'default' && (

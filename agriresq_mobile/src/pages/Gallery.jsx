@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { Navigate } from 'react-router-dom'
 import { BackLink } from '../context/BackNavigationContext'
 import { ArrowLeft } from 'lucide-react'
@@ -16,8 +17,8 @@ export default function Gallery() {
     <div className="app-shell">
       <div className="page gallery-page">
         <BackLink to="/devices" className="dev-back"><ArrowLeft size={16} /> Back</BackLink>
-        <header style={{ marginBottom: 14 }}>
-          <h1 className="dev-title">Scan Gallery</h1>
+        <header className="page-title-header">
+          <PageTitle>Scan Gallery</PageTitle>
         </header>
         <ScanGallery pageSize={12} />
       </div>

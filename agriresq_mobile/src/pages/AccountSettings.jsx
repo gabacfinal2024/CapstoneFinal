@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useState } from 'react'
 import { BackLink } from '../context/BackNavigationContext'
 import { useAuth } from '../context/AuthContext'
@@ -80,7 +81,9 @@ export default function AccountSettings() {
     <div className="app-shell">
       <div className="page account-settings">
         <BackLink to="/profile" className="back-link">← Back</BackLink>
-        <h2>Account Settings</h2>
+        <header className="page-title-header">
+          <PageTitle>Account Settings</PageTitle>
+        </header>
 
         <form className="card settings-card" onSubmit={saveProfile}>
           <h3>Personal Info</h3>

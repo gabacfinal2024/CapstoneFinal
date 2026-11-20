@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useRef, useState } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import { BackLink } from '../context/BackNavigationContext'
@@ -94,8 +95,8 @@ export default function BatchDetail() {
       <div className="page batch-detail page-no-nav" style={{ paddingBottom: 24 }}>
         <BackLink to="/home" className="back-link">← Back</BackLink>
         <ProductImage src={batch.image_url} crop={crop} className="detail-hero" />
-        <div className="detail-title-row">
-          <h1>{CROP_LABELS[crop]} #{batch.id}</h1>
+        <div className="page-title-header detail-title-row">
+          <PageTitle>{CROP_LABELS[crop]} #{batch.id}</PageTitle>
           <StatusBadge status={batch.freshness_status} showPercent percent={batch.freshness_percent} />
         </div>
 

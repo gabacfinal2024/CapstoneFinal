@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { BackLink } from '../context/BackNavigationContext'
@@ -309,7 +310,9 @@ export default function NewBatch() {
     <div className="app-shell">
       <div className="page page-no-nav auth-page">
         <BackLink to="/home" className="back-link">← Back</BackLink>
-        <h2 className="page-heading">Add Batch</h2>
+        <header className="page-title-header">
+          <PageTitle>Add Batch</PageTitle>
+        </header>
         <p className="flow-hint">Capture a photo, confirm the AI analysis, then save the batch to inventory or list it for rescue.</p>
 
         <form className="card auth-form new-batch-form" onSubmit={handleSubmit}>

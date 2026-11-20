@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import PageTitle from '../components/PageTitle'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BackLink } from '../context/BackNavigationContext'
 import { api } from '../api/supabaseApi'
@@ -73,8 +74,8 @@ export default function ProduceDetail() {
           <BackLink to="/marketplace" className="detail-back">← Back</BackLink>
         </div>
         <div className="produce-body">
-          <div className="detail-title-row">
-            <h1>{CROP_LABELS[crop] || 'Produce'}</h1>
+          <div className="page-title-header detail-title-row">
+            <PageTitle>{CROP_LABELS[crop] || 'Produce'}</PageTitle>
             <StatusBadge status={product?.freshness_status} showPercent percent={product?.freshness_percent} />
           </div>
           <p className="produce-price-lg">

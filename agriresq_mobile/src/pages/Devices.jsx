@@ -1,3 +1,4 @@
+import PageTitle from '../components/PageTitle'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Camera, Plus, Thermometer, Droplets, ChevronRight, Wifi, RefreshCw, Images, AlertTriangle } from 'lucide-react'
@@ -53,9 +54,9 @@ export default function Devices() {
   return (
     <div className="app-shell">
       <div className="page devices-page">
-        <header className="devices-header">
+        <header className="page-title-header devices-header">
           <div>
-            <h1 className="dev-title">My Devices</h1>
+            <PageTitle>My Devices</PageTitle>
             <p className="dev-subtitle">
               {devices ? `${onlineCount} of ${devices.length} online` : 'ESP32-CAM scanners and sensor nodes'}
             </p>
