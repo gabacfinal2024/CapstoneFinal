@@ -7,9 +7,11 @@ import BatchCard from '../components/BatchCard'
 import ProduceCard from '../components/ProduceCard'
 import PageTitle from '../components/PageTitle'
 import BottomNav from '../components/BottomNav'
+import ErrorNotice from '../components/ErrorNotice'
+import marketHarvest from '../assets/market-harvest.webp'
 import './Dashboard.css'
 import { supabase } from '../lib/supabase'
-import { Bell, Plus, ArrowUpRight, Camera, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
+import { Bell, Plus, ArrowRight, Bookmark, MessageCircle, Camera, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
 import { deviceApi, timeAgo, isReadingStale, isSensor, deviceFallbackName } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
 import { useNotifications } from '../context/NotificationsContext'
@@ -17,23 +19,26 @@ import { scanSummary } from '../components/ScanResultCard'
 
 export default function Dashboard() {
   const { user, isOperator } = useAuth()
-  const { unread } = useNotifications()
+  const { unread, unreadMessages } = useNotifications()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [recommended, setRecommended] = useState(null)
+  const [homeError, setHomeError] = useState('')
+  const [recommendationsError, setRecommendationsError] = useState('')
   const prevSafeRef = useRef(true)
   const [devices, setDevices] = useState(null)
 
   const load = () => {
     api.dashboard()
-      .then(setData)
-      .catch(console.error)
+      .then((result) => { setData(result); setHomeError('') })
+      .catch((error) => setHomeError(error.message || 'Could not load your batches.'))
       .finally(() => setLoading(false))
   }
 
   const loadRecommended = () => {
-    // For buyers: fetch a few marketplace listings
-    api.marketplace().then((res) => setRecommended((res || []).slice(0, 5))).catch(() => setRecommended([]))
+    api.marketplace()
+      .then((result) => { setRecommended((result || []).slice(0, 4)); setRecommendationsError('') })
+      .catch((error) => setRecommendationsError(error.message || 'Could not load available produce.'))
   }
 
   const loadDevices = () => {
@@ -102,6 +107,7 @@ export default function Dashboard() {
     : null
   const showTemp = latestDeviceReading?.temperature_c
   const showHum = latestDeviceReading?.humidity_rh
+  const onlineDevices = devices?.filter((device) => device.online).length
 
   return (
     <div className="app-shell">
@@ -113,14 +119,91 @@ export default function Dashboard() {
               ? `Stall Operator${user?.stall_number ? ` · Stall ${user.stall_number}` : ''}`
               : 'Rescue Buyer'}</p>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <Link to="/notifications" className="notif-btn" aria-label="Notifications"><Bell size={20} strokeWidth={2.2} />{unread > 0 && (<span className="notif-badge">{unread > 9 ? '9+' : unread}</span>)}</Link>
-          </div>
+          <Link to="/notifications" className="notif-btn" aria-label="Notifications"><Bell size={20} aria-hidden="true" />{unread > 0 && (<span className="notif-badge">{unread > 9 ? '9+' : unread}</span>)}</Link>
         </header>
 
         <header className="page-title-header">
           <PageTitle>Home</PageTitle>
         </header>
+
+        {isOperator ? (
+          <section className="stall-overview dash-section" aria-labelledby="stall-overview-title">
+            <div className="stall-overview__header">
+              <h2 id="stall-overview-title">Stall overview</h2>
+              <Link to="/batch/new" className="home-primary-action"><Plus size={18} aria-hidden="true" /> Add batch</Link>
+            </div>
+            <dl className="stall-metrics">
+              <div><dt>Active batches</dt><dd>{data?.active_batches?.length ?? '—'}</dd></div>
+              <div className={data?.at_risk_count > 0 ? 'is-attention' : ''}><dt>At risk</dt><dd>{data?.at_risk_count ?? '—'}</dd></div>
+              <div><dt>Devices online</dt><dd>{onlineDevices ?? '—'}</dd></div>
+            </dl>
+          </section>
+        ) : (
+          <section className="buyer-feature dash-section" aria-labelledby="buyer-feature-title">
+            <img src={marketHarvest} alt="" width="1440" height="960" fetchPriority="high" />
+            <div className="buyer-feature__content">
+              <h2 id="buyer-feature-title">Rescue local produce</h2>
+              <p>Find available batches and arrange pickup with the stall.</p>
+              <Link to="/marketplace" className="home-primary-action">Browse listings <ArrowRight size={17} aria-hidden="true" /></Link>
+            </div>
+          </section>
+        )}
+
+        <div className="home-shortcuts">
+          {isOperator ? (
+            <Link to="/devices"><Camera size={19} aria-hidden="true" /><span>My devices</span><ChevronRight size={16} aria-hidden="true" /></Link>
+          ) : (
+            <Link to="/saved-listings"><Bookmark size={19} aria-hidden="true" /><span>Saved listings</span><ChevronRight size={16} aria-hidden="true" /></Link>
+          )}
+          <Link to="/messages">
+            <MessageCircle size={19} aria-hidden="true" /><span>Messages</span>
+            {unreadMessages > 0 ? <small aria-label={`${unreadMessages} unread messages`}>{unreadMessages > 9 ? '9+' : unreadMessages}</small> : <ChevronRight size={16} aria-hidden="true" />}
+          </Link>
+        </div>
+
+        {isOperator && data?.at_risk_count > 0 && (
+          <div className="alert-banner">
+            <AlertTriangle size={17} aria-hidden="true" />
+            {data.at_risk_count === 1 ? '1 active batch is at risk.' : `${data.at_risk_count} active batches are at risk.`}
+          </div>
+        )}
+
+        {isOperator ? (
+          <section className="dash-section">
+            <div className="section-row">
+              <h2 className="section-title">My Batches</h2>
+            </div>
+            <ErrorNotice message={homeError} onRetry={load} />
+            {loading ? (
+              <p className="muted">Loading...</p>
+            ) : data?.active_batches?.length ? (
+              data.active_batches.map((b) => <BatchCard key={b.id} batch={b} />)
+            ) : !homeError && (
+              <div className="empty-state card">
+                <p>No active batches yet. Add a batch to start listing produce.</p>
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="dash-section">
+            <div className="section-row">
+              <h2 className="section-title">Fresh Picks</h2>
+              <Link to="/marketplace" className="add-link">See all <ChevronRight size={16} /></Link>
+            </div>
+            <ErrorNotice message={recommendationsError} onRetry={loadRecommended} />
+            {recommendationsError ? null : recommended === null ? (
+              <p className="muted">Loading...</p>
+            ) : recommended.length ? (
+              <div className="listing-grid">
+                {recommended.map((listing) => <ProduceCard key={listing.id} listing={listing} />)}
+              </div>
+            ) : (
+              <div className="empty-state card">
+                <p>No listings right now.</p>
+              </div>
+            )}
+          </section>
+        )}
 
         {isOperator && (
           <section className="dash-section">
@@ -177,7 +260,7 @@ export default function Dashboard() {
                     ? 'ESP32-CAM scanners and sensor nodes'
                     : devices.length === 0
                       ? 'No device yet: tap to add one'
-                      : `${devices.filter((d) => d.online).length} of ${devices.length} online`}
+                      : `${onlineDevices} of ${devices.length} online`}
                 </span>
                 {latestDeviceScan && (
                   <span className="dash-devices__scan">
@@ -190,46 +273,6 @@ export default function Dashboard() {
           </section>
         )}
 
-        {isOperator && data?.at_risk_count > 0 && (
-          <div className="alert-banner">
-            ⚠️ {data.at_risk_count} batch(es) at risk — auto-discount applied & listed in Listings
-          </div>
-        )}
-
-        {isOperator ? (
-          <section className="dash-section">
-            <div className="section-row">
-              <h2 className="section-title">My Batches</h2>
-              <Link to="/batch/new" className="add-link"><Plus size={16} /> Add Product</Link>
-            </div>
-            {loading ? (
-              <p className="muted">Loading...</p>
-            ) : data?.active_batches?.length ? (
-              data.active_batches.map((b) => <BatchCard key={b.id} batch={b} />)
-            ) : (
-              <div className="empty-state card">
-                <p>No active batches yet.</p>
-                <Link to="/batch/new">Add product (ESP32-CAM scan) <ArrowUpRight size={15} /></Link>
-              </div>
-            )}
-          </section>
-        ) : (
-          <section className="dash-section">
-            <div className="section-row">
-              <h2 className="section-title">Fresh Picks</h2>
-              <Link to="/marketplace" className="add-link">See all <ChevronRight size={16} /></Link>
-            </div>
-            {recommended === null ? (
-              <p className="muted">Loading...</p>
-            ) : recommended.length ? (
-              recommended.map((l) => <ProduceCard key={l.id} listing={l} />)
-            ) : (
-              <div className="empty-state card">
-                <p>No listings right now.</p>
-              </div>
-            )}
-          </section>
-        )}
         {isOperator && (
           <section className="dash-section">
             <h2 className="section-title">Dynamic Pricing</h2>

@@ -24,9 +24,11 @@ export default function ProductImage({ src, crop, className, alt }) {
 
   return (
     <img
+      key={image}
       className={className}
       src={image}
       alt={label}
+      data-sample-photo={photo ? undefined : true}
       loading="lazy"
       onError={() => photo ? setFailedPhoto(photo) : setFailedStockPhoto(stockPhoto)}
     />

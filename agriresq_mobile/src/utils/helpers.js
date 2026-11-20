@@ -1,3 +1,7 @@
+import eggplantImage from '../assets/produce-eggplant.webp'
+import cucumberImage from '../assets/produce-cucumber.webp'
+import carrotImage from '../assets/produce-carrot.webp'
+
 export const CROP_LABELS = {
   ALL: 'All vegetables',
   EGGPLANT: 'Eggplant',
@@ -6,9 +10,9 @@ export const CROP_LABELS = {
 }
 
 export const CROP_IMAGES = {
-  EGGPLANT: 'https://images.unsplash.com/photo-1659261201616-6ec5d6b5e0ec?w=400&q=80',
-  CUCUMBER: 'https://images.unsplash.com/photo-1604977042946-1eecc30f269e?w=400&q=80',
-  CARROT: 'https://images.unsplash.com/photo-1598170845058-32b9d6a947da?w=400&q=80',
+  EGGPLANT: eggplantImage,
+  CUCUMBER: cucumberImage,
+  CARROT: carrotImage,
 }
 
 export function statusLabel(status) {

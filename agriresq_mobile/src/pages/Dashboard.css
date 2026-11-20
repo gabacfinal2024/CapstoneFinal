@@ -3,8 +3,8 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin: -20px -18px 24px;
-  padding: 28px 18px 22px;
+  margin: -20px calc(-1 * var(--page-gutter)) 20px;
+  padding: 26px var(--page-gutter) 21px;
   background: linear-gradient(135deg, var(--primary-dark), var(--primary));
   color: var(--white);
   border-radius: 0 0 24px 24px;
@@ -28,6 +28,7 @@
   font-size: 26px;
   font-weight: 700;
   color: var(--white);
+  overflow-wrap: anywhere;
 }
 
 .notif-btn {
@@ -35,8 +36,9 @@
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
   color: var(--white);
   padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -64,6 +66,144 @@
   margin-bottom: 24px;
 }
 
+.buyer-feature {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 22px;
+  background: var(--primary-dark);
+  color: var(--white);
+  box-shadow: 0 12px 28px rgb(13 63 56 / 17%);
+}
+
+.buyer-feature > img,
+.buyer-feature::after {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+.buyer-feature > img { object-fit: cover; object-position: center right; }
+.buyer-feature::after {
+  content: '';
+  background: linear-gradient(90deg, rgb(8 37 31 / 98%) 0%, rgb(8 37 31 / 85%) 42%, rgb(8 37 31 / 12%) 100%);
+}
+
+.buyer-feature__content {
+  width: min(72%, 246px);
+  padding: 22px 0 22px 18px;
+}
+
+.buyer-feature__content h2 {
+  font: 700 clamp(24px, 6.8vw, 31px)/1.04 var(--font-heading);
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.buyer-feature__content p {
+  max-width: 185px;
+  margin: 9px 0 16px;
+  color: #deece6;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.home-primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 11px;
+  background: var(--primary);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.buyer-feature .home-primary-action {
+  background: #fff0c9;
+  color: var(--primary-dark);
+}
+
+.home-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: -12px 0 24px;
+}
+
+.home-shortcuts a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 7px 9px;
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  background: var(--white);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.home-shortcuts a span { flex: 1; line-height: 1.25; }
+.home-shortcuts a svg { flex: none; }
+.home-shortcuts small {
+  min-width: 20px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--mint-light);
+  text-align: center;
+}
+
+.stall-overview {
+  padding: 15px;
+  border: 1px solid #c9ded4;
+  border-radius: 19px;
+  background: linear-gradient(145deg, #f1f9f4, #deeee5);
+}
+
+.stall-overview__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 13px;
+}
+
+.stall-overview__header h2 {
+  color: var(--primary-dark);
+  font: 700 19px/1.2 var(--font-heading);
+}
+
+.stall-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.stall-metrics div {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+  padding: 9px 6px;
+  border-radius: 11px;
+  background: rgb(255 255 255 / 80%);
+  color: var(--primary-dark);
+  text-align: center;
+}
+
+.stall-metrics dt { font-size: 11px; line-height: 1.2; color: var(--gray-600); }
+.stall-metrics dd { font: 700 26px/1 var(--font-heading); font-variant-numeric: tabular-nums; }
+.stall-metrics .is-attention { background: #fff1df; color: #85410b; }
+.stall-metrics .is-attention dt { color: inherit; }
+
 .section-row {
   display: flex;
   justify-content: space-between;
@@ -80,8 +220,11 @@
 }
 
 .alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: #FFF3E0;
-  color: #E65100;
+  color: #85410b;
   padding: 12px 16px;
   border-radius: var(--radius-sm);
   font-size: 13px;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import PageTitle from '../components/PageTitle'
 import { useParams, useNavigate } from 'react-router-dom'
+import { MapPin, MessageCircle } from 'lucide-react'
 import { BackLink } from '../context/BackNavigationContext'
 import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
@@ -71,6 +72,7 @@ export default function ProduceDetail() {
       <main className="produce-detail">
         <div className="produce-visual">
           <ProductImage src={product?.image_url} crop={crop} className="produce-hero" />
+          <span className="product-image-caption">Sample photo</span>
           <BackLink to="/marketplace" className="detail-back">← Back</BackLink>
         </div>
         <div className="produce-body">
@@ -83,6 +85,22 @@ export default function ProduceDetail() {
             {listing.discount_percent > 0 && <span className="strike-original">was {formatCurrency(wasPerKg)}</span>}
           </p>
           {qty > 0 && <p className="produce-total">{qty} kg available · {formatCurrency(listing.listed_price)} for the whole batch</p>}
+          <section className="card pickup-card" aria-labelledby="pickup-title">
+            <div className="pickup-card__location">
+              <span className="pickup-card__icon"><MapPin size={21} aria-hidden="true" /></span>
+              <div>
+                <h2 id="pickup-title">Pickup location</h2>
+                <p>{product?.pickup_location || 'Bulua West Terminal, Cagayan de Oro'}</p>
+              </div>
+            </div>
+            {isBuyer && (
+              <button type="button" className="send-message-btn" onClick={openChat} disabled={openingChat}>
+                <MessageCircle size={18} aria-hidden="true" />
+                {openingChat ? 'Opening messages…' : 'Send message'}
+              </button>
+            )}
+            {chatError && <p className="error-text" role="alert">{chatError}</p>}
+          </section>
           <FreshnessGauge percent={product?.freshness_percent} status={product?.freshness_status} daysLeft={product?.predicted_shelf_life} />
 
           <div className="detail-grid">
@@ -109,27 +127,12 @@ export default function ProduceDetail() {
             <section className="card detail-block seller-block">
               <div className="seller-header">
                 <h3>Stall operator</h3>
-                <span className="verified">✓ Verified</span>
+                {product?.profiles?.is_verified && <span className="verified">✓ Verified</span>}
               </div>
               <p className="seller-name">{listing.profiles?.full_name || 'Vendor'}{listing.profiles?.stall_number ? ` · Stall ${listing.profiles.stall_number}` : ''}</p>
               {rating && <p className="seller-rating">★ {rating.average.toFixed(1)} <small>({rating.count} rating{rating.count === 1 ? '' : 's'})</small></p>}
-              <p className="seller-note">{product?.notes || 'IoT-monitored surplus from Bulua Westbound Terminal.'}</p>
+              {product?.notes && <p className="seller-note">{product.notes}</p>}
             </section>
-
-            <section className="card detail-block">
-              <h3>Pickup location</h3>
-              <div className="map-placeholder"><span>{product?.pickup_location || 'Bulua West Terminal, Cagayan de Oro'}</span></div>
-            </section>
-
-            {isBuyer && (
-              <section className="card detail-block inline-chat-block">
-                <h3>Message the vendor</h3>
-                <button type="button" className="send-message-btn" onClick={openChat} disabled={openingChat}>
-                  {openingChat ? 'Opening messages…' : 'Send message'}
-                </button>
-                {chatError && <p className="error-text">{chatError}</p>}
-              </section>
-            )}
           </div>
         </div>
       </main>

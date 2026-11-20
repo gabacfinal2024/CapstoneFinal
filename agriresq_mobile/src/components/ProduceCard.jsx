@@ -78,7 +78,10 @@ export default function ProduceCard({ listing, isSaved = false, onUnsave }) {
   return (
     <>
       <article className="produce-card card">
-        <ProductImage src={product?.image_url} crop={crop} className="produce-card__image" alt="" />
+        <figure className="produce-card__media">
+          <ProductImage src={product?.image_url} crop={crop} className="produce-card__image" alt="" />
+          <figcaption className="product-image-caption">Sample photo</figcaption>
+        </figure>
         <div className="produce-info">
           <div className="produce-card__topline">
             <h4><Link to={`/produce/${listing.id}`} className="produce-card__link">{CROP_LABELS[crop] || 'Produce'}</Link></h4>

@@ -4,3 +4,18 @@ span.product-image-placeholder {
   background: var(--mint-light);
   color: var(--primary);
 }
+
+.product-image-caption {
+  display: none;
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 3px 5px;
+  border-radius: 6px;
+  background: rgb(13 48 40 / 91%);
+  color: var(--white);
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+img[data-sample-photo] + .product-image-caption { display: block; }

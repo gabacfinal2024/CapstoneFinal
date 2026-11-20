@@ -5,7 +5,6 @@ import { api } from '../api/supabaseApi'
 import { useAuth } from '../context/AuthContext'
 import BottomNav from '../components/BottomNav'
 import ProduceCard from '../components/ProduceCard'
-import './Marketplace.css'
 import './SavedListings.css'
 
 export default function SavedListings() {

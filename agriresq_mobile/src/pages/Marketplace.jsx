@@ -1,11 +1,11 @@
 import PageTitle from '../components/PageTitle'
 import { useCallback, useLayoutEffect, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Search, X } from 'lucide-react'
+import { Check, ChevronDown, LayoutGrid, Search, X } from 'lucide-react'
 import useEntryState from '../hooks/useEntryState'
 import usePolling from '../hooks/usePolling'
 import { api } from '../api/supabaseApi'
 import { useBackNavigation } from '../context/BackNavigationContext'
-import { CROP_LABELS } from '../utils/helpers'
+import { CROP_IMAGES, CROP_LABELS } from '../utils/helpers'
 import ProduceCard from '../components/ProduceCard'
 import BottomNav from '../components/BottomNav'
 import ErrorNotice from '../components/ErrorNotice'
@@ -124,6 +124,7 @@ export default function Marketplace() {
       <div className="page marketplace">
         <header className="page-title-header">
           <PageTitle>Rescue Listings</PageTitle>
+          <p className="market-intro">Browse available produce from local stalls.</p>
         </header>
 
         <div className="market-search" role="search">
@@ -149,12 +150,18 @@ export default function Marketplace() {
         <div className="category-tabs" role="group" aria-label="Crop type">
           {TABS.map((t) => (
             <button type="button" key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} aria-pressed={tab === t.id} onClick={() => setTab(t.id)}>
+              <span className="category-tabs__visual" aria-hidden="true">
+                {t.id === 'all' ? <LayoutGrid size={20} /> : <img src={CROP_IMAGES[t.id]} alt="" width="34" height="34" />}
+              </span>
               {t.label}
             </button>
           ))}
         </div>
 
         <div className="market-sort">
+          <p className="market-sort__count" role="status">
+            {loading ? 'Loading listings…' : !loadError && `${sorted.length} ${sorted.length === 1 ? 'listing' : 'listings'}`}
+          </p>
           <button type="button" ref={sortTrigger} className="market-sort__trigger"
             aria-haspopup="dialog" aria-expanded={sortPhase !== 'closed'} aria-controls="market-sort-dialog" onClick={openSort}>
             <span>Sort by</span>
@@ -165,7 +172,10 @@ export default function Marketplace() {
 
         <ErrorNotice message={loadError} onRetry={refresh} />
         {loading ? (
-          <p className="muted">Loading listings…</p>
+          <div className="listing-grid" aria-hidden="true">
+            <div className="market-card-skeleton" />
+            <div className="market-card-skeleton" />
+          </div>
         ) : sorted.length ? (
           <div className="listing-grid">
             {sorted.map((l) => <ProduceCard key={l.id} listing={l} />)}
