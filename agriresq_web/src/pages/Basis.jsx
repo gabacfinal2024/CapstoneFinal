@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import PageTitle from '../components/PageTitle';
 import { CROPS, cropLabel, deviceApi } from '../api/deviceApi';
 
 const ICON = { EGGPLANT: '🍆', CUCUMBER: '🥒', CARROT: '🥕' };
@@ -158,7 +159,7 @@ const Basis = () => {
   return (
     <div className="space-y-6 animate-fadeIn pb-10">
       <div>
-        <h1 className="text-3xl font-bold text-slate-800">Days-to-Spoil Basis</h1>
+        <PageTitle>Days-to-Spoil Basis</PageTitle>
         <p className="text-slate-500 text-sm mt-1">How AgriResQ estimates shelf life, and the published measurements it is checked against</p>
       </div>
 

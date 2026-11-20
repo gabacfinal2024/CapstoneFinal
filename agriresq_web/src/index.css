@@ -3,3 +3,16 @@
 body {
   @apply bg-slate-50;
 }
+
+.page-title {
+  min-width: 0;
+  margin: 0;
+  color: #155e52;
+  font-family: 'Space Grotesk Variable', ui-sans-serif, system-ui, sans-serif;
+  font-size: clamp(1.625rem, calc(1.5rem + 0.5vw), 1.75rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}

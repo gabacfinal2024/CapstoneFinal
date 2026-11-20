@@ -22,7 +22,7 @@
   border-radius: 50%;
 }
 
-.dash-header h1 {
+.dashboard-greeting {
   position: relative;
   z-index: 1;
   font-size: 26px;

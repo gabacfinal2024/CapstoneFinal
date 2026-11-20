@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, Clock, Droplets, Flame, Gauge, Settings2, Thermometer, Wind } from 'lucide-react'
 import { STALE_READING_MS, cropLabel, deviceApi, formatDateTime, isSensor, timeAgo } from '../api/deviceApi'
@@ -549,7 +550,7 @@ export default function Sensors() {
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Sensor Nodes</h1>
+          <PageTitle>Sensor Nodes</PageTitle>
           <p className="text-slate-500 text-sm mt-1">Live DHT22 temperature, humidity and VPD from every stall's sensor nodes. Only sensor nodes are listed here; ESP32-CAM cameras only take pictures and are on the Devices page.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

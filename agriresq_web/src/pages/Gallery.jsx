@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Camera, ChevronLeft, ChevronRight, CircleSlash, ExternalLink, ImageOff, Loader2, RefreshCw, X } from 'lucide-react'
 import {
@@ -352,7 +353,7 @@ export default function Gallery() {
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Scan Gallery</h1>
+          <PageTitle>Scan Gallery</PageTitle>
           <p className="text-slate-500 text-sm mt-1">Recent scan results from every stall camera, including empty and unmatched frames.</p>
         </div>
         <div className="flex items-center gap-3">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import PageTitle from '../components/PageTitle';
 import { Link, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, Camera, Clock, Eye, ImageIcon, Loader2, Maximize2, ScanLine, StopCircle, Upload, X } from 'lucide-react'
 import { CROPS, cropLabel, deviceApi, formatDateTime, canOperate, isDetected, isSensor, scanBadgeStatus, scanImageSrc, timeAgo } from '../api/deviceApi'
@@ -218,7 +219,7 @@ export default function AIVision() {
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Live Camera</h1>
+          <PageTitle>Live Camera</PageTitle>
           <p className="text-slate-500 text-sm mt-1">
             {devices ? `${onlineCount} of ${list.length} camera${list.length === 1 ? '' : 's'} online` : 'Connecting…'}
             {' • '}the live view opens on the first online camera and updates every few seconds.

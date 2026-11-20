@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import IoTReadings from '../components/IoTReadings'
 import BatchCard from '../components/BatchCard'
 import ProduceCard from '../components/ProduceCard'
+import PageTitle from '../components/PageTitle'
 import BottomNav from '../components/BottomNav'
 import './Dashboard.css'
 import { supabase } from '../lib/supabase'
@@ -107,7 +108,7 @@ export default function Dashboard() {
       <div className="page dashboard">
         <header className="dash-header">
           <div>
-            <h1>{user?.full_name || user?.email?.split('@')[0]}</h1>
+            <p className="dashboard-greeting">{user?.full_name || user?.email?.split('@')[0]}</p>
             <p className="role-tag">{isOperator
               ? `Stall Operator${user?.stall_number ? ` · Stall ${user.stall_number}` : ''}`
               : 'Rescue Buyer'}</p>
@@ -115,6 +116,10 @@ export default function Dashboard() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <Link to="/notifications" className="notif-btn" aria-label="Notifications"><Bell size={20} strokeWidth={2.2} />{unread > 0 && (<span className="notif-badge">{unread > 9 ? '9+' : unread}</span>)}</Link>
           </div>
+        </header>
+
+        <header className="page-title-header">
+          <PageTitle>Home</PageTitle>
         </header>
 
         {isOperator && (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import PageTitle from '../components/PageTitle';
 import { Search, ShieldCheck, Store, UserRound, UserRoundX, UserRoundCheck } from 'lucide-react';
 import { api } from '../api/supabaseApi';
 
@@ -94,7 +95,7 @@ export default function AdminRoles() {
     <div className="mx-auto w-full max-w-6xl">
       <header className="mb-7 border-b border-slate-200 pb-5">
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">Administration</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Applications & accounts</h1>
+        <PageTitle>Applications & accounts</PageTitle>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
           Review stall applications, maintain operator stall numbers, and manage account access without deleting user data.
         </p>

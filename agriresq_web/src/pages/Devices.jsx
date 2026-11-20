@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Camera, Droplets, Gauge, Plus, RefreshCw, Thermometer, Video } from 'lucide-react'
 import { STALE_READING_MS, cropLabel, deviceApi, isDetected, isSensor, scanBadgeStatus, timeAgo } from '../api/deviceApi'
@@ -184,7 +185,7 @@ export default function Devices() {
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Devices</h1>
+          <PageTitle>Devices</PageTitle>
           <p className="text-slate-500 text-sm mt-1">Manage ESP32-CAMs and DHT22 sensor nodes; live sensor readings update as the node reports them.</p>
         </div>
         <div className="flex gap-2">

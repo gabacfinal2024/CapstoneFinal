@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import PageTitle from '../components/PageTitle';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/supabaseApi';
 import { adminCancelListing, adminListBatch } from '../api/dealsApi';
@@ -249,7 +250,7 @@ function BatchDetailView({ id }) {
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-3xl">{cropEmoji(product.crop_type)}</div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">{titleCase(product.crop_type)} · Batch #{product.id}</h1>
+            <PageTitle>{titleCase(product.crop_type)} · Batch #{product.id}</PageTitle>
             <p className="text-slate-500 text-sm mt-1">
               {operator.full_name || 'Unknown operator'}{operator.stall_number ? ` · Stall ${operator.stall_number}` : ''}
             </p>

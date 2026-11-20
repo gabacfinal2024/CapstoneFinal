@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom';
 import { api } from '../api/supabaseApi';
 import { adminCancelListing, adminListBatch, buyerCount, dealHistory, listableBatches } from '../api/dealsApi';
@@ -286,7 +287,7 @@ const Marketplace = () => {
       {/* Header section */}
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Rescue Marketplace</h1>
+          <PageTitle>Rescue Marketplace</PageTitle>
           <p className="text-slate-500 text-sm mt-1">Freshness-verified surplus listings from every stall - Bulua WBIT - Live Data</p>
         </div>
         <button type="button" onClick={() => { setActionError(''); setShowNew(true); }} className="px-5 py-2.5 bg-[#2A6B48] text-white rounded-lg text-sm font-bold hover:bg-[#1f5035] shadow-sm transition-colors">

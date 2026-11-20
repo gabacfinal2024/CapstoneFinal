@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import PageTitle from '../components/PageTitle';
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle, ArrowLeft, Loader2, Plus, Power, RotateCcw, Save, ScanLine, Trash2, WifiOff, X,
@@ -259,10 +260,10 @@ function DeviceDetailView({ id }) {
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <Link to="/devices" className="text-sm font-bold text-[#2A6B48] flex items-center gap-1 mb-2"><ArrowLeft size={16} /> Devices</Link>
-          <h1 className="text-3xl font-bold text-slate-800 flex flex-wrap items-center gap-3">
-            {device.name}
+          <div className="flex flex-wrap items-center gap-3">
+            <PageTitle>{device.name}</PageTitle>
             <OnlinePill online={device.online} />
-          </h1>
+          </div>
           <p className="text-slate-500 text-sm mt-1">{device.stall_location || 'No location'} • {cropLabel(device.crop_type)}</p>
           <div className="flex flex-wrap gap-1.5 mt-2">
             <SensorBadge device={device} />

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom';
 import { api } from '../api/supabaseApi';
 import { cropLabel, deviceApi, isDetected, isSensor, scanBadgeStatus, timeAgo } from '../api/deviceApi';
@@ -174,7 +175,7 @@ const Dashboard = () => {
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-slate-800">Dashboard Overview</h1>
+        <PageTitle>Dashboard Overview</PageTitle>
         <p className="text-slate-500 text-sm mt-1">{place}</p>
       </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import PageTitle from '../components/PageTitle';
 import { api } from "../api/supabaseApi";
 import { announceProfile, uploadAvatar } from "../api/avatarApi";
 
@@ -177,10 +178,8 @@ export default function Profile() {
   return (
     <div style={{ maxWidth: "640px", margin: "0 auto", padding: "2rem 1rem" }}>
 
-      <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", margin: "0 0 0.25rem" }}>
-        My Profile
-      </p>
-      <p style={{ fontSize: "14px", color: "#64748b", margin: "0 0 2rem" }}>
+      <PageTitle>My Profile</PageTitle>
+      <p style={{ fontSize: "14px", color: "#64748b", margin: "0.25rem 0 2rem" }}>
         Manage your account information and password
       </p>
 

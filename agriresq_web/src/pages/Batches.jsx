@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import PageTitle from '../components/PageTitle';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/supabaseApi';
 import { downloadCsv } from '../api/analyticsApi';
@@ -108,7 +109,7 @@ const Batches = () => {
       {/* Header */}
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Batches</h1>
+          <PageTitle>Batches</PageTitle>
           <p className="text-slate-500 text-sm mt-1">Bulua Westbound Terminal • All stalls</p>
         </div>
         <button type="button" onClick={exportCsv} disabled={visible.length === 0}

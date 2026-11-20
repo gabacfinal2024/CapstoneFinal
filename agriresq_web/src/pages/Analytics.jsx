@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom';
 import { CROPS, cropLabel, isDetected, isSensor } from '../api/deviceApi';
 import { loadAnalytics, readingsCsv, rescuesCsv, scansCsv } from '../api/analyticsApi';
@@ -131,7 +132,7 @@ const Analytics = () => {
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-800">Reports & Analytics</h1>
+          <PageTitle>Reports & Analytics</PageTitle>
           <p className="text-slate-500 text-sm mt-1">Post-harvest performance of every stall • all time to {month}</p>
         </div>
         <button onClick={() => window.print()} className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-50 shadow-sm">
