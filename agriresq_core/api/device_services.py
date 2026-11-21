@@ -409,6 +409,12 @@ def age_operator_batches(operator_id, now=None, force=False):
         return 0
     try:
         products = supabase_select('products', {'operator_id': operator_id})
+        unlisted_assignments = [p['id'] for p in products if p['id'] in assignments and not p.get('is_listed')]
+        sold = set()
+        for start in range(0, len(unlisted_assignments), 100):
+            sold.update(listing['product_id'] for listing in supabase_select('marketplace_listings', {
+                'product_id': unlisted_assignments[start:start + 100], 'listing_status': 'SOLD',
+            }, 'product_id'))
     except Exception as exc:
         log.warning('stall aging: cannot read products: %s', exc)
         return 0
@@ -417,6 +423,9 @@ def age_operator_batches(operator_id, now=None, force=False):
     readings_by_sensor = {}
     paired = {}
     for product in products:
+        if product['id'] in sold:
+            BatchSensorLink.objects.filter(product_id=product['id'], operator_id=operator_id).delete()
+            continue
         if product.get('freshness_status') == 'RED':
             if product['id'] in linked or product['id'] in assignments:
                 unlink_rotten_batch(product['id'])

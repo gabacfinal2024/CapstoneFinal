@@ -820,6 +820,10 @@ class BatchSensorView(OperatorView):
             raise ValidationError({'sensor_id': 'Rotten batches cannot be monitored.'})
         if not str(value).isascii() or not str(value).isdigit() or len(str(value)) > 18:
             raise ValidationError({'sensor_id': 'Choose a valid DHT22 sensor.'})
+        if not product.get('is_listed') and supabase_select('marketplace_listings', {
+            'product_id': product_id, 'listing_status': 'SOLD',
+        }, 'product_id'):
+            raise ValidationError({'sensor_id': 'Sold batches cannot be linked to a sensor.'})
         device = Device.objects.select_for_update().filter(pk=int(value), kind='SENSOR', dht_pin__gte=0).first()
         if not device or device_access(request.user, device) not in ('owner', 'monitor'):
             raise NotFound('DHT22 sensor not available to your stall.')

@@ -31,7 +31,8 @@ class SharedBatchSensorTests(TestCase):
     def test_shared_operator_can_assign_and_unassign_sensor_on_multiple_own_batches(self):
         products = {7: self.product, 8: {**self.product, 'id': 8, 'is_listed': False}}
         with as_user(STALL_199), mock.patch.object(device_views, 'has_service_key', return_value=True), \
-                mock.patch.object(device_views, 'supabase_select', side_effect=lambda _, match: [products[match['id']]]):
+                mock.patch.object(device_views, 'supabase_select',
+                                  side_effect=lambda table, match, *_: [products[match['id']]] if table == 'products' else []):
             config = self.api.get(self.route).json()
             self.assertEqual([s['id'] for s in config['sensors']], [self.sensor.id])
             self.assertTrue(config['sensors'][0]['shared'])
@@ -67,13 +68,31 @@ class SharedBatchSensorTests(TestCase):
         with mock.patch.object(device_services, 'has_service_key', return_value=True), \
                 mock.patch.object(device_services, '_alerts'), \
                 mock.patch.object(device_services, 'supabase_select',
-                                  side_effect=lambda _, match: [private_inventory, unlinked] if match['operator_id'] == STALL_199.id else []), \
+                                  side_effect=lambda _table, match, *_: [private_inventory, unlinked] if match.get('operator_id') == STALL_199.id else []), \
                 mock.patch.object(device_services, '_age_product') as age, \
                 mock.patch.object(device_services, 'pair_readings') as pair:
             reading = device_services.save_reading(self.sensor, 31, 74)
         age.assert_called_once()
         self.assertEqual(age.call_args.args[:3], (private_inventory, Decimal('31'), Decimal('74')))
         pair.assert_called_once_with([private_inventory], Decimal('31'), Decimal('74'), reading.created_at)
+
+    def test_a_sold_batch_is_unlinked_and_cannot_be_assigned_again(self):
+        self.product['is_listed'] = False
+        BatchSensorLink.objects.create(product_id=7, operator_id=STALL_199.id, sensor=self.sensor)
+        DeviceReading.objects.create(device=self.sensor, temperature_c=31, humidity_rh=74)
+
+        def select(table, match, *_):
+            return [self.product] if table == 'products' else [{'product_id': 7}]
+
+        with mock.patch.object(device_services, 'has_service_key', return_value=True), \
+                mock.patch.object(device_services, 'supabase_select', side_effect=select), \
+                mock.patch.object(device_services, '_age_product') as age:
+            device_services.age_operator_batches(STALL_199.id, force=True)
+        age.assert_not_called()
+        self.assertFalse(BatchSensorLink.objects.exists())
+        with as_user(STALL_199), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', side_effect=select):
+            self.assertEqual(self.api.put(self.route, {'sensor_id': self.sensor.pk}, format='json').status_code, 400)
 
     def test_time_aging_uses_the_shared_sensor_instead_of_the_batch_owners_sensor(self):
         BatchSensorLink.objects.create(product_id=7, operator_id=STALL_199.id, sensor=self.sensor)
