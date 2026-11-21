@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from . import device_services
-from .models import Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
+from .models import BatchSensorLink, Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
 from .supabase_auth import SupabaseUser
 from . import device_views
 from .test_devices import BUYER, OPERATOR, as_user
@@ -67,12 +67,14 @@ class AdminMonitoringTests(TestCase):
             mac='AA:BB:CC:DD:EE:03', device_token='sensor-token',
         )
         product = {'id': 20, 'operator_id': OPERATOR.id, 'freshness_status': 'RED'}
+        BatchSensorLink.objects.create(product_id=20, operator_id=OPERATOR.id, sensor=sensor)
         with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
                 mock.patch.object(device_views, 'supabase_select', return_value=[product]):
             response = self.app.post('/api/batches/20/unlink-rotten/')
             relink = self.app.patch(f'/api/devices/{self.mine.id}/', {'product_id': 20}, format='json')
         self.assertEqual(response.status_code, 204)
         self.assertEqual(relink.status_code, 400)
+        self.assertFalse(BatchSensorLink.objects.filter(product_id=20).exists())
         for device in (self.mine, sensor):
             device.refresh_from_db()
             self.assertIsNone(device.product_id)

@@ -28,15 +28,17 @@ from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .device_services import run_scan, save_reading, stall_summary, unlink_rotten_batch
+from .device_services import (
+    available_sensor_links, run_scan, save_reading, sensor_conditions, stall_summary, unlink_rotten_batch,
+)
 from .analysis import batch_analysis
 from .evidence import reference_payload
 from .sensor_report import daily_sensor_report
 from .supabase_client import has_service_key, supabase_select
 from django.db.models import Q
 
-from .models import DEVICE_CROP_TYPES, Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
-from .spoilage_engine import validate_sensor_reading
+from .models import BatchClock, BatchSensorLink, DEVICE_CROP_TYPES, Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
+from .spoilage_engine import calculate_vpd, validate_sensor_reading
 from .supabase_auth import IsOperatorOrAdminReadOnly, SupabaseAuthentication, SupabaseUser, find_profile
 from .views import ImageParser
 
@@ -246,13 +248,17 @@ class PairingStatusView(OperatorView):
         })
 
 
-def sensor_listings(operator_id):
+def sensor_listings(operator_id, product_ids=None):
     if not has_service_key():
         return None
+    match = {'listing_status': 'ACTIVE'}
+    if operator_id is not None:
+        match['operator_id'] = operator_id
+    if product_ids is not None:
+        match['product_id'] = product_ids
     try:
-        listings = supabase_select('marketplace_listings', {
-            'operator_id': operator_id, 'listing_status': 'ACTIVE',
-        }, 'id,expires_at,product:products!inner(id,crop_type,quantity_kg,freshness_status,is_listed)')
+        listings = supabase_select('marketplace_listings', match,
+                                   'id,expires_at,product:products!inner(id,crop_type,quantity_kg,freshness_status,is_listed)')
     except Exception:
         log.warning('Could not load sensor listings for stall %s', operator_id, exc_info=True)
         return None
@@ -267,6 +273,23 @@ def sensor_listings(operator_id):
     return sorted(result, key=lambda item: item['id'], reverse=True)
 
 
+def linked_sensor_listings(device, listings_by_operator):
+    owner = device.operator_id
+    if owner not in listings_by_operator:
+        listings_by_operator[owner] = sensor_listings(owner)
+    own = listings_by_operator[owner]
+    if own is None:
+        return None
+    other_assignments = set(available_sensor_links().filter(operator_id=owner).exclude(sensor=device)
+                            .values_list('product_id', flat=True))
+    shared_ids = list(available_sensor_links().filter(sensor=device).exclude(operator_id=owner)
+                      .values_list('product_id', flat=True))
+    shared = sensor_listings(None, shared_ids) if shared_ids else []
+    if shared is None:
+        return None
+    return [row for row in own if row['id'] not in other_assignments] + shared
+
+
 class DeviceListView(OperatorView):
     def get(self, request):
         devices = visible_devices(request.user).order_by('created_at')
@@ -275,9 +298,7 @@ class DeviceListView(OperatorView):
         for device in devices:
             payload = device_json(request, device)
             if device.kind == 'SENSOR' and device.dht_pin >= 0:
-                if device.operator_id not in listings_by_operator:
-                    listings_by_operator[device.operator_id] = sensor_listings(device.operator_id)
-                payload['sensor_listings'] = listings_by_operator[device.operator_id]
+                payload['sensor_listings'] = linked_sensor_listings(device, listings_by_operator)
             result.append(payload)
         return Response(result)
 
@@ -290,7 +311,7 @@ class DeviceDetailView(OperatorView):
         device = self.get_device(request, pk)
         payload = device_json(request, device)
         if device.kind == 'SENSOR' and device.dht_pin >= 0:
-            payload['sensor_listings'] = sensor_listings(device.operator_id)
+            payload['sensor_listings'] = linked_sensor_listings(device, {})
         return Response(payload)
 
     def patch(self, request, pk):
@@ -343,7 +364,7 @@ class DeviceDetailView(OperatorView):
         device.save(update_fields=data.keys())
         payload = device_json(request, device)
         if device.kind == 'SENSOR' and device.dht_pin >= 0:
-            payload['sensor_listings'] = sensor_listings(device.operator_id)
+            payload['sensor_listings'] = linked_sensor_listings(device, {})
         return Response(payload)
 
     def delete(self, request, pk):
@@ -737,11 +758,15 @@ class DeviceMonitorsView(OperatorView):
 
 
 class DeviceMonitorDetailView(OperatorView):
+    @transaction.atomic
     def delete(self, request, pk, user_id):
         device = self.get_device(request, pk)
         if user_id != request.user.id and device.operator_id != request.user.id and request.user.role != 'ADMIN':
             raise PermissionDenied('Only the device owner or an administrator can remove someone else.')
+        Device.objects.select_for_update().get(pk=device.pk)
         DeviceMonitor.objects.filter(device=device, user_id=user_id).delete()
+        if user_id != device.operator_id:
+            BatchSensorLink.objects.filter(sensor=device, operator_id=user_id).delete()
         return Response(monitors_payload(request, device))
 
 
@@ -763,6 +788,52 @@ class RottenBatchUnlinkView(OperatorView):
             raise ValidationError('Only a rotten batch can be unlinked here.')
         unlink_rotten_batch(product_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BatchSensorView(OperatorView):
+    """Read or change the DHT22 chosen by the owner of this batch."""
+    def get(self, request, product_id):
+        product = verified_product(product_id, request.user.id)
+        if product.get('freshness_status') == 'RED':
+            return Response({'sensor_id': None, 'sensors': []})
+        sensors = visible_devices(request.user).filter(kind='SENSOR', dht_pin__gte=0).order_by('name', 'id')
+        sensor_id = available_sensor_links().filter(product_id=product_id, operator_id=request.user.id) \
+            .values_list('sensor_id', flat=True).first()
+        return Response({'sensor_id': sensor_id, 'sensors': [
+            {'id': device.id, 'name': device.name, 'stall_location': device.stall_location,
+             'shared': device.operator_id != request.user.id, 'online': device.online}
+            for device in sensors
+        ]})
+
+    @transaction.atomic
+    def put(self, request, product_id):
+        product = verified_product(product_id, request.user.id)
+        if 'sensor_id' not in request.data:
+            raise ValidationError({'sensor_id': 'Choose a sensor or automatic monitoring.'})
+        value = request.data['sensor_id']
+        if value is None:
+            removed, _ = BatchSensorLink.objects.filter(product_id=product_id, operator_id=request.user.id).delete()
+            if removed:
+                BatchClock.objects.filter(product_id=product_id).update(last_tick=timezone.now())
+            return Response({'sensor_id': None})
+        if product.get('freshness_status') == 'RED':
+            raise ValidationError({'sensor_id': 'Rotten batches cannot be monitored.'})
+        if not str(value).isascii() or not str(value).isdigit() or len(str(value)) > 18:
+            raise ValidationError({'sensor_id': 'Choose a valid DHT22 sensor.'})
+        device = Device.objects.select_for_update().filter(pk=int(value), kind='SENSOR', dht_pin__gte=0).first()
+        if not device or device_access(request.user, device) not in ('owner', 'monitor'):
+            raise NotFound('DHT22 sensor not available to your stall.')
+        link, created = BatchSensorLink.objects.select_for_update().get_or_create(
+            product_id=product_id, defaults={'operator_id': request.user.id, 'sensor': device},
+        )
+        changed = link.sensor_id != device.id or link.operator_id != request.user.id
+        if changed:
+            link.sensor = device
+            link.operator_id = request.user.id
+            link.save(update_fields=['sensor', 'operator_id'])
+        if created or changed:
+            BatchClock.objects.update_or_create(product_id=product_id, defaults={'last_tick': timezone.now()})
+        return Response({'sensor_id': device.id})
 
 
 def gallery_json(request, s):
@@ -1010,9 +1081,20 @@ class BatchAnalysisView(APIView):
             raise NotFound('Batch not found.')
         climate = None
         if full:
-            try:
-                found = supabase_select('product_climate', {'product_id': product_id})
-                climate = found[0] if found else None
-            except Exception:
-                climate = None                                  # table not created yet (supabase/010)
+            sensor_id = available_sensor_links().filter(product_id=product_id, operator_id=product['operator_id']) \
+                .values_list('sensor_id', flat=True).first()
+            if sensor_id and product.get('freshness_status') != 'RED':
+                reading = sensor_conditions(sensor_id, timezone.now())
+                if reading:
+                    temp, rh, measured_at = reading
+                    chu = BatchClock.objects.filter(product_id=product_id).values_list('chu_accumulated', flat=True).first()
+                    climate = {'latest_temp_c': float(temp), 'latest_humidity_rh': float(rh),
+                               'latest_vpd_kpa': float(calculate_vpd(temp, rh)), 'chu_accumulated': float(chu or 0),
+                               'sensor_updated_at': measured_at.isoformat()}
+            else:
+                try:
+                    found = supabase_select('product_climate', {'product_id': product_id})
+                    climate = found[0] if found else None
+                except Exception:
+                    climate = None                              # table not created yet (supabase/010)
         return Response(batch_analysis(product, climate, full=full))

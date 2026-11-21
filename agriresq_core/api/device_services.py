@@ -21,9 +21,10 @@ from types import SimpleNamespace
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import F, Q
 from django.utils import timezone
 
-from .models import BatchClock, Device, DeviceReading, DeviceScan
+from .models import BatchClock, BatchSensorLink, Device, DeviceReading, DeviceScan
 from .spoilage_engine import (CROP_CONFIG, calculate_chu_increment, calculate_stress_multiplier, calculate_vpd,
                                classify_status, freshness_percent, predict_spoilage)
 from .supabase_client import (has_service_key, supabase_delete_public_object, supabase_insert,
@@ -128,13 +129,15 @@ def _product(device):
 def unlink_rotten_batch(product_id):
     """Keep historical scans and readings while stopping all live links to this batch."""
     Device.objects.filter(product_id=product_id).update(product_id=None, eta_start=None, life_lost=0)
+    BatchSensorLink.objects.filter(product_id=product_id).delete()
 
 
 def reconcile_rotten_links():
     """Catch status changes made directly in Supabase and links saved before this behavior."""
     if not has_service_key():
         return
-    linked = list(Device.objects.exclude(product_id=None).values_list('product_id', flat=True).distinct())
+    linked = sorted(set(Device.objects.exclude(product_id=None).values_list('product_id', flat=True))
+                    | set(BatchSensorLink.objects.values_list('product_id', flat=True)))
     for start in range(0, len(linked), 100):
         for product in supabase_select('products', {
             'id': linked[start:start + 100], 'freshness_status': 'RED',
@@ -252,10 +255,14 @@ def save_reading(device, temperature_c, humidity_rh):
         _alerts(device, now, temp, humidity, previous_conditions)
 
     if has_service_key():
-        try:
-            age_operator_batches(device.operator_id, now)
-        except Exception as exc:
-            log.warning('Supabase sensor sync failed: %s', exc)
+        operators = {device.operator_id}
+        if device.kind == 'SENSOR':
+            operators.update(available_sensor_links().filter(sensor=device).values_list('operator_id', flat=True))
+        for operator_id in operators:
+            try:
+                age_operator_batches(operator_id, now)
+            except Exception as exc:
+                log.warning('Supabase sensor sync failed for stall %s: %s', operator_id, exc)
     return reading
 
 
@@ -318,6 +325,25 @@ SENSOR_WINDOW = timedelta(hours=3)       # readings older than this no longer de
 THROTTLE_S = 60                          # a sensor reading triggers at most one stall-wide pass per minute
 
 
+def available_sensor_links():
+    return BatchSensorLink.objects.filter(sensor__kind='SENSOR', sensor__dht_pin__gte=0).filter(
+        Q(sensor__operator_id=F('operator_id')) | Q(sensor__monitors__user_id=F('operator_id'))
+    ).distinct()
+
+
+def sensor_conditions(sensor_id, now):
+    recent = list(DeviceReading.objects.filter(device_id=sensor_id, created_at__gte=now - SENSOR_WINDOW)
+                  .order_by('-created_at', '-pk')[:FILTER_WINDOW])
+    if not recent:
+        return None
+    temp, rh = _filtered_conditions(recent)
+    return temp, rh, recent[0].created_at
+
+
+def assumed_conditions():
+    return Decimal(str(settings.ASSUMED_STALL_TEMP_C)), Decimal(str(settings.ASSUMED_STALL_RH))
+
+
 def stall_conditions(operator_id, now):
     """(temperature, humidity, measured) for a stall, from the stall's sensor nodes (plain ESP32 + DHT22): the
     average of each node's last readings (moving-average filter, paper 3.16.1), then the mean of the nodes. The
@@ -331,7 +357,8 @@ def stall_conditions(operator_id, now):
                           sum(r.humidity_rh for r in recent) / len(recent)))
     if means:
         return (sum(m[0] for m in means) / len(means), sum(m[1] for m in means) / len(means), True)
-    return Decimal(str(settings.ASSUMED_STALL_TEMP_C)), Decimal(str(settings.ASSUMED_STALL_RH)), False
+    temp, rh = assumed_conditions()
+    return temp, rh, False
 
 
 def _age_product(product, temp, rh, now, min_elapsed, source, note):
@@ -376,8 +403,9 @@ def age_operator_batches(operator_id, now=None, force=False):
     if not force and not cache.add(f'age-stall-{operator_id}', 1, THROTTLE_S):
         return 0
     now = now or timezone.now()
-    temp, rh, measured = stall_conditions(operator_id, now)
-    if not measured:
+    default_temp, default_rh, measured = stall_conditions(operator_id, now)
+    assignments = dict(available_sensor_links().filter(operator_id=operator_id).values_list('product_id', 'sensor_id'))
+    if not measured and not assignments:
         return 0
     try:
         products = supabase_select('products', {'operator_id': operator_id})
@@ -386,22 +414,34 @@ def age_operator_batches(operator_id, now=None, force=False):
         return 0
     linked = set(Device.objects.filter(operator_id=operator_id, product_id__isnull=False).values_list('product_id', flat=True))
     written = 0
-    paired = []
+    readings_by_sensor = {}
+    paired = {}
     for product in products:
         if product.get('freshness_status') == 'RED':
-            if product['id'] in linked:
+            if product['id'] in linked or product['id'] in assignments:
                 unlink_rotten_batch(product['id'])
             continue
-        if not (product.get('is_listed') or product['id'] in linked):
+        sensor_id = assignments.get(product['id'])
+        if not (product.get('is_listed') or product['id'] in linked or sensor_id):
             continue
+        if sensor_id:
+            if sensor_id not in readings_by_sensor:
+                readings_by_sensor[sensor_id] = sensor_conditions(sensor_id, now)
+            conditions = readings_by_sensor[sensor_id]
+        else:
+            conditions = (default_temp, default_rh, now) if measured else None
+        if not conditions:
+            continue
+        temp, rh, measured_at = conditions
         try:
             if _age_product(product, temp, rh, now, SENSOR_MIN_STEP, 'RULE_ENGINE', f'{temp:.1f}°C, {rh:.0f}% RH at the stall'):
                 written += 1
         except Exception as exc:
             log.warning('stall aging: batch %s not updated: %s', product.get('id'), exc)
         if product.get('freshness_status') != 'RED':
-            paired.append(product)
-    pair_readings(paired, temp, rh, now)
+            paired.setdefault(conditions, []).append(product)
+    for (temp, rh, measured_at), batches in paired.items():
+        pair_readings(batches, temp, rh, measured_at)
     return written
 
 
@@ -475,13 +515,23 @@ def age_by_time(now=None):
     except Exception as exc:
         log.warning('time aging: cannot read products: %s', exc)
         return 0
+    assignments = dict(available_sensor_links().values_list('product_id', 'sensor_id'))
     conditions = {}
+    readings_by_sensor = {}
     written = 0
     for product in products:
         op = product['operator_id']
-        if op not in conditions:
-            conditions[op] = stall_conditions(op, now)
-        temp, rh, measured = conditions[op]
+        sensor_id = assignments.get(product['id'])
+        if sensor_id:
+            if sensor_id not in readings_by_sensor:
+                readings_by_sensor[sensor_id] = sensor_conditions(sensor_id, now)
+            reading = readings_by_sensor[sensor_id]
+            measured = reading is not None
+            temp, rh = reading[:2] if measured else assumed_conditions()
+        else:
+            if op not in conditions:
+                conditions[op] = stall_conditions(op, now)
+            temp, rh, measured = conditions[op]
         note = f'{temp:.0f}°C, {rh:.0f}% RH' + ('' if measured else ', assumed')
         try:
             if _age_product(product, temp, rh, now, TIME_APPLY_AFTER, 'TIME', note):

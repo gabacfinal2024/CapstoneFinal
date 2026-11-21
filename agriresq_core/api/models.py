@@ -378,3 +378,10 @@ class DeviceMonitor(models.Model):
     class Meta:
         unique_together = [('device', 'user_id')]
         ordering = ['added_at']
+
+
+class BatchSensorLink(models.Model):
+    """A stall operator's choice of DHT22 for a Supabase batch."""
+    product_id = models.BigIntegerField(unique=True)
+    operator_id = models.CharField(max_length=64, db_index=True)
+    sensor = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='batch_links')

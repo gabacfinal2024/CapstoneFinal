@@ -7,6 +7,7 @@ import { api } from '../api/supabaseApi'
 import { CROP_LABELS, formatCurrency, formatDateTime, formatDays } from '../utils/helpers'
 import FreshnessGauge from '../components/FreshnessGauge'
 import FreshnessCheck from '../components/FreshnessCheck'
+import BatchSensorPicker from '../components/BatchSensorPicker'
 import ProductImage from '../components/ProductImage'
 import StatusBadge from '../components/StatusBadge'
 import { deviceApi } from '../api/deviceApi'
@@ -55,8 +56,8 @@ export default function BatchDetail() {
   }
   const crop = batch.crop_type
   const step = batch.is_listed ? 2 : 1
-  const canUpdatePhoto = user?.role === 'STALL_OPERATOR' && user.id === batch.operator_id &&
-    batch.is_listed && listing?.listing_status === 'ACTIVE'
+  const ownsBatch = user?.role === 'STALL_OPERATOR' && user.id === batch.operator_id
+  const canUpdatePhoto = ownsBatch && batch.is_listed && listing?.listing_status === 'ACTIVE'
 
   const updatePhoto = async (event) => {
     const file = event.target.files?.[0]
@@ -142,6 +143,10 @@ export default function BatchDetail() {
             {photoError && <p className="error-text" role="alert">{photoError}</p>}
             {photoMessage && <p className="success-text" role="status">{photoMessage}</p>}
           </section>
+        )}
+
+        {ownsBatch && batch.freshness_status !== 'RED' && (
+          <BatchSensorPicker key={id} batchId={id} onSaved={analysis.refresh} />
         )}
 
         <FreshnessCheck

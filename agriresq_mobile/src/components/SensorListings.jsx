@@ -11,7 +11,7 @@ export default function SensorListings({ device }) {
       <h3>Vegetable listings</h3>
       {device.dht_pin < 0 ? <p>DHT22 is not configured.</p>
         : !Array.isArray(listings) ? <p>Could not load this sensor’s listings.</p>
-        : listings.length === 0 ? <p>No active vegetable listings at this stall.</p>
+        : listings.length === 0 ? <p>No active vegetable listings on this sensor.</p>
         : (
           <ul>
             {listings.map((item) => (

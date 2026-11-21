@@ -110,6 +110,16 @@ export const deviceApi = {
     return strip(await request(`/api/batches/${encodeURIComponent(productId)}/analysis/`, { timeoutMs: 12000 }))
   },
 
+  async batchSensors(productId) {
+    return strip(await request(`/api/batches/${encodeURIComponent(productId)}/sensor/`))
+  },
+
+  async setBatchSensor(productId, sensorId) {
+    return strip(await request(`/api/batches/${encodeURIComponent(productId)}/sensor/`, {
+      method: 'PUT', body: { sensor_id: sensorId },
+    }))
+  },
+
   // ── Devices ──────────────────────────────────────
   async devices() {
     const data = await request('/api/devices/')
