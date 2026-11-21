@@ -6,8 +6,9 @@ import { adminCancelListing, adminListBatch } from '../api/dealsApi';
 import { batchPhotos, photoSrc } from '../api/batchPhotosApi';
 import Modal from '../components/Modal';
 import FreshnessAnalysisCard from '../components/FreshnessAnalysisCard';
+import BatchSensorPanel from '../components/BatchSensorPanel';
 import ReadingsChart from '../components/ReadingsChart';
-import { cropEmoji, daysUntil, fixedOrDash, fmtDate, fmtDateTime, freshnessMeta, peso, titleCase } from '../lib/format';
+import { cropEmoji, daysUntil, fixedOrDash, fmtDateTime, freshnessMeta, peso, titleCase } from '../lib/format';
 
 const selectCls = 'px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white text-slate-700 outline-none focus:border-emerald-500';
 
@@ -157,6 +158,7 @@ function BatchDetailView({ id }) {
   const [scans, setScans] = useState([]);
   const [photosState, setPhotosState] = useState({ loading: true, error: '' });
   const [lightbox, setLightbox] = useState(null);
+  const [sensorRevision, setSensorRevision] = useState(0);
 
   const [days, setDays] = useState(3);
   const [busy, setBusy] = useState(false);
@@ -335,7 +337,10 @@ function BatchDetailView({ id }) {
         </div>
       </div>
 
-      <FreshnessAnalysisCard productId={id} />
+      <BatchSensorPanel batchId={id}
+        blocked={listingSold ? 'This batch has been sold.' : product.freshness_status === 'RED' ? 'This batch is rotten.' : ''}
+        onSaved={() => setSensorRevision((revision) => revision + 1)} />
+      <FreshnessAnalysisCard key={sensorRevision} productId={id} />
 
       <SensorHistoryCard log={sensorLog} />
 

@@ -2,12 +2,12 @@ import { supabase } from '../lib/supabase'
 
 // Django IoT hub (see docs/IOT_DEVICE_API.md)
 // In local development, a phone or another computer may open the Vite server through the laptop's LAN IP,
-// so the Django backend is available on that same host at port 8000. Production must use VITE_BACKEND_URL.
+// so the Django backend is available on that same host at port 8000.
 const pageHost = typeof window !== 'undefined' ? window.location.hostname : ''
 const fromLaptop = import.meta.env.DEV && pageHost && !['localhost', '127.0.0.1', ''].includes(pageHost)
-export const BACKEND_URL = (fromLaptop
+export const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL || (fromLaptop
   ? `${window.location.protocol}//${pageHost}:8000`
-  : import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+  : import.meta.env.DEV ? 'http://127.0.0.1:8000' : 'https://agriresq.onrender.com')).replace(/\/$/, '')
 // ESP32-CAM setup hotspot address
 export const SETUP_URL = 'http://192.168.4.1'
 
@@ -121,6 +121,10 @@ export const deviceApi = {
    * batch's climate (admin / owner only). Throws on 503 when the hub has no Supabase key.
    */
   batchAnalysis: async (productId) => (await backend(`/api/batches/${encodeURIComponent(productId)}/analysis/`)).data,
+  batchSensors: async (productId) => (await backend(`/api/batches/${encodeURIComponent(productId)}/sensor/`)).data,
+  setBatchSensor: async (productId, sensorId) => (await backend(`/api/batches/${encodeURIComponent(productId)}/sensor/`, {
+    method: 'PUT', body: { sensor_id: sensorId },
+  })).data,
 
   /** Published shelf-life measurements next to what the engine predicts, plus the engine parameters: { studies, parameters, engine, limits }. */
   referenceShelfLife: async () => (await backend('/api/reference/shelf-life/')).data,
@@ -134,13 +138,15 @@ export const deviceApi = {
    * Gallery of analysed pictures across every camera the user may see.
    * Returns { results: Scan[] (with device_name, device_ip, image_url, raw_image_url), next_before }.
    */
-  gallery: async ({ device, detected, state, since, before, limit = 40 } = {}) => {
+  gallery: async ({ device, detected, source, state, since, until, before, limit = 40 } = {}) => {
     const q = new URLSearchParams()
     if (device) q.set('device', device)
     if (detected === true) q.set('detected', '1')
     if (detected === false) q.set('detected', '0')
+    if (source) q.set('source', source)
     if (state) q.set('state', state)
     if (since) q.set('since', since)
+    if (until) q.set('until', until)
     if (before) q.set('before', before)
     q.set('limit', String(Math.min(limit, 100)))
     return (await backend(`/api/scans/?${q.toString()}`)).data

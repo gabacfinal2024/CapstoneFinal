@@ -123,7 +123,7 @@ function RulesBlock({ analysis }) {
   const days = num(analysis.days_to_spoil)
   const pctFresh = num(analysis.freshness_percent)
   return (
-    <Block icon={Flame} title="Rules (CHU / VPD)" subtitle="Heat units and dryness from the stall's DHT22"
+    <Block icon={Flame} title="Rules (CHU / VPD)" subtitle="Heat units and dryness for this batch’s storage conditions"
            badge={<span className={`px-2.5 py-1 rounded-full text-xs font-bold shrink-0 ${meta.badge}`}>● {meta.label}</span>}
            footer={`Climate updated: ${c?.updated_at ? fmtDateTime(c.updated_at) : '—'}`}>
       <Tile icon={Timer} iconCls="text-emerald-600" tone="bg-emerald-50/60" value={days != null ? days.toFixed(1) : '—'} label="Days to spoil" hint={pctFresh != null ? `${Math.round(pctFresh)} % fresh` : 'predicted shelf life'} />

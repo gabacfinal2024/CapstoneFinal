@@ -14,6 +14,7 @@ from .test_devices import BUYER, OPERATOR, as_user
 
 
 STALL_199 = SupabaseUser('33333333-3333-3333-3333-333333333333', 'operator199@example.test', 'STALL_OPERATOR')
+ADMIN = SupabaseUser('99999999-9999-9999-9999-999999999999', 'admin@example.test', 'ADMIN')
 
 
 class SharedBatchSensorTests(TestCase):
@@ -59,6 +60,20 @@ class SharedBatchSensorTests(TestCase):
             self.product['freshness_status'] = 'RED'
             with as_user(STALL_199):
                 self.assertEqual(self.api.put(self.route, {'sensor_id': self.sensor.pk}, format='json').status_code, 400)
+        self.assertFalse(BatchSensorLink.objects.exists())
+
+    def test_admin_can_manage_batch_sensor_within_the_batch_owners_access(self):
+        other = Device.objects.create(operator_id=ADMIN.id, kind='SENSOR', dht_pin=4,
+                                      mac='AA:BB:CC:DD:EE:02', device_token='admin-dht')
+        with as_user(ADMIN), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', return_value=[self.product]):
+            config = self.api.get(self.route).json()
+            self.assertEqual([sensor['id'] for sensor in config['sensors']], [self.sensor.id])
+            self.assertTrue(config['sensors'][0]['shared'])
+            self.assertEqual(self.api.put(self.route, {'sensor_id': other.pk}, format='json').status_code, 404)
+            self.assertEqual(self.api.put(self.route, {'sensor_id': self.sensor.pk}, format='json').status_code, 200)
+            self.assertEqual(BatchSensorLink.objects.get(product_id=7).operator_id, STALL_199.id)
+            self.assertEqual(self.api.put(self.route, {'sensor_id': None}, format='json').status_code, 200)
         self.assertFalse(BatchSensorLink.objects.exists())
 
     def test_sensor_feed_ages_only_linked_batches_for_the_shared_operator(self):
@@ -125,6 +140,8 @@ class SharedBatchSensorTests(TestCase):
                 mock.patch.object(device_views, 'supabase_select',
                                   side_effect=lambda _, match, _fields: [listing] if match.get('product_id') == [7] else []), \
                 mock.patch.object(device_views, 'find_profile', return_value=None):
-            self.assertEqual(self.api.get(f'/api/devices/{self.sensor.id}/').json()['sensor_listings'][0]['listing_id'], 17)
+            shared_listing = self.api.get(f'/api/devices/{self.sensor.id}/').json()['sensor_listings'][0]
+            self.assertEqual(shared_listing['listing_id'], 17)
+            self.assertTrue(shared_listing['shared'])
             self.assertEqual(self.api.delete(f'/api/devices/{self.sensor.id}/monitors/{STALL_199.id}/').status_code, 200)
         self.assertFalse(BatchSensorLink.objects.exists())

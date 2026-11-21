@@ -160,21 +160,24 @@ function DeviceDetailView({ id }) {
     e.preventDefault()
     setSaveMsg('')
     const times = [...new Set(form.capture_times.filter(Boolean))].sort()
-    if (form.scan_mode === 'schedule' && times.length === 0) {
+    if (!sensor && form.scan_mode === 'schedule' && times.length === 0) {
       setSaveMsg('Error: add at least one capture time, or switch to “Every N minutes”.')
       return
     }
     setSaving(true)
     try {
-      const payload = {
+      const payload = sensor ? {
+        name: form.name,
+        stall_location: form.stall_location,
+        dht_pin: Number(form.dht_pin),
+      } : {
         ...form,
         product_id: form.product_id === '' ? null : Number(form.product_id),
         scan_interval_s: Number(form.scan_interval_s) || 300,
         capture_times: times.length ? times : DEFAULT_CAPTURE_TIMES,
       }
       // The DHT22 pin belongs to sensor nodes only; a camera never sends it.
-      if (sensor) payload.dht_pin = Number(form.dht_pin)
-      else delete payload.dht_pin
+      if (!sensor) delete payload.dht_pin
       const d = await deviceApi.update(id, payload)
       setDevice(d)
       setForm(settingsFrom(d))
@@ -446,14 +449,14 @@ function DeviceDetailView({ id }) {
               <div className="mt-3 text-sm text-slate-600">
                 {device.dht_pin < 0 ? <p>DHT22 is not configured.</p>
                   : !Array.isArray(device.sensor_listings) ? <p>Could not load this sensor’s listings.</p>
-                  : device.sensor_listings.length === 0 ? <p>No active vegetable listings at this stall.</p>
+                  : device.sensor_listings.length === 0 ? <p>No active vegetable listings on this sensor.</p>
                   : (
                     <ul className="divide-y divide-slate-100">
                       {device.sensor_listings.map((product) => (
                         <li key={product.listing_id}>
                           <Link to={`/batches/${product.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 text-[#2A6B48] hover:underline">
                             <strong>{cropLabel(product.crop_type)} · Batch #{product.id}</strong>
-                            <span>{product.quantity_kg} kg</span>
+                            <span>{product.quantity_kg} kg{product.shared ? ' · Shared stall' : ''}</span>
                           </Link>
                         </li>
                       ))}
@@ -469,7 +472,7 @@ function DeviceDetailView({ id }) {
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 {[
                   ...(!sensor ? [['Crop', cropLabel(device.crop_type)]] : []),
-                  ['Linked batch', device.product_id ? `#${device.product_id}` : 'Not linked'],
+                  ...(!sensor ? [['Linked batch', device.product_id ? `#${device.product_id}` : 'Not linked']] : []),
                   ...(sensor ? [] : [['Scanning', scheduleSummary(device)]]),
                   ...(sensor ? [['DHT22 pin', device.dht_pin >= 0 ? (device.dht_pin === 4 ? 'GPIO 4 (D4)' : `GPIO ${device.dht_pin}`) : 'None (no DHT22)']] : []),
                   ...(sensor ? [] : [['Flash LED', device.flash_on_scan ? 'On during scan' : 'Off']]),
@@ -499,10 +502,10 @@ function DeviceDetailView({ id }) {
                   setField('crop_type', crop)
                   if (linked && crop !== 'ALL' && linked.crop_type !== crop) setField('product_id', '')
                 }}>
-                  {DEVICE_CROPS.filter((c) => !sensor || c.value !== 'ALL').map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {DEVICE_CROPS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </label>}
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">{sensor ? 'Additional inventory batch' : 'Linked harvest batch'}
+              {!sensor && <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Linked harvest batch
                 <select className={`${inputCls} mt-1`} value={form.product_id} onChange={(e) => setField('product_id', e.target.value)}>
                   <option value="">— Not linked —</option>
                   {cropProducts.map((p) => (
@@ -512,12 +515,10 @@ function DeviceDetailView({ id }) {
                   ))}
                 </select>
                 <span className="block normal-case font-normal text-slate-400 mt-1">
-                  {sensor
-                    ? 'DHT22 readings apply to all active listings at this stall. You can also monitor a batch in inventory.'
-                    : 'Scans of a linked batch update its freshness, price and marketplace listing. In All vegetables mode, only matching-crop scans update the linked batch.'}
+                  Scans of a linked batch update its freshness, price and marketplace listing. In All vegetables mode, only matching-crop scans update the linked batch.
                   {products && cropProducts.length === 0 ? ` No ${cropLabel(form.crop_type).toLowerCase()} batches found.` : ''}
                 </span>
-              </label>
+              </label>}
 
               {!sensor && (
                 <>

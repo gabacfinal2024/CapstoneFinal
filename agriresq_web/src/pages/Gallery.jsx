@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Camera, ChevronLeft, ChevronRight, CircleSlash, ExternalLink, ImageOff, Loader2, RefreshCw, X } from 'lucide-react'
@@ -12,10 +12,9 @@ import { CopyButton } from '../components/DeviceBits'
 
 const PAGE_SIZE = 40
 const REFRESH_MS = 15000
-const MAX_SKIP_PAGES = 8 // pages to scan past when a "to" date hides the newest ones
-
-const EMPTY_FILTERS = { device: '', state: '', from: '', to: '' }
+const EMPTY_FILTERS = { source: '', device: '', state: '', from: '', to: '' }
 const STATES = [['fresh', 'Fresh'], ['at-risk', 'At-Risk'], ['rotten', 'Rotten']]
+const CAPTURE_LABELS = { AUTO: 'Stall camera', MANUAL: 'Stall camera', PHONE: 'Phone camera', UPLOAD: 'Photo upload' }
 
 const selectCls = 'px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm text-slate-700 focus:border-[#2A6B48] focus:ring-2 focus:ring-emerald-100 outline-none'
 
@@ -27,10 +26,13 @@ const pct = (v) => (v == null || Number.isNaN(Number(v)) ? null : Math.round(Num
 
 function queryFor(filters, extra = {}) {
   const from = startOfDay(filters.from)
+  const to = endOfDay(filters.to)
   return {
     device: filters.device || undefined,
+    source: filters.source || undefined,
     state: filters.state || undefined,
     since: from && !Number.isNaN(from.getTime()) ? from.toISOString() : undefined,
+    until: to && !Number.isNaN(to.getTime()) ? to.toISOString() : undefined,
     limit: PAGE_SIZE,
     ...extra,
   }
@@ -79,10 +81,11 @@ function GalleryCard({ scan, onOpen }) {
           {scan.source && <span className="text-[10px] font-bold text-slate-400 uppercase">{scan.source}</span>}
         </div>
         <p className="text-slate-500 truncate">
-          <span className="font-semibold text-slate-700">{scan.device_name || 'Camera'}</span>
-          {' • '}{scan.device_ip ? <span className="font-mono">{scan.device_ip}</span> : <span className="italic">IP unknown</span>}
+          <span className="font-semibold text-slate-700">{scan.device_name || CAPTURE_LABELS[scan.source] || 'Camera'}</span>
+          {scan.device_ip && <> {' · '}<span className="font-mono">{scan.device_ip}</span></>}
         </p>
         <ScanDetails scan={scan} />
+        {scan.used_for_batch && <p className="font-semibold text-emerald-700">Used for a batch</p>}
         {detected && (
           <p className="text-slate-500">
             {conf != null ? `${conf}% confidence` : ''}
@@ -233,13 +236,11 @@ export default function Gallery() {
   const requestRef = useRef(0) // ignore responses that belong to an older filter set
   const filtersRef = useRef(filters)
   const filterKey = JSON.stringify(filters)
-  const toDate = useMemo(() => endOfDay(filters.to), [filters.to])
+  const rangeInvalid = filters.from && filters.to && filters.from > filters.to
 
   useEffect(() => {
     filtersRef.current = filters
   })
-
-  const keepInRange = useCallback((rows) => (toDate ? rows.filter((s) => new Date(s.created_at) <= toDate) : rows), [toDate])
 
   // Camera names for the filter
   usePolling(async () => {
@@ -247,28 +248,19 @@ export default function Gallery() {
   }, 60000)
 
   // First page whenever the filters change (or Refresh is pressed).
-  // The API has no "until" filter, so with a "To" date newer pictures are skipped client-side.
   useEffect(() => {
     const ticket = ++requestRef.current
     let alive = true
     const run = async () => {
       setLoading(true)
+      setLoadingMore(false)
       setError('')
       setMoreError('')
       try {
-        let before
-        let collected = []
-        let next = null
-        for (let page = 0; page < MAX_SKIP_PAGES; page++) {
-          const res = await deviceApi.gallery(queryFor(filtersRef.current, { before }))
-          if (!alive || ticket !== requestRef.current) return
-          collected = collected.concat(keepInRange(res.results || []))
-          next = res.next_before
-          if (collected.length >= PAGE_SIZE / 2 || !next) break
-          before = next
-        }
-        setItems(collected)
-        setNextBefore(next)
+        const page = rangeInvalid ? { results: [], next_before: null } : await deviceApi.gallery(queryFor(filters))
+        if (!alive || ticket !== requestRef.current) return
+        setItems(page.results || [])
+        setNextBefore(page.next_before)
         setUpdatedAt(new Date())
       } catch (err) {
         if (!alive || ticket !== requestRef.current) return
@@ -281,7 +273,7 @@ export default function Gallery() {
     }
     run()
     return () => { alive = false }
-  }, [filterKey, reloadKey, keepInRange])
+  }, [filters, reloadKey, rangeInvalid])
 
   const loadMore = useCallback(async () => {
     if (!nextBefore || loading || loadingMore) return
@@ -289,28 +281,19 @@ export default function Gallery() {
     setLoadingMore(true)
     setMoreError('')
     try {
-      let before = nextBefore
-      let collected = []
-      let next = nextBefore
-      for (let page = 0; page < MAX_SKIP_PAGES && next; page++) {
-        const res = await deviceApi.gallery(queryFor(filtersRef.current, { before }))
-        if (ticket !== requestRef.current) return
-        collected = collected.concat(keepInRange(res.results || []))
-        next = res.next_before
-        before = next
-        if (collected.length >= PAGE_SIZE / 2) break
-      }
+      const page = await deviceApi.gallery(queryFor(filtersRef.current, { before: nextBefore }))
+      if (ticket !== requestRef.current) return
       setItems((cur) => {
         const seen = new Set(cur.map((s) => s.id))
-        return [...cur, ...collected.filter((s) => !seen.has(s.id))]
+        return [...cur, ...(page.results || []).filter((s) => !seen.has(s.id))]
       })
-      setNextBefore(next)
+      setNextBefore(page.next_before)
     } catch (err) {
       if (ticket === requestRef.current) setMoreError(err.message)
     } finally {
       if (ticket === requestRef.current) setLoadingMore(false)
     }
-  }, [nextBefore, loading, loadingMore, keepInRange])
+  }, [nextBefore, loading, loadingMore])
 
   // Gentle auto-refresh: prepend scans newer than what we show (paused while an end date is set)
   usePolling(async () => {
@@ -318,7 +301,7 @@ export default function Gallery() {
     try {
       const res = await deviceApi.gallery(queryFor(filtersRef.current))
       if (ticket !== requestRef.current) return
-      const fresh = keepInRange(res.results || [])
+      const fresh = res.results || []
       setItems((cur) => {
         const byId = new Map(fresh.map((s) => [s.id, s]))
         const merged = cur.map((s) => byId.get(s.id) || s) // pick up feedback changes
@@ -328,7 +311,7 @@ export default function Gallery() {
       })
       setUpdatedAt(new Date())
     } catch { /* keep what we have; the next tick retries */ }
-  }, REFRESH_MS, `${filterKey}-${reloadKey}`, !loading && !error && !toDate)
+  }, REFRESH_MS, `${filterKey}-${reloadKey}`, !loading && !error && !filters.to && !rangeInvalid)
 
   // Infinite scroll (the "Load more" button remains as a fallback)
   useEffect(() => {
@@ -343,11 +326,10 @@ export default function Gallery() {
 
   const setFilter = (key, value) => {
     setOpenId(null)
-    setFilters((f) => ({ ...f, [key]: value }))
+    setFilters((f) => ({ ...f, [key]: value, ...(key === 'source' && value === 'PHOTO' ? { device: '' } : {}) }))
   }
   const hasFilters = filterKey !== JSON.stringify(EMPTY_FILTERS)
   const closeLightbox = useCallback(() => setOpenId(null), [])
-  const rangeInvalid = filters.from && filters.to && filters.from > filters.to
 
   return (
     <div className="space-y-6 animate-fadeIn pb-10">
@@ -365,9 +347,16 @@ export default function Gallery() {
         </div>
       </div>
 
-      <form className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end" onSubmit={(e) => e.preventDefault()}>
+      <form className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end" onSubmit={(e) => e.preventDefault()}>
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Source
+          <select className={`${selectCls} mt-1 w-full font-normal normal-case`} value={filters.source} onChange={(e) => setFilter('source', e.target.value)}>
+            <option value="">All sources</option>
+            <option value="CAMERA">Stall camera</option>
+            <option value="PHOTO">Phone camera and uploads</option>
+          </select>
+        </label>
         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Camera
-          <select className={`${selectCls} mt-1 w-full font-normal normal-case`} value={filters.device} onChange={(e) => setFilter('device', e.target.value)}>
+          <select className={`${selectCls} mt-1 w-full font-normal normal-case disabled:opacity-60`} value={filters.device} disabled={filters.source === 'PHOTO'} onChange={(e) => setFilter('device', e.target.value)}>
             <option value="">All cameras</option>
             {devices.map((d) => <option key={d.id} value={d.id}>{d.name}{d.ip ? ` (${d.ip})` : ''}</option>)}
           </select>

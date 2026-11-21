@@ -168,15 +168,15 @@ function Tile({ icon: Icon, iconCls, tone, value, label, hint }) {
   )
 }
 
-/** Heat units for a device: its linked batch, else the highest of its stall's batches. */
+/** The largest accumulated heat reading among the active listings monitored by this sensor. */
 function heatUnitsFor(device, batches) {
   if (!batches) return { value: null, hint: 'loading…' }
-  const mine = batches.filter((b) => b.operatorId === device.operator_id && b.sensor.chu != null)
-  const linked = batches.find((b) => b.id === device.product_id && b.sensor.chu != null)
-  if (linked) return { value: linked.sensor.chu, hint: `batch #${linked.id}` }
-  if (mine.length > 0) {
-    const top = mine.reduce((a, b) => (b.sensor.chu > a.sensor.chu ? b : a))
-    return { value: top.sensor.chu, hint: `batch #${top.id}${mine.length > 1 ? ` (highest of ${mine.length})` : ''}` }
+  if (!Array.isArray(device.sensor_listings)) return { value: null, hint: 'listings unavailable' }
+  const ids = new Set(device.sensor_listings.map((listing) => listing.id))
+  const monitored = batches.filter((b) => ids.has(b.id) && b.sensor.chu != null)
+  if (monitored.length > 0) {
+    const top = monitored.reduce((a, b) => (b.sensor.chu > a.sensor.chu ? b : a))
+    return { value: top.sensor.chu, hint: `batch #${top.id}${monitored.length > 1 ? ` (highest of ${monitored.length})` : ''}` }
   }
   return { value: null, hint: 'no paired batch' }
 }
@@ -532,6 +532,7 @@ export default function Sensors() {
   const list = useMemo(() => (devices || []).filter(isSensor), [devices])
   const withDht = list.filter(hasDht)
   const fresh = withDht.filter((d) => d.latest_reading && !isStale(d.latest_reading, now))
+  const temperatures = fresh.map((device) => num(device.latest_reading.temperature_c)).filter((value) => value != null)
   const staleCount = withDht.filter((d) => d.latest_reading && isStale(d.latest_reading, now)).length
   const avg = (key) => (fresh.length ? fresh.reduce((sum, d) => sum + Number(d.latest_reading[key]), 0) / fresh.length : null)
   const avgTemp = avg('temperature_c')
@@ -617,15 +618,14 @@ export default function Sensors() {
           </thead>
           <tbody>
             {CROP_RANGES.map((c) => {
-              const temps = fresh.filter((d) => d.crop_type === c.crop).map((d) => Number(d.latest_reading.temperature_c))
-              const hot = temps.some((t) => t > c.stress)
+              const hot = temperatures.some((temp) => temp > c.stress)
               return (
                 <tr key={c.crop} className="border-t border-slate-100">
                   <td className="p-4 font-bold">{cropLabel(c.crop)}</td>
                   <td className="p-4">{c.optimal}</td>
                   <td className="p-4">{'>'}{c.stress}°C</td>
-                  <td className={`p-4 font-bold ${temps.length === 0 ? 'text-slate-400' : hot ? 'text-amber-500' : 'text-emerald-600'}`}>
-                    ● {temps.length === 0 ? 'No live reading' : hot ? 'Stress Active' : 'Normal'}
+                  <td className={`p-4 font-bold ${temperatures.length === 0 ? 'text-slate-400' : hot ? 'text-amber-500' : 'text-emerald-600'}`}>
+                    ● {temperatures.length === 0 ? 'No live reading' : hot ? 'Stress Active' : 'Normal'}
                   </td>
                 </tr>
               )

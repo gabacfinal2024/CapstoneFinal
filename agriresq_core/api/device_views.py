@@ -109,12 +109,14 @@ def device_access(user, device):
     return None
 
 
+def operator_devices(operator_id):
+    watching = DeviceMonitor.objects.filter(user_id=operator_id).values_list('device_id', flat=True)
+    return Device.objects.filter(Q(operator_id=operator_id) | Q(pk__in=watching))
+
+
 def visible_devices(user):
-    """Cameras this user may see: all for an administrator, otherwise their own plus the ones they monitor."""
-    if user.role == 'ADMIN':
-        return Device.objects.all()
-    watching = DeviceMonitor.objects.filter(user_id=user.id).values_list('device_id', flat=True)
-    return Device.objects.filter(Q(operator_id=user.id) | Q(pk__in=list(watching)))
+    """Devices an administrator or stall operator can see."""
+    return Device.objects.all() if user.role == 'ADMIN' else operator_devices(user.id)
 
 
 def device_json(request, d):
@@ -287,7 +289,7 @@ def linked_sensor_listings(device, listings_by_operator):
     shared = sensor_listings(None, shared_ids) if shared_ids else []
     if shared is None:
         return None
-    return [row for row in own if row['id'] not in other_assignments] + shared
+    return [row for row in own if row['id'] not in other_assignments] + [{**row, 'shared': True} for row in shared]
 
 
 class DeviceListView(OperatorView):
@@ -776,7 +778,7 @@ def verified_product(product_id, operator_id):
     if not has_service_key():
         raise ValidationError('The hub cannot verify the batch right now.')
     rows = supabase_select('products', {'id': product_id})
-    if not rows or rows[0].get('operator_id') != operator_id:
+    if not rows or (operator_id is not None and rows[0].get('operator_id') != operator_id):
         raise NotFound('Batch not found at this stall.')
     return rows[0]
 
@@ -791,28 +793,34 @@ class RottenBatchUnlinkView(OperatorView):
 
 
 class BatchSensorView(OperatorView):
-    """Read or change the DHT22 chosen by the owner of this batch."""
+    """Read or change a batch's DHT22 using the batch owner's device access."""
+    def _product(self, request, product_id):
+        operator_id = None if request.user.role == 'ADMIN' else request.user.id
+        return verified_product(product_id, operator_id)
+
     def get(self, request, product_id):
-        product = verified_product(product_id, request.user.id)
+        product = self._product(request, product_id)
         if product.get('freshness_status') == 'RED':
             return Response({'sensor_id': None, 'sensors': []})
-        sensors = visible_devices(request.user).filter(kind='SENSOR', dht_pin__gte=0).order_by('name', 'id')
-        sensor_id = available_sensor_links().filter(product_id=product_id, operator_id=request.user.id) \
+        operator_id = product['operator_id']
+        sensors = operator_devices(operator_id).filter(kind='SENSOR', dht_pin__gte=0).order_by('name', 'id')
+        sensor_id = available_sensor_links().filter(product_id=product_id, operator_id=operator_id) \
             .values_list('sensor_id', flat=True).first()
         return Response({'sensor_id': sensor_id, 'sensors': [
             {'id': device.id, 'name': device.name, 'stall_location': device.stall_location,
-             'shared': device.operator_id != request.user.id, 'online': device.online}
+             'shared': device.operator_id != operator_id, 'online': device.online}
             for device in sensors
         ]})
 
     @transaction.atomic
     def put(self, request, product_id):
-        product = verified_product(product_id, request.user.id)
+        product = self._product(request, product_id)
+        operator_id = product['operator_id']
         if 'sensor_id' not in request.data:
             raise ValidationError({'sensor_id': 'Choose a sensor or automatic monitoring.'})
         value = request.data['sensor_id']
         if value is None:
-            removed, _ = BatchSensorLink.objects.filter(product_id=product_id, operator_id=request.user.id).delete()
+            removed, _ = BatchSensorLink.objects.filter(product_id=product_id, operator_id=operator_id).delete()
             if removed:
                 BatchClock.objects.filter(product_id=product_id).update(last_tick=timezone.now())
             return Response({'sensor_id': None})
@@ -825,15 +833,15 @@ class BatchSensorView(OperatorView):
         }, 'product_id'):
             raise ValidationError({'sensor_id': 'Sold batches cannot be linked to a sensor.'})
         device = Device.objects.select_for_update().filter(pk=int(value), kind='SENSOR', dht_pin__gte=0).first()
-        if not device or device_access(request.user, device) not in ('owner', 'monitor'):
-            raise NotFound('DHT22 sensor not available to your stall.')
+        if not device or not operator_devices(operator_id).filter(pk=device.pk).exists():
+            raise NotFound('DHT22 sensor not available to the batch’s stall.')
         link, created = BatchSensorLink.objects.select_for_update().get_or_create(
-            product_id=product_id, defaults={'operator_id': request.user.id, 'sensor': device},
+            product_id=product_id, defaults={'operator_id': operator_id, 'sensor': device},
         )
-        changed = link.sensor_id != device.id or link.operator_id != request.user.id
+        changed = link.sensor_id != device.id or link.operator_id != operator_id
         if changed:
             link.sensor = device
-            link.operator_id = request.user.id
+            link.operator_id = operator_id
             link.save(update_fields=['sensor', 'operator_id'])
         if created or changed:
             BatchClock.objects.update_or_create(product_id=product_id, defaults={'last_tick': timezone.now()})
