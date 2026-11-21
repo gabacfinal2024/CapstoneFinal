@@ -55,10 +55,12 @@ export default function Devices() {
     <div className="app-shell">
       <div className="page devices-page">
         <header className="page-title-header devices-header">
-          <PageTitle>My Devices</PageTitle>
-          <p className="dev-subtitle">
-            {devices ? `${onlineCount} of ${devices.length} online` : 'ESP32-CAM scanners and sensor nodes'}
-          </p>
+          <div className="devices-header__title">
+            <PageTitle>My Devices</PageTitle>
+            <p className="dev-subtitle">
+              {devices ? `${onlineCount} of ${devices.length} online` : 'ESP32-CAM scanners and sensor nodes'}
+            </p>
+          </div>
           <div className="devices-actions">
             <button type="button" className="icon-action" onClick={refresh} disabled={refreshing} aria-label="Refresh devices">
               <RefreshCw size={18} className={refreshing ? 'spin' : ''} />

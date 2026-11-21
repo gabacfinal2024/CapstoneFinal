@@ -8,7 +8,7 @@ export default function Register() {
   const { register } = useAuth()
   const [form, setForm] = useState({
     full_name: '', email: '', phone_number: '', password: '',
-    buyer_type: 'RETAILER',
+    buyer_type: 'RETAILER', analysisConsent: false,
   })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
@@ -70,6 +70,14 @@ export default function Register() {
         <p className="auth-note">
           New accounts start as <strong>Rescue Buyers</strong>. To sell as a stall operator, apply from your Profile after signing in. An administrator reviews the request.
         </p>
+        <fieldset className="auth-consent">
+          <legend>Terms and conditions</legend>
+          <p>AgriResQ asks to use the data it collects, including your name and the photos you submit, to analyze produce freshness and evaluate how the app performs.</p>
+          <label>
+            <input type="checkbox" required checked={form.analysisConsent} onChange={(e) => set('analysisConsent', e.target.checked)} />
+            <span>I agree to this use of my data, photos, and name for analysis.</span>
+          </label>
+        </fieldset>
         {error && <p className="error-text">{error}</p>}
         <button type="submit" className="btn btn-green" disabled={loading}>
           {loading ? 'Creating...' : 'Create Account'}

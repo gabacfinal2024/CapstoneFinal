@@ -8,6 +8,12 @@
 }
 
 .device-detail .card > h3 { font-size: 15px; color: var(--primary); margin-bottom: 12px; }
+.device-info > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; color: var(--primary); font-size: 15px; font-weight: 700; cursor: pointer; list-style: none; }
+.device-info > summary::-webkit-details-marker { display: none; }
+.device-info[open] > summary { margin-bottom: 8px; }
+.device-info[open] > summary span { transform: rotate(180deg); }
+.device-info .info-list div { display: grid; grid-template-columns: minmax(72px, 1fr) minmax(0, 2fr); }
+.device-info .info-list strong { word-break: normal; overflow-wrap: anywhere; }
 
 .scan-btn { margin-top: 10px; }
 

@@ -15,6 +15,7 @@ import { CROP_LABELS, formatDateTime, stallChuRate } from '../utils/helpers'
 import LiveCameraView from '../components/LiveCameraView'
 import ScanResultCard, { isNoVegetable, scanSummary } from '../components/ScanResultCard'
 import ScanGallery from '../components/ScanGallery'
+import SensorListings from '../components/SensorListings'
 import { SensorPanel } from '../components/CameraSensorCard'
 import { AccessBadge, SensorBadge } from '../components/MonitorBadges'
 import OnlinePill from '../components/OnlinePill'
@@ -489,7 +490,7 @@ function DeviceDetailPage({ id }) {
           )}
         </section>
 
-        {operate && (
+        {operate && !sensor && (
           <form className="dev-section card" onSubmit={save}>
             <h3>Settings</h3>
             <div className="input-group">
@@ -519,7 +520,7 @@ function DeviceDetailPage({ id }) {
                 <label>Linked batch (scan results update its freshness)</label>
                 <select value={form.product_id} onChange={(e) => set('product_id', e.target.value)}>
                   <option value="">— Not linked —</option>
-                  {batches.filter((b) => form.crop_type === 'ALL' || b.crop_type === form.crop_type).map((b) => (
+                  {batches.filter((b) => b.freshness_status !== 'RED' && (form.crop_type === 'ALL' || b.crop_type === form.crop_type)).map((b) => (
                     <option key={b.id} value={b.id}>{CROP_LABELS[b.crop_type] || b.crop_type} #{b.id} · {b.quantity_kg} kg</option>
                   ))}
                 </select>
@@ -584,12 +585,6 @@ function DeviceDetailPage({ id }) {
               </>
             )}
 
-            {sensor && (
-              <div className="input-group">
-                <label>DHT22 temperature/humidity sensor</label>
-                <p className="field-hint" style={{ marginTop: 0 }}>{device.dht_pin >= 0 ? 'DHT22 configured' : 'DHT22 not configured'}</p>
-              </div>
-            )}
             {!sensor && (
               <label className="toggle-row">
                 <span>Turn on flash light while scanning</span>
@@ -600,8 +595,14 @@ function DeviceDetailPage({ id }) {
           </form>
         )}
 
-        <section className="dev-section card">
-          <h3>Device info</h3>
+        {sensor && (
+          <section className="dev-section card">
+            <SensorListings device={device} />
+          </section>
+        )}
+
+        <details className="dev-section card device-info">
+          <summary>Device info <span aria-hidden="true">⌄</span></summary>
           <div className="info-list">
             <div><span>Type</span><strong>{sensor ? 'Sensor node (DHT22, no camera)' : 'Camera (ESP32-CAM)'}</strong></div>
             <div><span>Status</span><strong>{device.online ? 'Online' : `Offline · last seen ${timeAgo(device.last_seen)}`}</strong></div>
@@ -613,7 +614,7 @@ function DeviceDetailPage({ id }) {
             <div><span>MAC</span><strong>{device.mac || '—'}</strong></div>
             <div><span>Your access</span><strong>{shared ? 'Shared with you' : manage ? 'Owner' : 'Administrator'}</strong></div>
           </div>
-        </section>
+        </details>
 
         {operate && (
           <section className="dev-section">

@@ -5,6 +5,7 @@ export function backFallback(pathname, authenticated) {
   const sensorReport = /^\/devices\/([0-9]+)\/report$/.exec(path)
   if (sensorReport) return `/devices/${sensorReport[1]}`
   if (path.startsWith('/devices/') || path === '/gallery') return '/devices'
+  if (path.startsWith('/produce/batch/')) return '/home'
   if (path.startsWith('/produce/') || path === '/saved-listings') return '/marketplace'
   if (path.startsWith('/chat/')) return '/messages'
   if (path === '/basis' || path === '/account-settings') return '/profile'

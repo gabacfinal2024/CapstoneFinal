@@ -80,8 +80,9 @@ def scheduler_loop():
             run_schedule_once()
             if time.monotonic() - last_aging >= AGING_EVERY_S:
                 last_aging = time.monotonic()
-                from .device_services import age_by_time
+                from .device_services import age_by_time, reconcile_rotten_links
                 age_by_time()
+                reconcile_rotten_links()
             if time.monotonic() - last_prune >= PRUNE_EVERY_S:
                 last_prune = time.monotonic()
                 from .device_services import prune_scans

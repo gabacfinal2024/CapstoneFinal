@@ -251,7 +251,9 @@ function DeviceDetailView({ id }) {
   const latestReading = device.latest_reading || readings[0] || null
   const reading = device.latest_reading
   const readingStale = !!reading && now - new Date(reading.created_at).getTime() > STALE_READING_MS
-  const cropProducts = (products || []).filter((p) => form?.crop_type === 'ALL' || !form?.crop_type || p.crop_type === form.crop_type)
+  const cropProducts = (products || []).filter((p) =>
+    p.operator_id === device.operator_id && p.freshness_status !== 'RED'
+    && (form?.crop_type === 'ALL' || !form?.crop_type || p.crop_type === form.crop_type))
   const intervalMinutes = Math.max(1, Math.round((Number(form?.scan_interval_s) || 300) / 60))
   const intervalOptions = INTERVAL_MINUTES.includes(intervalMinutes) ? INTERVAL_MINUTES : [...INTERVAL_MINUTES, intervalMinutes].sort((a, b) => a - b)
 
@@ -438,6 +440,29 @@ function DeviceDetailView({ id }) {
             onChanged={refreshDevice}
           />
 
+          {sensor && (
+            <details className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <summary className="cursor-pointer font-bold text-slate-800">Vegetable listings</summary>
+              <div className="mt-3 text-sm text-slate-600">
+                {device.dht_pin < 0 ? <p>DHT22 is not configured.</p>
+                  : !Array.isArray(device.sensor_listings) ? <p>Could not load this sensor’s listings.</p>
+                  : device.sensor_listings.length === 0 ? <p>No active vegetable listings at this stall.</p>
+                  : (
+                    <ul className="divide-y divide-slate-100">
+                      {device.sensor_listings.map((product) => (
+                        <li key={product.listing_id}>
+                          <Link to={`/batches/${product.id}`} className="flex min-h-11 flex-wrap items-center justify-between gap-2 py-2 text-[#2A6B48] hover:underline">
+                            <strong>{cropLabel(product.crop_type)} · Batch #{product.id}</strong>
+                            <span>{product.quantity_kg} kg</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+              </div>
+            </details>
+          )}
+
           {!operate && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
               <h2 className="text-lg font-bold text-slate-800 mb-3">Device settings</h2>
@@ -477,7 +502,7 @@ function DeviceDetailView({ id }) {
                   {DEVICE_CROPS.filter((c) => !sensor || c.value !== 'ALL').map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                 </select>
               </label>}
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Linked harvest batch
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">{sensor ? 'Additional inventory batch' : 'Linked harvest batch'}
                 <select className={`${inputCls} mt-1`} value={form.product_id} onChange={(e) => setField('product_id', e.target.value)}>
                   <option value="">— Not linked —</option>
                   {cropProducts.map((p) => (
@@ -487,7 +512,9 @@ function DeviceDetailView({ id }) {
                   ))}
                 </select>
                 <span className="block normal-case font-normal text-slate-400 mt-1">
-                  Scans of a linked batch update its freshness, price and marketplace listing. In All vegetables mode, only matching-crop scans update the linked batch.
+                  {sensor
+                    ? 'DHT22 readings apply to all active listings at this stall. You can also monitor a batch in inventory.'
+                    : 'Scans of a linked batch update its freshness, price and marketplace listing. In All vegetables mode, only matching-crop scans update the linked batch.'}
                   {products && cropProducts.length === 0 ? ` No ${cropLabel(form.crop_type).toLowerCase()} batches found.` : ''}
                 </span>
               </label>

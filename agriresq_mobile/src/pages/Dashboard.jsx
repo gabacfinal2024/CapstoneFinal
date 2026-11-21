@@ -9,9 +9,11 @@ import ProduceCard from '../components/ProduceCard'
 import PageTitle from '../components/PageTitle'
 import BottomNav from '../components/BottomNav'
 import ErrorNotice from '../components/ErrorNotice'
+import SensorListings from '../components/SensorListings'
+import { scanSummary } from '../components/ScanResultCard'
 import marketHarvest from '../assets/market-harvest.webp'
 import './Dashboard.css'
-import { Bell, Plus, ArrowRight, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
+import { Bell, Plus, ArrowRight, Camera, ChevronDown, ChevronRight, AlertTriangle, Thermometer, Droplets } from 'lucide-react'
 import { deviceApi, timeAgo, isReadingStale, isSensor, deviceFallbackName } from '../api/deviceApi'
 import usePolling from '../hooks/usePolling'
 import useEntryState from '../hooks/useEntryState'
@@ -55,6 +57,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isOperator) loadRecommended()
   }, [isOperator])
+
+  const onlineDevices = devices?.filter((device) => device.online).length
+  const latestDeviceScan = (devices || [])
+    .filter((device) => !isSensor(device) && device.latest_scan?.created_at)
+    .map((device) => device.latest_scan)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+  const deviceStatus = devices === null
+    ? (sensorError ? 'Device status unavailable' : 'Loading devices…')
+    : devices.length ? `${onlineDevices} of ${devices.length} online` : 'No devices yet'
 
   // Only sensor nodes carry a DHT22 reading (cameras have none): newest reading across the stall's sensor nodes
   const sensorNodes = (devices || []).filter((d) => isSensor(d))
@@ -179,6 +190,24 @@ export default function Dashboard() {
 
         {isOperator && (
           <section className="dash-section">
+            <Link to="/devices" className="card dash-devices">
+              <span className="dash-devices__icon"><Camera size={22} aria-hidden="true" /></span>
+              <span className="dash-devices__text">
+                <strong>My devices</strong>
+                <span>{deviceStatus}</span>
+                {latestDeviceScan && (
+                  <span className="dash-devices__scan">
+                    {scanSummary(latestDeviceScan)} · {timeAgo(latestDeviceScan.created_at)}
+                  </span>
+                )}
+              </span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </Link>
+          </section>
+        )}
+
+        {isOperator && (
+          <section className="dash-section">
             <h2 className="section-title">Stall sensors</h2>
             <ErrorNotice message={sensorError} onRetry={loadDevices} hint={devices ? 'Showing the last information we received.' : undefined} />
             <IoTReadings temp={showTemp} humidity={showHum} vpd={latestDeviceReading?.vpd_kpa} />
@@ -199,19 +228,22 @@ export default function Dashboard() {
             {sensorNodes.length > 0 ? (
               <div className="card sensor-rows">
                 {sensorNodes.map((d) => (
-                  <Link key={d.id} to={`/devices/${d.id}`} className="sensor-row">
-                    <span className="sensor-row__name"><Thermometer size={14} /> {d.name || deviceFallbackName(d)}</span>
-                    {d.latest_reading ? (
-                      <span className={`sensor-row__vals${isReadingStale(d.latest_reading.created_at) ? ' is-stale' : ''}`}>
-                        <span>{Number(d.latest_reading.temperature_c).toFixed(1)}°C</span>
-                        <span><Droplets size={13} /> {Number(d.latest_reading.humidity_rh).toFixed(0)}%</span>
-                        <small>{isReadingStale(d.latest_reading.created_at) ? 'old · ' : ''}{timeAgo(d.latest_reading.created_at)}</small>
-                        <ChevronRight size={16} />
-                      </span>
-                    ) : (
-                      <span className="sensor-row__vals is-none">{d.dht_pin >= 0 ? 'Waiting for reading' : 'No sensor'} <ChevronRight size={16} /></span>
-                    )}
-                  </Link>
+                  <details key={d.id} className="sensor-disclosure">
+                    <summary className="sensor-row">
+                      <span className="sensor-row__name"><Thermometer size={14} aria-hidden="true" /> {d.name || deviceFallbackName(d)}</span>
+                      {d.latest_reading ? (
+                        <span className={`sensor-row__vals${isReadingStale(d.latest_reading.created_at) ? ' is-stale' : ''}`}>
+                          <span>{Number(d.latest_reading.temperature_c).toFixed(1)}°C</span>
+                          <span><Droplets size={13} aria-hidden="true" /> {Number(d.latest_reading.humidity_rh).toFixed(0)}%</span>
+                        </span>
+                      ) : <span className="sensor-row__vals is-none">{d.dht_pin >= 0 ? 'Waiting for reading' : 'No sensor'}</span>}
+                      <ChevronDown className="sensor-chevron" size={16} aria-hidden="true" />
+                    </summary>
+                    <div className="sensor-disclosure__body">
+                      <SensorListings device={d} />
+                      <Link to={`/devices/${d.id}`} className="add-link">Open sensor details <ChevronRight size={16} /></Link>
+                    </div>
+                  </details>
                 ))}
               </div>
             ) : devices !== null && (

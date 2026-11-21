@@ -30,4 +30,6 @@ test('deep links have a parent screen even with empty app history', () => {
   assert.equal(backFallback('/devices/12', true), '/devices')
   assert.equal(backFallback('/chat/7', true), '/messages')
   assert.equal(backFallback('/forgot-password', false), '/login')
+  assert.equal(backFallback('/produce/batch/20', true), '/home')
+  assert.equal(backFallback('/produce/20', true), '/marketplace')
 })

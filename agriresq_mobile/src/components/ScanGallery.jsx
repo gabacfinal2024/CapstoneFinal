@@ -237,7 +237,7 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
             return (
               <div className="gal-entry" key={`${s.source}-${s.id}`}>
                 <Tile scan={s} showCamera={showCamera} onOpen={setSelected} />
-                {s.detected && !isNoVegetable(s) && (
+                {s.used_for_batch ? <p className="gal-used">Already used for a batch</p> : s.detected && !isNoVegetable(s) && (
                   <button type="button" className="btn btn-outline gal-list-batch" onClick={() => useScanForBatch(s)}>
                     {canList ? 'Create batch & list' : 'Save to inventory'}
                   </button>

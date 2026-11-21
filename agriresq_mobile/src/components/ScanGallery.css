@@ -13,6 +13,8 @@
 
 .gal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .gal-entry { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gal-entry > .gal-tile { flex: 1; }
+.gal-used { display: grid; place-items: center; min-height: 44px; color: var(--gray-600); text-align: center; font-size: 13px; }
 .btn.gal-list-batch { width: 100%; min-height: 44px; padding: 6px 8px; font-size: 12px; line-height: 1.3; text-align: center; }
 
 .gal-tile {
@@ -33,8 +35,8 @@
 
 .gal-tile:active { transform: scale(0.98); }
 
-.gal-tile__img { display: block; aspect-ratio: 4 / 3; background: var(--gray-100); }
-.gal-tile__img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gal-tile__img { position: relative; display: block; flex: none; width: 100%; aspect-ratio: 4 / 3; background: var(--gray-100); }
+.gal-tile__img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .gal-tile__ph {
   height: 100%;

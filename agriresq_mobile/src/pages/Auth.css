@@ -144,3 +144,16 @@
   }
 }
 .auth-note { margin: 0; font-size: 13px; line-height: 1.4; color: #4b5563; background: #ecfdf5; border-radius: 10px; padding: 10px 12px; }
+.auth-consent {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  color: var(--gray-800);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.auth-consent legend { padding-inline: 4px; font-weight: 700; }
+.auth-consent label { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; min-height: 44px; }
+.auth-consent input[type="checkbox"] { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--primary); }

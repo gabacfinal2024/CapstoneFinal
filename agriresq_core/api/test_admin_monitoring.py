@@ -1,5 +1,5 @@
 """Camera access: the owner, the people it is shared with, and always the administrator."""
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest import mock
 from urllib.parse import urlencode
 
@@ -35,6 +35,67 @@ class AdminMonitoringTests(TestCase):
         with as_user(OPERATOR):
             names = [d['name'] for d in self.app.get('/api/devices/').json()]
         self.assertEqual(names, ['Stall 1 Cam'])
+
+    def test_sensor_lists_all_active_stall_listings_without_a_manual_batch_link(self):
+        sensor = Device.objects.create(
+            operator_id=OPERATOR.id, kind='SENSOR', dht_pin=4,
+            mac='AA:BB:CC:DD:EE:03', device_token='sensor-token',
+        )
+        expiry = (timezone.now() + timedelta(days=1)).isoformat()
+        product = {'id': 20, 'crop_type': 'CARROT', 'freshness_status': 'GREEN',
+                   'quantity_kg': 10, 'is_listed': True}
+        candidates = [
+            {'id': 31, 'expires_at': expiry, 'product': product},
+            {'id': 32, 'expires_at': expiry, 'product': {**product, 'id': 21, 'crop_type': 'CUCUMBER'}},
+            {'id': 33, 'expires_at': expiry, 'product': {**product, 'id': 22, 'freshness_status': 'RED'}},
+            {'id': 34, 'expires_at': timezone.now().isoformat(), 'product': {**product, 'id': 23}},
+        ]
+        with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', return_value=candidates) as select:
+            response = self.app.get(f'/api/devices/{sensor.id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()['product_id'])
+        self.assertEqual([item['listing_id'] for item in response.json()['sensor_listings']], [32, 31])
+        self.assertEqual(select.call_args.args[1], {'operator_id': OPERATOR.id, 'listing_status': 'ACTIVE'})
+
+    def test_rotten_batch_unlinks_every_device_and_rejects_relink(self):
+        self.mine.product_id = 20
+        self.mine.eta_start = 2
+        self.mine.save()
+        sensor = Device.objects.create(
+            operator_id=OPERATOR.id, kind='SENSOR', product_id=20, life_lost=1,
+            mac='AA:BB:CC:DD:EE:03', device_token='sensor-token',
+        )
+        product = {'id': 20, 'operator_id': OPERATOR.id, 'freshness_status': 'RED'}
+        with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', return_value=[product]):
+            response = self.app.post('/api/batches/20/unlink-rotten/')
+            relink = self.app.patch(f'/api/devices/{self.mine.id}/', {'product_id': 20}, format='json')
+        self.assertEqual(response.status_code, 204)
+        self.assertEqual(relink.status_code, 400)
+        for device in (self.mine, sensor):
+            device.refresh_from_db()
+            self.assertIsNone(device.product_id)
+            self.assertIsNone(device.eta_start)
+            self.assertEqual(device.life_lost, 0)
+
+    def test_gallery_marks_the_batch_photo_but_keeps_later_camera_frames_available(self):
+        photo = DeviceScan.objects.create(device=self.mine, operator_id=OPERATOR.id, detected=True,
+                                          image='scans/photo.jpg', source='MANUAL', ml_confidence=0.9)
+        frame = DeviceScan.objects.create(device=self.mine, operator_id=OPERATOR.id, detected=True,
+                                           image='scans/frame.jpg', source='AUTO', product_id=20, ml_confidence=0.9)
+
+        def select(table, match, select):
+            if select == 'source_scan_id':
+                return [{'source_scan_id': photo.pk}]
+            return [{'id': 20, 'created_at': (frame.created_at - timedelta(hours=1)).isoformat()}]
+
+        with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', side_effect=select):
+            response = self.app.get('/api/scans/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({item['id']: item['used_for_batch'] for item in response.json()['results']},
+                         {photo.pk: True, frame.pk: False})
 
     def test_admin_can_open_any_camera_and_its_history(self):
         with as_user(ADMIN):
@@ -146,7 +207,7 @@ class AdminMonitoringTests(TestCase):
 
         with as_user(ADMIN), mock.patch.object(device_views, 'has_service_key', return_value=True), \
                 mock.patch.object(device_views, 'supabase_select',
-                                  side_effect=lambda _table, match, _select: [profiles[match['id']]]):
+                side_effect=lambda table, match, _select: [profiles[match['id']]] if table == 'profiles' else []):
             pairings = []
             for operator_id, mac in (
                 (OPERATOR.id, 'AA:BB:CC:DD:EE:91'),

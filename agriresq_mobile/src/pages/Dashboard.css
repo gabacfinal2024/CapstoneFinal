@@ -282,14 +282,42 @@
 .legend-dot.at-risk { background: var(--at-risk); }
 .legend-dot.spoiled { background: var(--spoiled); }
 
+.dash-devices {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  color: var(--gray-800);
+}
+
+.dash-devices__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--mint-light);
+  color: var(--primary);
+}
+
+.dash-devices__text { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.dash-devices__text strong { font-size: 15px; color: var(--primary); }
+.dash-devices__text span { font-size: 13px; color: var(--gray-600); }
+.dash-devices__text .dash-devices__scan { font-size: 12px; color: var(--primary); font-weight: 600; }
+
 .sensor-caption { display: flex; align-items: flex-start; gap: 5px; margin-top: 8px; font-size: 12px; color: var(--gray-600); line-height: 1.4; }
 .sensor-caption svg { flex-shrink: 0; margin-top: 1px; }
 .sensor-caption.is-stale { color: #92400E; }
 
 .sensor-rows { margin-top: 10px; padding: 4px 14px; }
-.sensor-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
-.sensor-row:last-child { border-bottom: none; }
-.sensor-row__name { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--gray-800); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sensor-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 0; font-size: 14px; cursor: pointer; list-style: none; }
+.sensor-row::-webkit-details-marker { display: none; }
+.sensor-row__name { display: inline-flex; flex: 1; align-items: center; gap: 6px; font-weight: 600; color: var(--gray-800); min-width: 0; overflow-wrap: anywhere; }
+.sensor-disclosure + .sensor-disclosure { border-top: 1px solid var(--gray-100); }
+.sensor-disclosure__body { display: grid; gap: 8px; padding: 8px 0; }
+.sensor-disclosure__body > a { min-height: 44px; justify-self: start; }
+.sensor-chevron { flex-shrink: 0; color: var(--primary); }
+.sensor-disclosure[open] .sensor-chevron { transform: rotate(180deg); }
 .sensor-row__name svg { flex-shrink: 0; color: var(--primary); }
 .sensor-row__vals svg:last-child { color: var(--gray-300); flex-shrink: 0; }
 .sensor-empty-link { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; min-height: 48px; color: var(--primary); font-size: 13px; font-weight: 600; text-align: center; }

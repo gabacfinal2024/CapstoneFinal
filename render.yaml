@@ -7,3 +7,5 @@ services:
     envVars:
       - key: DEVICE_SERVER_URL
         value: https://agriresq.onrender.com
+      - key: AGRIRESQ_BACKGROUND
+        value: "1"

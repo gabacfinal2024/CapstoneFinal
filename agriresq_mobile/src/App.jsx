@@ -65,6 +65,7 @@ export default function App() {
           <Route path="/marketplace" element={<PrivateRoute><Marketplace /></PrivateRoute>} />
           <Route path="/saved-listings" element={<PrivateRoute><SavedListings /></PrivateRoute>} />
           <Route path="/produce/:id" element={<PrivateRoute><ProduceDetail /></PrivateRoute>} />
+          <Route path="/produce/batch/:productId" element={<PrivateRoute><ProduceDetail /></PrivateRoute>} />
           <Route path="/messages" element={<PrivateRoute><Messages /></PrivateRoute>} />
           <Route path="/chat/:id" element={<PrivateRoute><Chat /></PrivateRoute>} />
           <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />

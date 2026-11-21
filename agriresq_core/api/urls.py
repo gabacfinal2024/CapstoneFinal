@@ -72,6 +72,7 @@ urlpatterns = [
     path('reference/shelf-life/', dv.ShelfLifeReferenceView.as_view(), name='shelf-life-reference'),
     path('batches/<int:product_id>/photos/', dv.BatchPhotosView.as_view(), name='batch-photos'),
     path('batches/<int:product_id>/analysis/', dv.BatchAnalysisView.as_view(), name='batch-analysis'),
+    path('batches/<int:product_id>/unlink-rotten/', dv.RottenBatchUnlinkView.as_view(), name='batch-unlink-rotten'),
     path('devices/<int:pk>/scans/<int:scan_id>/feedback/', dv.ScanFeedbackView.as_view(), name='device-scan-feedback'),
     path('devices/<int:pk>/readings/', dv.DeviceReadingsView.as_view(), name='device-readings'),
     path('devices/<int:pk>/daily-report/', dv.DailySensorReportView.as_view(), name='device-daily-report'),

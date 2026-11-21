@@ -14,7 +14,7 @@ import useBatchAnalysis from '../hooks/useBatchAnalysis'
 import './ProduceDetail.css'
 
 export default function ProduceDetail() {
-  const { id } = useParams()
+  const { id, productId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const isBuyer = user?.role === 'RESCUE_BUYER'
@@ -29,10 +29,19 @@ export default function ProduceDetail() {
   const analysis = useBatchAnalysis(listing?.products?.id, { enabled: !!user })
 
   useEffect(() => {
-    api.listing(id)
-      .then((l) => { setListing(l); setListingError('') })
-      .catch((err) => { console.error(err); setListing(null); setListingError(err.message || 'Listing not found or unavailable') })
-  }, [id])
+    let current = true
+    setListing(null)
+    setListingError('')
+    const request = productId ? api.getListingByProduct(productId) : api.listing(id)
+    request.then((result) => {
+      if (!current) return
+      if (result?.products) setListing(result)
+      else setListingError('This listing is no longer available.')
+    }).catch((error) => {
+      if (current) setListingError(error.message || 'This listing is no longer available.')
+    })
+    return () => { current = false }
+  }, [id, productId])
 
   useEffect(() => {
     if (listing?.operator_id) api.operatorRating(listing.operator_id).then(setRating).catch(() => setRating(null))
@@ -42,7 +51,7 @@ export default function ProduceDetail() {
     setOpeningChat(true)
     setChatError('')
     try {
-      const thread = await api.startChat(id)
+      const thread = await api.startChat(listing.id)
       if (!thread?.id) throw new Error('Could not open a message thread for this listing.')
       navigate(`/chat/${thread.id}`)
     } catch (err) {
@@ -55,7 +64,7 @@ export default function ProduceDetail() {
     return (
       <div className="page page-no-nav">
         <p>{listingError}</p>
-        <p><BackLink to="/marketplace">← Back</BackLink></p>
+        <p><BackLink to={productId ? '/home' : '/marketplace'}>← Back</BackLink></p>
       </div>
     )
   }
@@ -73,7 +82,7 @@ export default function ProduceDetail() {
         <div className="produce-visual">
           <ProductImage src={product?.image_url} crop={crop} className="produce-hero" />
           <span className="product-image-caption">Sample photo</span>
-          <BackLink to="/marketplace" className="detail-back">← Back</BackLink>
+          <BackLink to={productId ? '/home' : '/marketplace'} className="detail-back">← Back</BackLink>
         </div>
         <div className="produce-body">
           <div className="page-title-header detail-title-row">

@@ -119,7 +119,27 @@ def _product(device):
     rows = supabase_select('products', {'id': device.product_id})
     if not rows or rows[0]['operator_id'] != device.operator_id:
         return None
+    if rows[0].get('freshness_status') == 'RED':
+        unlink_rotten_batch(device.product_id)
+        return None
     return rows[0]
+
+
+def unlink_rotten_batch(product_id):
+    """Keep historical scans and readings while stopping all live links to this batch."""
+    Device.objects.filter(product_id=product_id).update(product_id=None, eta_start=None, life_lost=0)
+
+
+def reconcile_rotten_links():
+    """Catch status changes made directly in Supabase and links saved before this behavior."""
+    if not has_service_key():
+        return
+    linked = list(Device.objects.exclude(product_id=None).values_list('product_id', flat=True).distinct())
+    for start in range(0, len(linked), 100):
+        for product in supabase_select('products', {
+            'id': linked[start:start + 100], 'freshness_status': 'RED',
+        }, select='id'):
+            unlink_rotten_batch(product['id'])
 
 
 def _apply(device, product, status, days, percent, source, ml_confidence=None, detail='', chu=None, vpd=None):
@@ -141,6 +161,11 @@ def _apply(device, product, status, days, percent, source, ml_confidence=None, d
     if status == 'RED':
         patch['is_listed'] = False
     supabase_update('products', {'id': product['id']}, patch)
+    product['freshness_status'] = status
+    if status == 'RED':
+        unlink_rotten_batch(product['id'])
+        supabase_update('marketplace_listings', {'product_id': product['id'], 'listing_status': 'ACTIVE'},
+                        {'listing_status': 'CANCELLED'})
     if old == status:
         return
 
@@ -168,8 +193,6 @@ def _apply(device, product, status, days, percent, source, ml_confidence=None, d
             'title': 'Auto-listed in Rescue Marketplace',
             'message': f'{crop} batch #{product["id"]} is At-Risk and was listed at {discount}% off.',
         })
-    elif status == 'RED':
-        supabase_update('marketplace_listings', {'product_id': product['id']}, {'listing_status': 'CANCELLED'})
 
 
 def ml_override(device, scan):
@@ -198,12 +221,11 @@ def ml_override(device, scan):
     status, days = scan.freshness_status, scan.days_to_spoil
     # never lengthen a countdown that the environment already shortened below the camera's window
     current_days = Decimal(str(product.get('predicted_shelf_life') or days))
-    if status == 'AMBER' and product.get('freshness_status') in ('AMBER', 'RED'):
+    if status == 'AMBER' and product.get('freshness_status') == 'AMBER':
         days = min(days, current_days)
     _apply(device, product, status, days, scan.freshness_percent, 'VISION_ML', summary['confidence'],
            detail=f'{device.name} sees {scan.state} skin ({scan.ml_confidence * 100:.0f}% confidence).')
-    device.eta_start, device.life_lost = days, Decimal('0')      # the rule engine continues from here
-    device.save(update_fields=['eta_start', 'life_lost'])
+    Device.objects.filter(pk=device.pk, product_id=product['id']).update(eta_start=days, life_lost=0)
 
 
 # ── DHT22 readings: moving-average filter, rule engine, alerts ───────────────
@@ -366,14 +388,19 @@ def age_operator_batches(operator_id, now=None, force=False):
     written = 0
     paired = []
     for product in products:
+        if product.get('freshness_status') == 'RED':
+            if product['id'] in linked:
+                unlink_rotten_batch(product['id'])
+            continue
         if not (product.get('is_listed') or product['id'] in linked):
             continue
-        paired.append(product)
         try:
             if _age_product(product, temp, rh, now, SENSOR_MIN_STEP, 'RULE_ENGINE', f'{temp:.1f}°C, {rh:.0f}% RH at the stall'):
                 written += 1
         except Exception as exc:
             log.warning('stall aging: batch %s not updated: %s', product.get('id'), exc)
+        if product.get('freshness_status') != 'RED':
+            paired.append(product)
     pair_readings(paired, temp, rh, now)
     return written
 

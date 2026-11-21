@@ -5,6 +5,7 @@ Operator endpoints  – Bearer <Supabase access token>, STALL_OPERATOR only
 Device endpoints    – X-Device-Token (or the pairing code for /claim/)
 """
 import json
+import logging
 import re
 import socket
 import time
@@ -18,6 +19,7 @@ from django.core import signing
 from django.db import transaction
 from django.http import FileResponse, Http404, HttpResponse, StreamingHttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework import status
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied, ValidationError
@@ -26,7 +28,7 @@ from rest_framework.permissions import SAFE_METHODS, AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .device_services import run_scan, save_reading, stall_summary
+from .device_services import run_scan, save_reading, stall_summary, unlink_rotten_batch
 from .analysis import batch_analysis
 from .evidence import reference_payload
 from .sensor_report import daily_sensor_report
@@ -47,6 +49,7 @@ SIGN_SALT = 'device-live'
 CROPS = {c for c, _ in DEVICE_CROP_TYPES}
 TIME_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
 SETUP_AP = {'setup_ap_prefix': 'AgriResQ-', 'setup_ap_password': 'agriresq', 'setup_url': 'http://192.168.4.1'}
+log = logging.getLogger(__name__)
 
 
 # ── serialization ───────────────────────────────────────────────────────────
@@ -243,10 +246,40 @@ class PairingStatusView(OperatorView):
         })
 
 
+def sensor_listings(operator_id):
+    if not has_service_key():
+        return None
+    try:
+        listings = supabase_select('marketplace_listings', {
+            'operator_id': operator_id, 'listing_status': 'ACTIVE',
+        }, 'id,expires_at,product:products!inner(id,crop_type,quantity_kg,freshness_status,is_listed)')
+    except Exception:
+        log.warning('Could not load sensor listings for stall %s', operator_id, exc_info=True)
+        return None
+    now = timezone.now()
+    result = []
+    for listing in listings:
+        product = listing.get('product')
+        expires = parse_datetime(listing['expires_at']) if listing.get('expires_at') else None
+        if (product and product['is_listed'] and product['freshness_status'] != 'RED'
+                and float(product['quantity_kg']) > 0 and expires and expires > now):
+            result.append({**product, 'listing_id': listing['id']})
+    return sorted(result, key=lambda item: item['id'], reverse=True)
+
+
 class DeviceListView(OperatorView):
     def get(self, request):
         devices = visible_devices(request.user).order_by('created_at')
-        return Response([device_json(request, d) for d in devices])
+        listings_by_operator = {}
+        result = []
+        for device in devices:
+            payload = device_json(request, device)
+            if device.kind == 'SENSOR' and device.dht_pin >= 0:
+                if device.operator_id not in listings_by_operator:
+                    listings_by_operator[device.operator_id] = sensor_listings(device.operator_id)
+                payload['sensor_listings'] = listings_by_operator[device.operator_id]
+            result.append(payload)
+        return Response(result)
 
 
 class DeviceDetailView(OperatorView):
@@ -254,7 +287,11 @@ class DeviceDetailView(OperatorView):
                 'capture_times', 'scan_interval_s', 'dht_pin', 'flash_on_scan'}
 
     def get(self, request, pk):
-        return Response(device_json(request, self.get_device(request, pk)))
+        device = self.get_device(request, pk)
+        payload = device_json(request, device)
+        if device.kind == 'SENSOR' and device.dht_pin >= 0:
+            payload['sensor_listings'] = sensor_listings(device.operator_id)
+        return Response(payload)
 
     def patch(self, request, pk):
         device = self.get_device(request, pk)
@@ -290,13 +327,24 @@ class DeviceDetailView(OperatorView):
                 raise ValidationError({'capture_times': 'Give 1 to 6 times as "HH:MM".'})
             data['capture_times'] = sorted(set(times))
         if 'product_id' in data:
-            data['product_id'] = int(data['product_id']) if data['product_id'] not in (None, '') else None
+            try:
+                data['product_id'] = int(data['product_id']) if data['product_id'] not in (None, '') else None
+            except (ValueError, TypeError):
+                raise ValidationError({'product_id': 'Choose a valid batch.'})
+            if data['product_id'] is not None:
+                product = verified_product(data['product_id'], device.operator_id)
+                if product.get('freshness_status') == 'RED':
+                    unlink_rotten_batch(product['id'])
+                    raise ValidationError({'product_id': 'A rotten batch cannot be linked to a device.'})
             if data['product_id'] != device.product_id:
-                device.eta_start, device.life_lost = None, 0      # restart the rule-engine countdown
+                data.update(eta_start=None, life_lost=0)
         for k, v in data.items():
             setattr(device, k, v)
         device.save(update_fields=data.keys())
-        return Response(device_json(request, device))
+        payload = device_json(request, device)
+        if device.kind == 'SENSOR' and device.dht_pin >= 0:
+            payload['sensor_listings'] = sensor_listings(device.operator_id)
+        return Response(payload)
 
     def delete(self, request, pk):
         # Deleting the token makes the camera's next call fail with 401, which sends it
@@ -699,6 +747,24 @@ class DeviceMonitorDetailView(OperatorView):
 
 # ── analysed pictures: gallery for every camera the user may see, and per batch ──
 
+def verified_product(product_id, operator_id):
+    if not has_service_key():
+        raise ValidationError('The hub cannot verify the batch right now.')
+    rows = supabase_select('products', {'id': product_id})
+    if not rows or rows[0].get('operator_id') != operator_id:
+        raise NotFound('Batch not found at this stall.')
+    return rows[0]
+
+
+class RottenBatchUnlinkView(OperatorView):
+    def post(self, request, product_id):
+        product = verified_product(product_id, request.user.id)
+        if product.get('freshness_status') != 'RED':
+            raise ValidationError('Only a rotten batch can be unlinked here.')
+        unlink_rotten_batch(product_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 def gallery_json(request, s):
     out = scan_json(request, s)
     out['device_name'] = s.device.name if s.device else ''
@@ -754,14 +820,12 @@ class ScanGalleryView(APIView):
         if q.get('state'):
             scans = scans.filter(state=q['state'])
         if q.get('since'):
-            from django.utils.dateparse import parse_datetime
             since = parse_datetime(q['since'])
             if since:
                 scans = scans.filter(created_at__gte=since)
         if q.get('before'):
             scans = scans.filter(pk__lt=int(q['before']))
         if q.get('until'):
-            from django.utils.dateparse import parse_datetime
             until = parse_datetime(q['until'])
             if until:
                 scans = scans.filter(created_at__lte=until)
@@ -769,7 +833,32 @@ class ScanGalleryView(APIView):
         page = list(scans.order_by('-pk')[:limit + 1])
         more = len(page) > limit
         page = page[:limit]
-        return Response({'results': [gallery_json(request, s) for s in page],
+        used_ids = set()
+        linked_products = {}
+        if page and has_service_key():
+            try:
+                rows = supabase_select('products', {
+                    'source_scan_id': [scan.id for scan in page],
+                }, select='source_scan_id')
+                used_ids = {row['source_scan_id'] for row in rows}
+                linked_ids = sorted({s.product_id for s in page if s.product_id is not None})
+                if linked_ids:
+                    linked_products = {
+                        row['id']: parse_datetime(row['created_at']) for row in
+                        supabase_select('products', {'id': linked_ids}, select='id,created_at')
+                    }
+            except Exception:
+                log.warning('Could not check scan reuse', exc_info=True)
+        results = []
+        for scan in page:
+            # Automatic camera scans inherit the monitored batch ID. Older, explicitly attached
+            # gallery photos predate their batch; later camera frames are still available to use.
+            batch_created = linked_products.get(scan.product_id)
+            legacy_used = scan.product_id is not None and (
+                scan.source in ('PHONE', 'UPLOAD') or batch_created is None or scan.created_at <= batch_created
+            )
+            results.append({**gallery_json(request, scan), 'used_for_batch': scan.id in used_ids or legacy_used})
+        return Response({'results': results,
                          'next_before': page[-1].pk if more and page else None})
 
 
@@ -858,8 +947,16 @@ class BatchPhotosView(APIView):
         scopes = Q() if request.user.role == 'ADMIN' else (
             Q(device__in=visible_devices(request.user)) | Q(operator_id=request.user.id)
         )
+        batch_scans = Q(product_id=product_id) | Q(device__product_id=product_id)
+        if has_service_key():
+            try:
+                products = supabase_select('products', {'id': product_id}, select='source_scan_id')
+                if products and products[0].get('source_scan_id'):
+                    batch_scans |= Q(id=products[0]['source_scan_id'])
+            except Exception:
+                log.warning('Could not load the source photo for batch %s', product_id, exc_info=True)
         scans = (DeviceScan.objects.filter(scopes)
-                 .filter(Q(product_id=product_id) | Q(device__product_id=product_id))
+                 .filter(batch_scans)
                  .filter(detected=True, crop_mismatch=False, image__gt='')
                  .select_related('device').order_by('-pk')[:200])
         return Response([gallery_json(request, s) for s in scans])

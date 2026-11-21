@@ -51,7 +51,8 @@ function getRegistrationErrorMessage(error) {
 export const api = {
   // ── Auth ──────────────────────────────────────────
   // Every new account is a rescue buyer; the database ignores any role sent from the app.
-  async register({ full_name, email, phone_number, password, buyer_type, avatar_url, market_location }) {
+  async register({ full_name, email, phone_number, password, buyer_type, avatar_url, market_location, analysisConsent }) {
+    if (analysisConsent !== true) throw new Error('Agree to the analysis terms to create your account.')
     const normalizedEmail = email.trim().toLowerCase()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       throw new Error('Enter a valid email address.')
@@ -61,7 +62,7 @@ export const api = {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/login`,
-        data: { full_name, buyer_type, phone_number, avatar_url, market_location },
+        data: { full_name, buyer_type, phone_number, avatar_url, market_location, analysis_consent_version: '1' },
       },
     })
     if (error) throw new Error(getRegistrationErrorMessage(error))
@@ -239,9 +240,13 @@ export const api = {
       notes: body.notes || '',
       pickup_location: body.pickup_location || 'Bulua West Terminal',
       iot_node_id: body.iot_node_id || null,
+      ...(body.source_scan_id != null ? { source_scan_id: body.source_scan_id } : {}),
       is_listed: false,
     }
     const { data, error } = await supabase.from('products').insert(payload).select().single()
+    if (error?.code === '23505' && body.source_scan_id != null) {
+      throw new Error('This photo has already been used for a batch. Choose another photo.')
+    }
     if (error) throw new Error(error.message)
 
     await supabase.from('spoilage_predictions').insert({
@@ -460,22 +465,13 @@ export const api = {
   },
 
   async listing(id) {
-    const { data: byId, error: idError } = await supabase
+    const { data, error } = await supabase
       .from('marketplace_listings')
       .select(LISTING_SELECT)
       .eq('id', id)
       .maybeSingle()
-    if (idError) throw new Error(idError.message)
-    if (byId) return byId
-
-    const { data: byProduct, error: productError } = await supabase
-      .from('marketplace_listings')
-      .select(LISTING_SELECT)
-      .eq('product_id', id)
-      .maybeSingle()
-    if (productError) throw new Error(productError.message)
-    if (!byProduct) throw new Error('This listing is no longer available.')
-    return byProduct
+    if (error) throw new Error(error.message)
+    return data
   },
 
   // ── Notifications (in-app only) ───────────────────

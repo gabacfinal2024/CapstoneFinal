@@ -27,7 +27,13 @@ def _headers(prefer=None):
 
 
 def _query(match):
-    return '&'.join(f'{k}=eq.{urllib.parse.quote(str(v))}' for k, v in (match or {}).items())
+    filters = {}
+    for key, value in (match or {}).items():
+        if isinstance(value, (tuple, list)):
+            filters[key] = f'in.({",".join(str(int(item)) for item in value)})'
+        else:
+            filters[key] = f'eq.{value}'
+    return urllib.parse.urlencode(filters)
 
 
 def _send(req):

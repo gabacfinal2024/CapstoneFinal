@@ -1,0 +1,7 @@
+.sensor-listings h3 { margin: 0 0 8px; color: var(--primary); font-size: 15px; }
+.sensor-listings p, .sensor-listings small { color: var(--gray-600); font-size: 13px; }
+.sensor-listings ul { padding: 0; margin: 0; list-style: none; }
+.sensor-listings li + li { border-top: 1px solid var(--gray-100); }
+.sensor-listings a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; padding-block: 5px; }
+.sensor-listings a strong { color: var(--primary); font-size: 14px; }
+.sensor-listings small { display: block; }

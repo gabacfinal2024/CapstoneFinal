@@ -82,6 +82,16 @@ export default function BatchDetail() {
         ml_confidence: scan.ml_confidence,
       })
       setBatch((current) => ({ ...current, ...updated }))
+      if (updated.freshness_status === 'RED') {
+        try {
+          await deviceApi.unlinkRottenBatch(id)
+        } catch {
+          setPhotoMessage('Batch marked rotten. Sensor unlinking is pending and will be retried automatically.')
+          return
+        }
+        setPhotoMessage('Batch marked rotten, removed from the marketplace, and unlinked from its devices.')
+        return
+      }
       setPhotoMessage('Photo and freshness details updated. The original listing date is unchanged.')
     } catch (err) {
       setPhotoError(err.message || 'Could not update this listing photo.')

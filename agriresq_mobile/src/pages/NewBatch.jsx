@@ -232,11 +232,12 @@ export default function NewBatch() {
         freshness_percent: percent,
         predicted_shelf_life: days,
         ml_confidence: freshness?.ml_confidence,
+        source_scan_id: freshness?.id,
         image_url: imageUrl || '',
         is_listed: status !== 'RED' && canListAtSubmit,
       })
       const selectedDevice = nodes.find((node) => String(node.id) === String(form.iot_node_id))
-      if (selectedDevice && !isSensor(selectedDevice)) {
+      if (status !== 'RED' && selectedDevice && !isSensor(selectedDevice)) {
         try {
           await deviceApi.updateDevice(form.iot_node_id, { product_id: batch.id, crop_type: form.crop_type })
         } catch (err) {

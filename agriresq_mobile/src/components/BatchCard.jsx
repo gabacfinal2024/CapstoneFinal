@@ -53,7 +53,7 @@ export default function BatchCard({ batch }) {
         </div>
       </Link>
       <div className="batch-actions">
-        {batch.is_listed && <Link to={`/produce/${batch.id}`} className="btn btn-outline btn-sm">View Listing</Link>}
+        {batch.is_listed && <Link to={`/produce/batch/${batch.id}`} className="btn btn-outline btn-sm">View Listing</Link>}
         {user && user.role === 'STALL_OPERATOR' && user.id === batch.operator_id && (
           <button title="Delete batch" className="btn btn-danger" onClick={openConfirm}>Delete</button>
         )}
