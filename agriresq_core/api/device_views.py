@@ -859,11 +859,11 @@ def gallery_json(request, s):
 
 
 def gallery_listing_status(scans, now):
-    """Map source scans to marketplace status, with support for older batch links."""
+    """Resolve listing history for source photos and scans of previously listed batches."""
     if not has_service_key():
         raise RuntimeError('Marketplace service key is unavailable.')
     source_products = supabase_select(
-        'products', {'source_scan_id': [scan.id for scan in scans]}, 'id,source_scan_id',
+        'products', {'source_scan_id': [scan.id for scan in scans]}, 'id,source_scan_id,is_listed',
     )
     sources = {product['source_scan_id']: product['id'] for product in source_products}
     linked_ids = sorted({scan.product_id for scan in scans if scan.product_id is not None})
@@ -871,20 +871,54 @@ def gallery_listing_status(scans, now):
     if linked_ids:
         linked = {
             product['id']: product for product in
-            supabase_select('products', {'id': linked_ids}, 'id,source_scan_id,created_at')
+            supabase_select('products', {'id': linked_ids}, 'id,source_scan_id,created_at,is_listed')
         }
+    products = {product['id']: product for product in source_products}
+    products.update(linked)
+    listings = {}
+    if products:
+        for row in supabase_select('marketplace_listings', {'product_id': sorted(products)},
+                                   'product_id,listing_status,expires_at'):
+            state = row['listing_status']
+            if state == 'ACTIVE' and not active_listing_ids([row], now):
+                state = 'EXPIRED'
+            listings[row['product_id']] = state
+        for product_id, product in products.items():
+            if product.get('is_listed'):
+                listings.setdefault(product_id, 'PREVIOUSLY_LISTED')
     for scan in scans:
         product = linked.get(scan.product_id)
-        if scan.id not in sources and product and product.get('source_scan_id') is None and is_source_attachment(scan, product):
+        if scan.id not in sources and product and (
+            product['id'] in listings or is_source_attachment(scan, product)
+        ):
             sources[scan.id] = product['id']
-    listed = set()
-    if sources:
-        listed = active_listing_ids(supabase_select('marketplace_listings', {
-            'product_id': sorted(set(sources.values())), 'listing_status': 'ACTIVE',
-        }, 'product_id,expires_at'), now)
-    used = sources.keys() | {scan.id for scan in scans if scan.product_id in linked
-                             and is_source_attachment(scan, linked[scan.product_id])}
-    return sources, listed, used
+    # Removed batches retain their listing state once the history migration is available.
+    missing_links = sorted({s.product_id for s in scans if s.product_id is not None and s.product_id not in products})
+    missing_sources = [s.id for s in scans if s.id not in sources]
+    try:
+        history = []
+        for key, ids in (('product_id', missing_links), ('source_scan_id', missing_sources)):
+            if ids:
+                history.extend(supabase_select('batch_listing_history', {key: ids},
+                                               'product_id,source_scan_id,listing_status,expires_at'))
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:  # Support deployment before the history migration reaches Supabase.
+            raise
+        history = []
+    for row in history:
+        product_id = row['product_id']
+        state = row['listing_status']
+        if state == 'ACTIVE' and not active_listing_ids([row], now):
+            state = 'EXPIRED'
+        listings.setdefault(product_id, state)
+    historical_sources = {row['source_scan_id']: row['product_id'] for row in history if row['source_scan_id']}
+    for scan in scans:
+        product_id = historical_sources.get(scan.id)
+        if product_id is None and scan.product_id in listings:
+            product_id = scan.product_id
+        if product_id is not None:
+            sources.setdefault(scan.id, product_id)
+    return sources, listings
 
 
 def scan_image(request, scan_id, token, field):
@@ -928,8 +962,10 @@ class ScanGalleryView(APIView):
             scans = scans.filter(source__in=('AUTO', 'MANUAL'))
         elif q.get('source') == 'PHOTO':
             scans = scans.filter(source__in=('PHONE', 'UPLOAD'))
+        elif q.get('source') in ('PHONE', 'UPLOAD'):
+            scans = scans.filter(source=q['source'])
         elif q.get('source'):
-            raise ValidationError({'source': 'Choose CAMERA or PHOTO.'})
+            raise ValidationError({'source': 'Choose CAMERA, PHONE, UPLOAD or PHOTO.'})
         if q.get('detected') in ('1', 'true'):
             scans = scans.filter(detected=True)
         elif q.get('detected') in ('0', 'false'):
@@ -959,22 +995,24 @@ class ScanGalleryView(APIView):
         results = []
         while page := list(candidates[:chunk_size]):
             try:
-                sources, listed, used = gallery_listing_status(page, now)
+                sources, listings = gallery_listing_status(page, now)
             except Exception:
                 if has_service_key():
                     log.warning('Could not check scan listing status', exc_info=True)
                 if listing != 'all':
                     return Response({'detail': 'Listing status is temporarily unavailable.'},
                                     status=status.HTTP_503_SERVICE_UNAVAILABLE)
-                sources, listed, used = {}, None, set()
+                sources, listings = {}, None
             for scan in page:
-                is_listed = sources.get(scan.id) in listed if listed is not None else None
+                listing_state = listings.get(sources.get(scan.id)) if listings is not None else None
+                is_listed = bool(listing_state) if listings is not None else None
                 if listing != 'all' and is_listed != (listing == 'listed'):
                     continue
                 results.append({
                     **gallery_json(request, scan),
                     'is_listed': is_listed,
-                    'used_for_batch': scan.id in used,
+                    'marketplace_status': listing_state,
+                    'used_for_batch': scan.id in sources,
                     'listing_expired': now >= listing_deadline(scan),
                 })
                 if len(results) > limit:

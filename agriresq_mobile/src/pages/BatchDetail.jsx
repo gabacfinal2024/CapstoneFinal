@@ -55,9 +55,10 @@ export default function BatchDetail() {
     )
   }
   const crop = batch.crop_type
-  const step = batch.is_listed ? 2 : 1
+  const step = listing?.created_at || batch.is_listed ? 2 : 1
   const ownsBatch = user?.role === 'STALL_OPERATOR' && user.id === batch.operator_id
-  const canUpdatePhoto = ownsBatch && batch.is_listed && listing?.listing_status === 'ACTIVE'
+  const canUpdatePhoto = ownsBatch && listing?.listing_status === 'ACTIVE'
+    && Date.parse(listing.expires_at) > Date.now()
 
   const updatePhoto = async (event) => {
     const file = event.target.files?.[0]

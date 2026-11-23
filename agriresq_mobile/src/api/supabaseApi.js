@@ -208,7 +208,6 @@ export const api = {
   },
 
   async createBatch(body) {
-    const userId = await getSessionUserId()
     const status = body.freshness_status || 'GREEN'
     const pricing = computeDynamicPrice(
       body.base_price_per_kg || body.price_per_kg,
@@ -224,7 +223,6 @@ export const api = {
       throw new Error('The At-Risk discount must be between 0 and 100 percent.')
     }
     const payload = {
-      operator_id: userId,
       crop_type: body.crop_type,
       quantity_kg: body.quantity_kg,
       base_price_per_kg: body.base_price_per_kg || body.price_per_kg || 0,
@@ -235,27 +233,19 @@ export const api = {
       freshness_status: status,
       freshness_percent: body.freshness_percent ?? 100,
       predicted_shelf_life: body.predicted_shelf_life ?? 5,
-      ml_confidence: body.ml_confidence,
       harvest_datetime: body.harvest_datetime || null,
       image_url: body.image_url || '',
       notes: body.notes || '',
       pickup_location: body.pickup_location || 'Bulua West Terminal',
-      iot_node_id: body.iot_node_id || null,
-      ...(body.source_scan_id != null ? { source_scan_id: body.source_scan_id } : {}),
-      is_listed: false,
     }
-    const { data, error } = await supabase.from('products').insert(payload).select().single()
-    if (error?.code === '23505' && body.source_scan_id != null) {
-      throw new Error('This photo has already been used for a batch. Choose another photo.')
-    }
-    if (error) throw new Error(error.message)
+    const data = await deviceApi.createBatchFromScan(body.source_scan_id, payload)
 
     await supabase.from('spoilage_predictions').insert({
       product_id: data.id,
       predicted_status: status,
       days_to_spoil: data.predicted_shelf_life,
       freshness_percent: data.freshness_percent,
-      source: body.ml_confidence ? 'VISION_ML' : 'MANUAL',
+      source: 'VISION_ML',
     })
 
     const shouldPublish = status !== 'RED' && body.is_listed !== false && (status === 'AMBER' || body.is_listed)
@@ -339,9 +329,9 @@ export const api = {
     if (productError) throw new Error(productError.message)
     if (!product) throw new Error('Batch not found.')
     const { data: listing, error: listingError } = await supabase.from('marketplace_listings')
-      .select('id, listing_status').eq('product_id', productId).maybeSingle()
+      .select('id, listing_status, expires_at').eq('product_id', productId).maybeSingle()
     if (listingError) throw new Error(listingError.message)
-    if (!listing || listing.listing_status !== 'ACTIVE') {
+    if (listing?.listing_status !== 'ACTIVE' || !(Date.parse(listing.expires_at) > Date.now())) {
       throw new Error('Only an active, unsold listing can have its photo updated.')
     }
 

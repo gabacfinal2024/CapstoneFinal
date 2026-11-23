@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Camera, ChevronLeft, ChevronRight, CircleSlash, ExternalLink, ImageOff, Loader2, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, Camera, ChevronLeft, ChevronRight, CircleSlash, ExternalLink, ImageOff, Images, Loader2, RefreshCw, Smartphone, Upload, X } from 'lucide-react'
 import {
   absoluteMedia, cropLabel, deviceApi, feedbackText, formatDateTime, isDetected, isSensor, scanBadgeStatus, scanImageSrc,
 } from '../api/deviceApi'
@@ -14,6 +14,14 @@ const PAGE_SIZE = 40
 const REFRESH_MS = 15000
 const EMPTY_FILTERS = { listing: 'all', source: '', device: '', state: '', from: '', to: '' }
 const LISTING_FILTERS = [['all', 'All'], ['listed', 'Listed'], ['not_listed', 'Not Listed']]
+const SOURCE_FILTERS = [
+  ['', 'All sources', Images], ['CAMERA', 'Stall camera', Camera],
+  ['PHONE', 'Phone camera', Smartphone], ['UPLOAD', 'Uploads', Upload],
+]
+const MARKETPLACE_STATUS = {
+  SOLD: 'Sold', CANCELLED: 'Cancelled', EXPIRED: 'Listing expired', REMOVED: 'Removed',
+  PREVIOUSLY_LISTED: 'Previously listed',
+}
 const STATES = [['fresh', 'Fresh'], ['at-risk', 'At-Risk'], ['rotten', 'Rotten']]
 const CAPTURE_LABELS = { AUTO: 'Stall camera', MANUAL: 'Stall camera', PHONE: 'Phone camera', UPLOAD: 'Photo upload' }
 
@@ -58,9 +66,10 @@ function ScanDetails({ scan }) {
 
 function ListingStatus({ scan }) {
   if (scan.is_listed == null) return <p className="font-semibold text-slate-500">Status unavailable</p>
-  if (scan.is_listed) return <p className="font-semibold text-emerald-700">Listed</p>
+  if (scan.is_listed) return <p className="font-semibold text-emerald-700">{MARKETPLACE_STATUS[scan.marketplace_status] || 'Listed'}</p>
   const expired = scan.listing_expired || Date.now() >= Date.parse(scan.listing_deadline)
-  return <p className="font-semibold text-slate-600">Not Listed{expired ? ' · Past deadline' : ''}</p>
+  const detail = scan.used_for_batch ? ' · Batch saved' : expired ? ' · Scan expired' : ''
+  return <p className="font-semibold text-slate-600">Not Listed{detail}</p>
 }
 
 function GalleryCard({ scan, onOpen }) {
@@ -335,8 +344,9 @@ export default function Gallery() {
 
   const setFilter = (key, value) => {
     setOpenId(null)
-    setFilters((f) => ({ ...f, [key]: value, ...(key === 'source' && value === 'PHOTO' ? { device: '' } : {}) }))
+    setFilters((f) => ({ ...f, [key]: value, ...(key === 'source' && (value === 'PHONE' || value === 'UPLOAD') ? { device: '' } : {}) }))
   }
+  const photoSourceSelected = filters.source === 'PHONE' || filters.source === 'UPLOAD'
   const hasFilters = filterKey !== JSON.stringify(EMPTY_FILTERS)
   const closeLightbox = useCallback(() => setOpenId(null), [])
 
@@ -345,7 +355,7 @@ export default function Gallery() {
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <PageTitle>Scan Gallery</PageTitle>
-          <p className="text-slate-500 text-sm mt-1">Browse camera and photo scans. Publish within five hours of scanning.</p>
+          <p className="text-slate-500 text-sm mt-1">Create and list batches within five hours of scanning.</p>
         </div>
         <div className="flex items-center gap-3">
           {updatedAt && <span className="text-xs text-slate-400">Updated {updatedAt.toLocaleTimeString()}</span>}
@@ -365,16 +375,20 @@ export default function Gallery() {
         ))}
       </div>
 
-      <form className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end" onSubmit={(e) => e.preventDefault()}>
-        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Source
-          <select className={`${selectCls} mt-1 w-full font-normal normal-case`} value={filters.source} onChange={(e) => setFilter('source', e.target.value)}>
-            <option value="">All sources</option>
-            <option value="CAMERA">Stall camera</option>
-            <option value="PHOTO">Phone camera and uploads</option>
-          </select>
-        </label>
+      <form className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end" onSubmit={(e) => e.preventDefault()}>
+        <fieldset className="min-w-0 col-span-full">
+          <legend className="mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Scan source</legend>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:w-fit">
+            {SOURCE_FILTERS.map(([value, label, Icon]) => (
+              <button key={value} type="button" aria-pressed={filters.source === value} onClick={() => setFilter('source', value)}
+                      className="min-h-11 inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 aria-pressed:bg-emerald-50 aria-pressed:border-emerald-700 aria-pressed:text-emerald-800">
+                <Icon size={16} aria-hidden="true" className="shrink-0" /> {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Camera
-          <select className={`${selectCls} mt-1 w-full font-normal normal-case disabled:opacity-60`} value={filters.device} disabled={filters.source === 'PHOTO'} onChange={(e) => setFilter('device', e.target.value)}>
+          <select className={`${selectCls} mt-1 w-full font-normal normal-case disabled:opacity-60`} value={filters.device} disabled={photoSourceSelected} onChange={(e) => setFilter('device', e.target.value)}>
             <option value="">All cameras</option>
             {devices.map((d) => <option key={d.id} value={d.id}>{d.name}{d.ip ? ` (${d.ip})` : ''}</option>)}
           </select>

@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from . import device_services
 from .models import BatchSensorLink, Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
 from .supabase_auth import SupabaseUser
-from . import device_views
+from . import batch_creation, device_views
 from .test_devices import BUYER, OPERATOR, as_user
 
 ADMIN = SupabaseUser('99999999-9999-9999-9999-999999999999', 'agriresq@gmail.com', 'ADMIN')
@@ -88,8 +88,11 @@ class AdminMonitoringTests(TestCase):
                                            image='scans/frame.jpg', source='AUTO', product_id=20, ml_confidence=0.9)
 
         def select(table, match, select):
+            if table == 'batch_listing_history':
+                return []
             if table == 'marketplace_listings':
-                return [{'product_id': 30, 'expires_at': (timezone.now() + timedelta(days=1)).isoformat()}]
+                return [{'product_id': 30, 'listing_status': 'ACTIVE',
+                         'expires_at': (timezone.now() + timedelta(days=1)).isoformat()}]
             if 'source_scan_id' in match:
                 return [{'id': 30, 'source_scan_id': photo.pk}]
             return [{'id': 20, 'source_scan_id': None, 'created_at': (frame.created_at - timedelta(hours=1)).isoformat()}]
@@ -113,13 +116,15 @@ class AdminMonitoringTests(TestCase):
         DeviceScan.objects.filter(pk=photos[1].pk).update(created_at=now - timedelta(days=1))
 
         def select(table, match, fields):
+            if table == 'batch_listing_history':
+                return []
             if table == 'products':
                 return [
                     {'id': scan.pk, 'source_scan_id': scan.pk} for scan in (photos[0], photos[1], photos[3])
                     if scan.pk in match['source_scan_id']
                 ]
             return [
-                {'product_id': scan.pk, 'expires_at': expiry.isoformat()}
+                {'product_id': scan.pk, 'listing_status': 'ACTIVE', 'expires_at': expiry.isoformat()}
                 for scan, expiry in ((photos[1], now + timedelta(days=1)), (photos[3], now - timedelta(seconds=1)))
                 if scan.pk in match['product_id']
             ]
@@ -131,13 +136,81 @@ class AdminMonitoringTests(TestCase):
             first = self.app.get('/api/scans/?listing=not_listed&limit=2').json()
             second = self.app.get(f"/api/scans/?listing=not_listed&limit=2&before={first['next_before']}").json()
 
-        self.assertEqual([item['id'] for item in listed['results']], [photos[1].pk])
-        self.assertTrue(listed['results'][0]['listing_expired'])
-        self.assertEqual([item['id'] for item in first['results']], [photos[4].pk, photos[3].pk])
-        self.assertEqual([item['id'] for item in second['results']], [photos[2].pk, photos[0].pk])
-        self.assertTrue(second['results'][0]['listing_expired'])
-        self.assertTrue(second['results'][1]['used_for_batch'])
+        self.assertEqual([item['id'] for item in listed['results']], [photos[3].pk, photos[1].pk])
+        self.assertEqual([item['marketplace_status'] for item in listed['results']], ['EXPIRED', 'ACTIVE'])
+        self.assertTrue(listed['results'][1]['listing_expired'])
+        self.assertEqual([item['id'] for item in first['results']], [photos[4].pk, photos[2].pk])
+        self.assertEqual([item['id'] for item in second['results']], [photos[0].pk])
+        self.assertTrue(first['results'][1]['listing_expired'])
+        self.assertTrue(second['results'][0]['used_for_batch'])
         self.assertIsNone(second['next_before'])
+
+    def test_gallery_recognizes_scans_for_sold_cancelled_and_removed_batches(self):
+        now = timezone.now()
+        scans = [
+            DeviceScan.objects.create(device=self.mine, operator_id=OPERATOR.id, product_id=product,
+                                      source=source, detected=True, image='scans/photo.jpg', ml_confidence=0.9)
+            for product, source in ((20, 'AUTO'), (21, 'PHONE'), (None, 'UPLOAD'), (22, 'MANUAL'))
+        ]
+
+        def select(table, match, fields):
+            if table == 'products' and 'id' in match:
+                return [
+                    {'id': product, 'source_scan_id': 1000 + product, 'created_at': (now - timedelta(days=5)).isoformat()}
+                    for product in (20, 21) if product in match['id']
+                ]
+            if table == 'marketplace_listings':
+                return [{'product_id': 20, 'listing_status': 'SOLD'}, {'product_id': 21, 'listing_status': 'CANCELLED'}]
+            if table == 'batch_listing_history':
+                return [{'product_id': 22, 'source_scan_id': scans[2].id, 'listing_status': 'REMOVED'}]
+            return []
+
+        with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', side_effect=select):
+            listed = self.app.get('/api/scans/?listing=listed').json()['results']
+            not_listed = self.app.get('/api/scans/?listing=not_listed').json()['results']
+
+        self.assertFalse(not_listed)
+        self.assertEqual({scan['id']: scan['marketplace_status'] for scan in listed},
+                         dict(zip((scan.id for scan in scans), ('SOLD', 'CANCELLED', 'REMOVED', 'REMOVED'))))
+
+    def test_batch_creation_requires_a_fresh_unused_scan_and_uses_the_server_deadline(self):
+        scan = DeviceScan.objects.create(
+            device=self.mine, operator_id=OPERATOR.id, detected=True, detected_crop='CARROT',
+            image='scans/create.jpg', ml_confidence=0.94,
+        )
+        path = f'/api/scans/{scan.id}/create-batch/'
+        deadline = scan.created_at + timedelta(hours=5)
+        payload = {
+            'crop_type': 'CARROT', 'quantity_kg': 10, 'base_price_per_kg': 25,
+            'current_price_per_kg': 25, 'discount_percent': 0, 'freshness_status': 'GREEN',
+            'freshness_percent': 90, 'predicted_shelf_life': 4, 'image_url': 'https://example.test/product.jpg',
+            'operator_id': BUYER.id, 'scan_listing_deadline': '2099-01-01T01:00:00Z', 'is_listed': True,
+        }
+        with mock.patch.object(batch_creation, 'has_service_key', return_value=True), \
+                mock.patch.object(batch_creation, 'gallery_listing_status', return_value=({}, {})) as listings, \
+                mock.patch.object(batch_creation, 'supabase_insert', return_value={'id': 35}) as insert, \
+                mock.patch.object(batch_creation.timezone, 'now') as clock:
+            clock.return_value = deadline - timedelta(seconds=1)
+            with as_user(BUYER):
+                self.assertEqual(self.app.post(path, payload, format='json').status_code, 403)
+            with as_user(OPERATOR):
+                self.assertEqual(self.app.post(path, payload, format='json').status_code, 201)
+                listings.return_value = ({scan.id: 35}, {35: 'SOLD'})
+                reused = self.app.post(path, payload, format='json')
+                self.assertEqual(reused.status_code, 400)
+                self.assertIn('already linked', reused.json()['scan'])
+                clock.return_value = deadline
+                expired = self.app.post(path, payload, format='json')
+                self.assertEqual(expired.status_code, 400)
+                self.assertIn('This scan has expired.', expired.json()['scan'])
+            insert.assert_called_once()
+            self.assertEqual(insert.call_args.args[0], 'products')
+            saved = insert.call_args.args[1]
+            self.assertEqual(saved['scan_listing_deadline'], deadline.isoformat())
+            self.assertEqual(saved['operator_id'], OPERATOR.id)
+            self.assertEqual(saved['source_scan_id'], scan.id)
+            self.assertFalse(saved['is_listed'])
 
     def test_listing_verification_uses_the_scan_clock_and_checks_batch_ownership(self):
         scan = DeviceScan.objects.create(
@@ -517,10 +590,14 @@ class MonitorsAndGalleryTests(TestCase):
         with as_user(OPERATOR):
             cameras = self.app.get('/api/scans/?source=CAMERA').json()['results']
             photos = self.app.get('/api/scans/?source=PHOTO').json()['results']
+            phones = self.app.get('/api/scans/?source=PHONE').json()['results']
+            uploads = self.app.get('/api/scans/?source=UPLOAD').json()['results']
             invalid = self.app.get('/api/scans/?source=unknown')
 
         self.assertEqual({scan['id'] for scan in cameras}, {self.s1.id, self.old.id})
         self.assertEqual({scan['id'] for scan in photos}, {phone_scan.id, upload_scan.id})
+        self.assertEqual([scan['id'] for scan in phones], [phone_scan.id])
+        self.assertEqual([scan['id'] for scan in uploads], [upload_scan.id])
         self.assertEqual(invalid.status_code, 400)
 
     def test_gallery_pages(self):

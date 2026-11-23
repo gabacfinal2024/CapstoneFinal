@@ -12,7 +12,7 @@ import { supabase } from '../lib/supabase'
 import { deviceApi, isSensor, deviceFallbackName, backendAsset } from '../api/deviceApi'
 import { ProbabilityBars, confidencePct, isNoVegetable, NO_VEGETABLE_TEXT, NO_VEGETABLE_HINT } from '../components/ScanResultCard'
 import { CROP_LABELS, formatDays } from '../utils/helpers'
-import { scanListingDeadline, scanWindowOpen } from '../utils/scanListing'
+import { BATCH_DEADLINE_EXPIRED, scanCanStartBatch, scanListingDeadline, scanWindowOpen } from '../utils/scanListing'
 import { ScanSearch, AlertTriangle } from 'lucide-react'
 
 export default function NewBatch() {
@@ -51,6 +51,10 @@ export default function NewBatch() {
     const scan = location.state?.scan
     const photoUrl = scan?.raw_image_url || scan?.image_url
     if (!photoUrl || imageFile) return undefined
+    if (!scanCanStartBatch(scan)) {
+      setError(scanWindowOpen(scan) ? 'This scan is unavailable for a new batch.' : BATCH_DEADLINE_EXPIRED)
+      return undefined
+    }
     let previewUrl = ''
     let cancelled = false
     const seedFromScan = async () => {
@@ -81,7 +85,7 @@ export default function NewBatch() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
   const deadline = scanListingDeadline(analysis)
-  const photoCanBeListed = scanWindowOpen(analysis, Math.max(now, Date.now()))
+  const canCreateFromScan = scanWindowOpen(analysis, Math.max(now, Date.now()))
   useEffect(() => {
     const remaining = deadline - Date.now()
     if (!(remaining > 0)) return undefined
@@ -192,6 +196,10 @@ export default function NewBatch() {
       setError('Analyze the product photo and confirm that a supported vegetable is recognized before saving.')
       return
     }
+    if (!scanWindowOpen(analysis)) {
+      setError(BATCH_DEADLINE_EXPIRED)
+      return
+    }
     const detectedCrop = String(analysis.detected_crop || '').toUpperCase()
     if (analysis.detected !== true || isNoVegetable(analysis) || !detectedCrop) {
       setError(`${analysis.message || NO_VEGETABLE_TEXT}. A supported vegetable must be clearly recognized before saving.`)
@@ -237,10 +245,9 @@ export default function NewBatch() {
         freshness_status: status,
         freshness_percent: percent,
         predicted_shelf_life: days,
-        ml_confidence: freshness?.ml_confidence,
         source_scan_id: freshness?.id,
         image_url: imageUrl || '',
-        is_listed: status !== 'RED' && scanWindowOpen(freshness),
+        is_listed: status !== 'RED',
       })
       const selectedDevice = nodes.find((node) => String(node.id) === String(form.iot_node_id))
       if (status !== 'RED' && selectedDevice && !isSensor(selectedDevice)) {
@@ -393,8 +400,8 @@ export default function NewBatch() {
               style={{ display: 'none' }}
             />
             <input type="file" accept="image/*" onChange={(e) => handleImage(e, 'UPLOAD')} />
-            {analysis && !photoCanBeListed && !savedBatch && (
-              <p className="field-hint">This scan is past the listing deadline. You can still save this batch to inventory.</p>
+            {analysis && !canCreateFromScan && !savedBatch && (
+              <p className="field-hint">{BATCH_DEADLINE_EXPIRED}</p>
             )}
             {!imageFile && <p className="field-hint">A photo must be captured or uploaded and pass AI vegetable analysis before this product can be saved.</p>}
             {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
@@ -492,8 +499,8 @@ export default function NewBatch() {
           </div>
 
           {error && <p className="error-text">{error}</p>}
-          <button type="submit" className="btn btn-green" disabled={!!savedBatch || loading || analyzing || !imageFile || !analysis || rejectedPhoto}>
-            {loading ? 'Saving batch...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo to list' : photoCanBeListed && previewStatus !== 'RED' ? 'Save batch & list' : 'Save batch to inventory'}
+          <button type="submit" className="btn btn-green" disabled={!!savedBatch || loading || analyzing || !imageFile || !analysis || rejectedPhoto || !canCreateFromScan}>
+            {loading ? 'Saving batch...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo' : !canCreateFromScan ? 'New scan required' : previewStatus !== 'RED' ? 'Save batch & list' : 'Save batch to inventory'}
           </button>
           {savedBatch && (
             <div className="publish-recovery">

@@ -5,6 +5,7 @@ from django.utils.dateparse import parse_datetime
 
 LISTING_WINDOW = timedelta(hours=5)
 WINDOW_CLOSED = 'This scan has expired. Run a new scan to publish a listing.'
+BATCH_DEADLINE_EXPIRED = 'This scan has expired. Run a new scan to add a batch.'
 
 
 def listing_deadline(scan):

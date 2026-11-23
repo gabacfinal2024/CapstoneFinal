@@ -9,6 +9,7 @@ from .views import (
     ChatThreadViewSet, IoTNodeViewSet,
 )
 from . import device_views as dv
+from .batch_creation import CreateBatchFromScanView
 from .messenger_views import MessengerScanTestView, messenger_webhook
 from .admin_views import AdminAccountStatusView
 
@@ -66,6 +67,7 @@ urlpatterns = [
     path('devices/<int:pk>/monitors/<str:user_id>/', dv.DeviceMonitorDetailView.as_view(), name='device-monitor-detail'),
     path('scans/', dv.ScanGalleryView.as_view(), name='scan-gallery'),
     path('scans/upload/', dv.OperatorPhotoAnalyzeView.as_view(), name='scan-upload'),
+    path('scans/<int:scan_id>/create-batch/', CreateBatchFromScanView.as_view(), name='create-batch-from-scan'),
     path('scans/<int:scan_id>/batch/', dv.ScanBatchLinkView.as_view(), name='scan-batch-link'),
     path('scans/<int:scan_id>/image/<str:token>/<str:field>.jpg', dv.scan_image, name='scan-image'),
     path('stall/conditions/', dv.StallConditionsView.as_view(), name='stall-conditions'),

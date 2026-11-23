@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ImageOff, X, ExternalLink, Loader2 } from 'lucide-react'
+import { Camera, ExternalLink, ImageOff, Images, Loader2, Smartphone, Upload, X } from 'lucide-react'
 import { deviceApi, backendAsset } from '../api/deviceApi'
 import { useBackNavigation } from '../context/BackNavigationContext'
 import usePolling from '../hooks/usePolling'
 import { CROP_LABELS, formatDateTime, formatDays } from '../utils/helpers'
-import { scanWindowOpen } from '../utils/scanListing'
+import { scanCanStartBatch, scanListingDeadline, scanWindowOpen } from '../utils/scanListing'
 import { ScanChip, isNoVegetable, confidencePct } from './ScanResultCard'
 import ErrorNotice from './ErrorNotice'
 import Skeleton from './Skeleton'
@@ -17,11 +17,23 @@ const POLL_MS = 20000
 
 const STATE_LABELS = { fresh: 'Fresh', 'at-risk': 'At-Risk', rotten: 'Rotten' }
 const LISTING_FILTERS = [['all', 'All'], ['listed', 'Listed'], ['not_listed', 'Not Listed']]
+const SOURCE_FILTERS = [
+  ['ALL', 'All sources', Images], ['CAMERA', 'Stall camera', Camera],
+  ['PHONE', 'Phone camera', Smartphone], ['UPLOAD', 'Uploads', Upload],
+]
+const MARKETPLACE_STATUS = {
+  SOLD: 'Sold', CANCELLED: 'Cancelled', EXPIRED: 'Listing expired', REMOVED: 'Removed',
+  PREVIOUSLY_LISTED: 'Previously listed',
+}
 
 function ListingStatus({ scan }) {
   if (scan.is_listed == null) return <span className="gal-listing">Status unavailable</span>
-  if (scan.is_listed) return <span className="gal-listing gal-listing--active">Listed</span>
-  return <span className="gal-listing">Not Listed{scanWindowOpen(scan) ? '' : ' · Past deadline'}</span>
+  if (scan.is_listed) {
+    const detail = MARKETPLACE_STATUS[scan.marketplace_status]
+    return <span className="gal-listing gal-listing--active">{detail || 'Listed'}</span>
+  }
+  const detail = scan.used_for_batch ? ' · Batch saved' : scanWindowOpen(scan) ? '' : ' · Scan expired'
+  return <span className="gal-listing">Not Listed{detail}</span>
 }
 
 /** New first page merged into what is already on screen (keeps pages loaded with "Load more"). */
@@ -94,6 +106,9 @@ function Tile({ scan, showCamera, onOpen }) {
   const [failed, setFailed] = useState(false)
   const none = isNoVegetable(scan)
   const hasImg = !!scan.image_url && !failed
+  const sourceLabel = scan.source === 'PHONE' || scan.source === 'UPLOAD'
+    ? SOURCES[scan.source]
+    : scan.device_name || SOURCES[scan.source] || 'Stall camera'
   const detail = none
     ? 'Nothing in view'
     : [cropOf(scan), scan.ml_confidence != null ? confidencePct(scan.ml_confidence) : '', scan.days_to_spoil != null ? formatDays(scan.days_to_spoil) : '']
@@ -110,7 +125,7 @@ function Tile({ scan, showCamera, onOpen }) {
       </span>
       <span className="gal-tile__meta">
         <strong>{formatDateTime(scan.created_at)}</strong>
-        {showCamera && <span className="gal-tile__cam">{scan.device_name || SOURCES[scan.source] || `Camera #${scan.device_id ?? '?'}`}</span>}
+        {showCamera && <span className="gal-tile__cam">{sourceLabel}</span>}
         <span className="gal-tile__chip"><ScanChip scan={scan} /></span>
         <ListingStatus scan={scan} />
         <span className="gal-tile__detail">{detail}</span>
@@ -135,6 +150,7 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
   const [error, setError] = useState('')
   const [moreError, setMoreError] = useState('')
   const [selected, setSelected] = useState(null)
+  const [clock, setClock] = useState(Date.now)
   const { registerGuard } = useBackNavigation()
   useLayoutEffect(() => {
     if (!selected) return undefined
@@ -148,6 +164,13 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
   keyRef.current = key
   const itemsRef = useRef([])
   useEffect(() => { itemsRef.current = items }, [items])
+  useEffect(() => {
+    const now = Math.max(clock, Date.now())
+    const nextDeadline = Math.min(...items.filter((scan) => scanWindowOpen(scan, now)).map(scanListingDeadline))
+    if (!Number.isFinite(nextDeadline)) return undefined
+    const timer = setTimeout(() => setClock(Date.now()), nextDeadline - now)
+    return () => clearTimeout(timer)
+  }, [clock, items])
 
   const fetchFirst = async (reset) => {
     const myKey = keyRef.current
@@ -212,7 +235,9 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
   const showCamera = deviceId == null
   const visibleItems = items
   const emptyText = listing === 'listed' ? 'No listed scans found.' : listing === 'not_listed' ? 'No unlisted scans found.' : 'No scans found.'
-  const useScanForBatch = (scan) => navigate('/batch/new', { state: { scan } })
+  const useScanForBatch = (scan) => {
+    if (scanCanStartBatch(scan)) navigate('/batch/new', { state: { scan } })
+  }
 
   return (
     <div className="scan-gallery">
@@ -223,16 +248,19 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
           </button>
         ))}
       </div>
-      <p className="gal-window-hint">Publish within five hours of scanning.</p>
-      <div className="gal-filters">
-        {showSourceFilter && (
-          <select className="gal-camera" value={sourceFilter} onChange={(e) => { setSelected(null); setSourceFilter(e.target.value) }} aria-label="Photo source">
-            <option value="ALL">All sources</option>
-            <option value="CAMERA">Stall camera</option>
-            <option value="PHOTO">Photo camera</option>
-          </select>
-        )}
-      </div>
+      <p className="gal-window-hint">Create and list batches within five hours of scanning.</p>
+      {showSourceFilter && (
+        <div className="gal-sources" role="group" aria-labelledby="gal-source-label">
+          <p id="gal-source-label" className="gal-sources__label">Scan source</p>
+          <div className="gal-sources__options">
+            {SOURCE_FILTERS.map(([value, label, Icon]) => (
+              <button key={value} type="button" aria-pressed={sourceFilter === value} onClick={() => { setSelected(null); setSourceFilter(value) }}>
+                <Icon size={16} aria-hidden="true" /> {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <ErrorNotice
         message={error}
@@ -251,13 +279,13 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
       {visibleItems.length > 0 && (
         <div className="gal-grid">
           {visibleItems.map((s) => {
-            const canList = scanWindowOpen(s) && s.freshness_status !== 'RED'
+            const canCreate = s.is_listed !== null && scanCanStartBatch(s)
             return (
               <div className="gal-entry" key={`${s.source}-${s.id}`}>
                 <Tile scan={s} showCamera={showCamera} onOpen={setSelected} />
-                {!s.used_for_batch && s.detected && !isNoVegetable(s) && !s.crop_mismatch && !s.low_confidence && (
+                {canCreate && (
                   <button type="button" className="btn btn-outline gal-list-batch" onClick={() => useScanForBatch(s)}>
-                    {canList ? 'Create batch & list' : 'Save to inventory'}
+                    {s.freshness_status === 'RED' ? 'Create batch' : 'Create batch & list'}
                   </button>
                 )}
               </div>

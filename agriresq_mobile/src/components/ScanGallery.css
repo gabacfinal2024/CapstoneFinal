@@ -1,14 +1,16 @@
-.gal-filters { display: flex; margin-bottom: 12px; }
-
-.gal-camera {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: 10px;
-  background: var(--white);
-  font-size: 14px;
-  color: var(--gray-800);
+.gal-sources { margin: 0 0 14px; }
+.gal-sources__label { margin: 0 0 6px; font-size: 13px; color: var(--gray-800); font-weight: 700; }
+.gal-sources__options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.gal-sources__options button {
+  display: flex; align-items: center; justify-content: flex-start; gap: 7px;
+  min-height: 44px; padding: 6px 9px; border: 1px solid var(--gray-200);
+  border-radius: 10px; background: var(--white); color: var(--gray-800);
+  font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.gal-sources__options button[aria-pressed="true"] { color: var(--primary); border-color: var(--primary); background: var(--gray-100); }
+.gal-sources__options button svg { flex: none; }
+@media (min-width: 560px) {
+  .gal-sources__options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 .gal-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

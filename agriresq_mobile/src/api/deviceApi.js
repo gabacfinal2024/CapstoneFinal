@@ -241,6 +241,10 @@ export const deviceApi = {
     await request(`/api/batches/${encodeURIComponent(productId)}/verify-listing-scan/`, { method: 'POST' })
   },
 
+  async createBatchFromScan(scanId, body) {
+    return strip(await request(`/api/scans/${encodeURIComponent(scanId)}/create-batch/`, { method: 'POST', body }))
+  },
+
   async unlinkRottenBatch(productId) {
     return request(`/api/batches/${encodeURIComponent(productId)}/unlink-rotten/`, { method: 'POST', timeoutMs: 10000 })
   },
