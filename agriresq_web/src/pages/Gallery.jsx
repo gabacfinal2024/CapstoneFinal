@@ -12,7 +12,8 @@ import { CopyButton } from '../components/DeviceBits'
 
 const PAGE_SIZE = 40
 const REFRESH_MS = 15000
-const EMPTY_FILTERS = { source: '', device: '', state: '', from: '', to: '' }
+const EMPTY_FILTERS = { listing: 'all', source: '', device: '', state: '', from: '', to: '' }
+const LISTING_FILTERS = [['all', 'All'], ['listed', 'Listed'], ['not_listed', 'Not Listed']]
 const STATES = [['fresh', 'Fresh'], ['at-risk', 'At-Risk'], ['rotten', 'Rotten']]
 const CAPTURE_LABELS = { AUTO: 'Stall camera', MANUAL: 'Stall camera', PHONE: 'Phone camera', UPLOAD: 'Photo upload' }
 
@@ -30,6 +31,7 @@ function queryFor(filters, extra = {}) {
   return {
     device: filters.device || undefined,
     source: filters.source || undefined,
+    listing: filters.listing,
     state: filters.state || undefined,
     since: from && !Number.isNaN(from.getTime()) ? from.toISOString() : undefined,
     until: to && !Number.isNaN(to.getTime()) ? to.toISOString() : undefined,
@@ -52,6 +54,13 @@ function ScanDetails({ scan }) {
       )}
     </div>
   )
+}
+
+function ListingStatus({ scan }) {
+  if (scan.is_listed == null) return <p className="font-semibold text-slate-500">Status unavailable</p>
+  if (scan.is_listed) return <p className="font-semibold text-emerald-700">Listed</p>
+  const expired = scan.listing_expired || Date.now() >= Date.parse(scan.listing_deadline)
+  return <p className="font-semibold text-slate-600">Not Listed{expired ? ' · Past deadline' : ''}</p>
 }
 
 function GalleryCard({ scan, onOpen }) {
@@ -85,7 +94,7 @@ function GalleryCard({ scan, onOpen }) {
           {scan.device_ip && <> {' · '}<span className="font-mono">{scan.device_ip}</span></>}
         </p>
         <ScanDetails scan={scan} />
-        {scan.used_for_batch && <p className="font-semibold text-emerald-700">Used for a batch</p>}
+        <ListingStatus scan={scan} />
         {detected && (
           <p className="text-slate-500">
             {conf != null ? `${conf}% confidence` : ''}
@@ -170,6 +179,7 @@ function Lightbox({ items, openId, onOpenId, onClose }) {
           </div>
 
           <ScanDetails scan={scan} />
+          <ListingStatus scan={scan} />
 
           {detected ? (
             <>
@@ -295,7 +305,7 @@ export default function Gallery() {
     }
   }, [nextBefore, loading, loadingMore])
 
-  // Gentle auto-refresh: prepend scans newer than what we show (paused while an end date is set)
+  // Refresh the first page and remove scans that have moved out of this category.
   usePolling(async () => {
     const ticket = requestRef.current
     try {
@@ -303,15 +313,14 @@ export default function Gallery() {
       if (ticket !== requestRef.current) return
       const fresh = res.results || []
       setItems((cur) => {
-        const byId = new Map(fresh.map((s) => [s.id, s]))
-        const merged = cur.map((s) => byId.get(s.id) || s) // pick up feedback changes
-        const known = new Set(cur.map((s) => s.id))
-        const added = fresh.filter((s) => !known.has(s.id))
-        return added.length ? [...added, ...merged].sort((a, b) => b.id - a.id) : merged
+        if (res.next_before == null) return fresh
+        return [...fresh, ...cur.filter((s) => s.id < res.next_before)]
       })
+      if (res.next_before == null) setNextBefore(null)
+      else setNextBefore((cursor) => cursor ?? res.next_before)
       setUpdatedAt(new Date())
     } catch { /* keep what we have; the next tick retries */ }
-  }, REFRESH_MS, `${filterKey}-${reloadKey}`, !loading && !error && !filters.to && !rangeInvalid)
+  }, REFRESH_MS, `${filterKey}-${reloadKey}`, !loading && !error && !rangeInvalid)
 
   // Infinite scroll (the "Load more" button remains as a fallback)
   useEffect(() => {
@@ -336,7 +345,7 @@ export default function Gallery() {
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <PageTitle>Scan Gallery</PageTitle>
-          <p className="text-slate-500 text-sm mt-1">Recent scan results from every stall camera, including empty and unmatched frames.</p>
+          <p className="text-slate-500 text-sm mt-1">Browse camera and photo scans. Publish within five hours of scanning.</p>
         </div>
         <div className="flex items-center gap-3">
           {updatedAt && <span className="text-xs text-slate-400">Updated {updatedAt.toLocaleTimeString()}</span>}
@@ -345,6 +354,15 @@ export default function Gallery() {
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
           </button>
         </div>
+      </div>
+
+      <div className="inline-flex flex-wrap gap-1 rounded-xl bg-slate-100 p-1" role="group" aria-label="Listing status">
+        {LISTING_FILTERS.map(([value, label]) => (
+          <button key={value} type="button" aria-pressed={filters.listing === value} onClick={() => setFilter('listing', value)}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 aria-pressed:bg-white aria-pressed:text-[#2A6B48] aria-pressed:shadow-sm">
+            {label}
+          </button>
+        ))}
       </div>
 
       <form className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 items-end" onSubmit={(e) => e.preventDefault()}>

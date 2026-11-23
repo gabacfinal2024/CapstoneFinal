@@ -138,19 +138,24 @@ export const deviceApi = {
    * Gallery of analysed pictures across every camera the user may see.
    * Returns { results: Scan[] (with device_name, device_ip, image_url, raw_image_url), next_before }.
    */
-  gallery: async ({ device, detected, source, state, since, until, before, limit = 40 } = {}) => {
+  gallery: async ({ device, detected, source, state, listing, since, until, before, limit = 40 } = {}) => {
     const q = new URLSearchParams()
     if (device) q.set('device', device)
     if (detected === true) q.set('detected', '1')
     if (detected === false) q.set('detected', '0')
     if (source) q.set('source', source)
     if (state) q.set('state', state)
+    if (listing) q.set('listing', listing)
     if (since) q.set('since', since)
     if (until) q.set('until', until)
     if (before) q.set('before', before)
     q.set('limit', String(Math.min(limit, 100)))
     return (await backend(`/api/scans/?${q.toString()}`)).data
   },
+
+  verifyListingScan: async (productId) => backend(
+    `/api/batches/${encodeURIComponent(productId)}/verify-listing-scan/`, { method: 'POST' },
+  ),
 
   /** Photo upload fallback (no auth). */
   analyzeUpload: async (file, cropType) => {

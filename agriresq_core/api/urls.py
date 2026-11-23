@@ -71,6 +71,7 @@ urlpatterns = [
     path('stall/conditions/', dv.StallConditionsView.as_view(), name='stall-conditions'),
     path('reference/shelf-life/', dv.ShelfLifeReferenceView.as_view(), name='shelf-life-reference'),
     path('batches/<int:product_id>/photos/', dv.BatchPhotosView.as_view(), name='batch-photos'),
+    path('batches/<int:product_id>/verify-listing-scan/', dv.BatchListingScanView.as_view(), name='verify-listing-scan'),
     path('batches/<int:product_id>/analysis/', dv.BatchAnalysisView.as_view(), name='batch-analysis'),
     path('batches/<int:product_id>/sensor/', dv.BatchSensorView.as_view(), name='batch-sensor'),
     path('batches/<int:product_id>/unlink-rotten/', dv.RottenBatchUnlinkView.as_view(), name='batch-unlink-rotten'),

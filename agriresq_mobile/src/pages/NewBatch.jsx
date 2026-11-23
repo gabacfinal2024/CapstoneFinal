@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase'
 import { deviceApi, isSensor, deviceFallbackName, backendAsset } from '../api/deviceApi'
 import { ProbabilityBars, confidencePct, isNoVegetable, NO_VEGETABLE_TEXT, NO_VEGETABLE_HINT } from '../components/ScanResultCard'
 import { CROP_LABELS, formatDays } from '../utils/helpers'
+import { scanListingDeadline, scanWindowOpen } from '../utils/scanListing'
 import { ScanSearch, AlertTriangle } from 'lucide-react'
 
 export default function NewBatch() {
@@ -23,9 +24,10 @@ export default function NewBatch() {
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [photoSource, setPhotoSource] = useState('UPLOAD')
-  const [capturedAt, setCapturedAt] = useState(null)
+  const [usingGalleryPhoto, setUsingGalleryPhoto] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysis, setAnalysis] = useState(null)
+  const [now, setNow] = useState(Date.now)
   const [form, setForm] = useState({
     crop_type: 'EGGPLANT', quantity_kg: '', base_price_per_kg: '',
     harvest_datetime: new Date().toISOString().slice(0, 16),
@@ -62,7 +64,7 @@ export default function NewBatch() {
         setImageFile(file)
         setImagePreview(previewUrl)
         setPhotoSource(scan.source === 'PHONE' ? 'PHONE' : scan.source === 'UPLOAD' ? 'UPLOAD' : 'MANUAL')
-        setCapturedAt(scan.created_at)
+        setUsingGalleryPhoto(true)
         setAnalysis(scan)
         if (scan.detected_crop) set('crop_type', scan.detected_crop)
         if (scan.device_id != null) set('iot_node_id', String(scan.device_id))
@@ -78,9 +80,14 @@ export default function NewBatch() {
   }, [location.state])
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
-  const captureTime = capturedAt ? new Date(capturedAt).getTime() : NaN
-  const photoAge = Date.now() - captureTime
-  const photoCanBeListed = Number.isFinite(captureTime) && photoAge >= 0 && photoAge < 7 * 60 * 60 * 1000
+  const deadline = scanListingDeadline(analysis)
+  const photoCanBeListed = scanWindowOpen(analysis, Math.max(now, Date.now()))
+  useEffect(() => {
+    const remaining = deadline - Date.now()
+    if (!(remaining > 0)) return undefined
+    const timer = setTimeout(() => setNow(Date.now()), remaining)
+    return () => clearTimeout(timer)
+  }, [deadline])
 
   const handleImage = (e, source = 'UPLOAD') => {
     const file = e.target.files?.[0]
@@ -88,7 +95,7 @@ export default function NewBatch() {
     setImageFile(file)
     setImagePreview(URL.createObjectURL(file))
     setPhotoSource(source)
-    setCapturedAt(new Date().toISOString())
+    setUsingGalleryPhoto(false)
     setAnalysis(null)
     setError('')
   }
@@ -110,7 +117,7 @@ export default function NewBatch() {
       setImageFile(file)
       setImagePreview(URL.createObjectURL(file))
       setPhotoSource('MANUAL')
-      setCapturedAt(new Date().toISOString())
+      setUsingGalleryPhoto(false)
       setAnalysis(null)
       if (!form.iot_node_id) set('iot_node_id', String(cam.id))
       if (cam.crop_type && cam.crop_type !== form.crop_type) set('crop_type', cam.crop_type)
@@ -125,7 +132,7 @@ export default function NewBatch() {
   const retakePhoto = () => {
     setImageFile(null)
     setImagePreview(null)
-    setCapturedAt(null)
+    setUsingGalleryPhoto(false)
     setAnalysis(null)
     setError('')
     fileInputRef.current?.click()
@@ -147,6 +154,7 @@ export default function NewBatch() {
 
   /** Step 2–3: ESP32-CAM / upload → backend analyzes freshness */
   const runAnalysis = async (cropOverride) => {
+    if (usingGalleryPhoto) return
     const crop = typeof cropOverride === 'string' ? cropOverride : form.crop_type
     if (!imageFile) {
       setError('Capture or upload a product image first (ESP32-CAM).')
@@ -172,8 +180,6 @@ export default function NewBatch() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (submitting.current || savedBatch) return
-    const canListAtSubmit = Number.isFinite(captureTime) &&
-      Date.now() - captureTime >= 0 && Date.now() - captureTime < 7 * 60 * 60 * 1000
     if (harvestKnown && !form.harvest_datetime) {
       setError('Enter the harvest date and time, or uncheck the harvest-time option.')
       return
@@ -234,7 +240,7 @@ export default function NewBatch() {
         ml_confidence: freshness?.ml_confidence,
         source_scan_id: freshness?.id,
         image_url: imageUrl || '',
-        is_listed: status !== 'RED' && canListAtSubmit,
+        is_listed: status !== 'RED' && scanWindowOpen(freshness),
       })
       const selectedDevice = nodes.find((node) => String(node.id) === String(form.iot_node_id))
       if (status !== 'RED' && selectedDevice && !isSensor(selectedDevice)) {
@@ -253,7 +259,7 @@ export default function NewBatch() {
         }
       }
       if (batch.listingError) {
-        setSavedBatch({ id: batch.id, warning: scanLinkWarning, captureTime })
+        setSavedBatch({ id: batch.id, warning: scanLinkWarning })
         setPublishError(batch.listingError)
         return
       }
@@ -271,11 +277,6 @@ export default function NewBatch() {
 
   const retryPublish = async () => {
     if (publishLoading) return
-    const age = Date.now() - savedBatch.captureTime
-    if (!Number.isFinite(age) || age < 0 || age >= 7 * 60 * 60 * 1000) {
-      setPublishError('This photo is more than 7 hours old. It can remain in inventory, but it can no longer be listed.')
-      return
-    }
     setPublishLoading(true)
     setPublishError('')
     try {
@@ -326,7 +327,7 @@ export default function NewBatch() {
 
           <div className="input-group">
             <label>Crop Type</label>
-            <select value={form.crop_type} onChange={(e) => changeCrop(e.target.value)}>
+            <select value={form.crop_type} onChange={(e) => changeCrop(e.target.value)} disabled={usingGalleryPhoto}>
               <option value="EGGPLANT">Eggplant</option>
               <option value="CUCUMBER">Cucumber</option>
               <option value="CARROT">Carrot</option>
@@ -392,8 +393,8 @@ export default function NewBatch() {
               style={{ display: 'none' }}
             />
             <input type="file" accept="image/*" onChange={(e) => handleImage(e, 'UPLOAD')} />
-            {!photoCanBeListed && capturedAt && (
-              <p className="field-hint">This photo is older than 7 hours. You can save the batch to inventory, but it cannot be listed.</p>
+            {analysis && !photoCanBeListed && !savedBatch && (
+              <p className="field-hint">This scan is past the listing deadline. You can still save this batch to inventory.</p>
             )}
             {!imageFile && <p className="field-hint">A photo must be captured or uploaded and pass AI vegetable analysis before this product can be saved.</p>}
             {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
@@ -418,10 +419,14 @@ export default function NewBatch() {
           {mismatch && (
             <div className="analysis-result card inner-card analysis-mismatch">
               <p className="scan-warn"><AlertTriangle size={16} /> {analysis.message || `This looks like ${CROP_LABELS[analysis.detected_crop] || analysis.detected_crop}, not ${CROP_LABELS[form.crop_type]}.`}</p>
-              <button type="button" className="btn btn-green" disabled={analyzing}
-                onClick={() => { const crop = analysis.detected_crop; changeCrop(crop); runAnalysis(crop) }}>
-                Use {CROP_LABELS[analysis.detected_crop] || analysis.detected_crop}
-              </button>
+              {usingGalleryPhoto ? (
+                <button type="button" className="btn btn-green" onClick={retakePhoto}>Retake photo</button>
+              ) : (
+                <button type="button" className="btn btn-green" disabled={analyzing}
+                  onClick={() => { const crop = analysis.detected_crop; changeCrop(crop); runAnalysis(crop) }}>
+                  Use {CROP_LABELS[analysis.detected_crop] || analysis.detected_crop}
+                </button>
+              )}
               <p className="error-text">This photo cannot be listed under the selected crop. Correct the crop or retake the photo.</p>
             </div>
           )}
@@ -488,7 +493,7 @@ export default function NewBatch() {
 
           {error && <p className="error-text">{error}</p>}
           <button type="submit" className="btn btn-green" disabled={!!savedBatch || loading || analyzing || !imageFile || !analysis || rejectedPhoto}>
-            {loading ? 'Saving batch...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo to list' : photoCanBeListed ? 'Save batch & list' : 'Save batch to inventory'}
+            {loading ? 'Saving batch...' : !imageFile ? 'Photo required to save' : !analysis ? 'Analyze photo before saving' : rejectedPhoto ? 'Retake or correct the photo to list' : photoCanBeListed && previewStatus !== 'RED' ? 'Save batch & list' : 'Save batch to inventory'}
           </button>
           {savedBatch && (
             <div className="publish-recovery">

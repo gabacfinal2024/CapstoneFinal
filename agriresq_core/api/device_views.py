@@ -34,7 +34,8 @@ from .device_services import (
 from .analysis import batch_analysis
 from .evidence import reference_payload
 from .sensor_report import daily_sensor_report
-from .supabase_client import has_service_key, supabase_select
+from .scan_listing import WINDOW_CLOSED, active_listing_ids, is_source_attachment, listing_deadline
+from .supabase_client import has_service_key, supabase_select, supabase_update
 from django.db.models import Q
 
 from .models import BatchClock, BatchSensorLink, DEVICE_CROP_TYPES, Device, DeviceMonitor, DeviceReading, DeviceScan, PairingCode
@@ -853,7 +854,37 @@ def gallery_json(request, s):
     out['device_name'] = s.device.name if s.device else ''
     out['device_ip'] = s.device.ip if s.device else None
     out['raw_image_url'] = media_url(request, s.raw_image, s, 'raw')
+    out['listing_deadline'] = listing_deadline(s)
     return out
+
+
+def gallery_listing_status(scans, now):
+    """Map source scans to marketplace status, with support for older batch links."""
+    if not has_service_key():
+        raise RuntimeError('Marketplace service key is unavailable.')
+    source_products = supabase_select(
+        'products', {'source_scan_id': [scan.id for scan in scans]}, 'id,source_scan_id',
+    )
+    sources = {product['source_scan_id']: product['id'] for product in source_products}
+    linked_ids = sorted({scan.product_id for scan in scans if scan.product_id is not None})
+    linked = {}
+    if linked_ids:
+        linked = {
+            product['id']: product for product in
+            supabase_select('products', {'id': linked_ids}, 'id,source_scan_id,created_at')
+        }
+    for scan in scans:
+        product = linked.get(scan.product_id)
+        if scan.id not in sources and product and product.get('source_scan_id') is None and is_source_attachment(scan, product):
+            sources[scan.id] = product['id']
+    listed = set()
+    if sources:
+        listed = active_listing_ids(supabase_select('marketplace_listings', {
+            'product_id': sorted(set(sources.values())), 'listing_status': 'ACTIVE',
+        }, 'product_id,expires_at'), now)
+    used = sources.keys() | {scan.id for scan in scans if scan.product_id in linked
+                             and is_source_attachment(scan, linked[scan.product_id])}
+    return sources, listed, used
 
 
 def scan_image(request, scan_id, token, field):
@@ -884,6 +915,9 @@ class ScanGalleryView(APIView):
 
     def get(self, request):
         q = request.query_params
+        listing = q.get('listing', 'all')
+        if listing not in ('all', 'listed', 'not_listed'):
+            raise ValidationError({'listing': 'Choose all, listed, or not_listed.'})
         scans = DeviceScan.objects.filter(
             Q(device__in=visible_devices(request.user)) |
             Q(operator_id=request.user.id) if request.user.role != 'ADMIN' else Q()
@@ -907,42 +941,89 @@ class ScanGalleryView(APIView):
             if since:
                 scans = scans.filter(created_at__gte=since)
         if q.get('before'):
-            scans = scans.filter(pk__lt=int(q['before']))
+            try:
+                scans = scans.filter(pk__lt=int(q['before']))
+            except ValueError:
+                raise ValidationError({'before': 'Enter a valid page cursor.'})
         if q.get('until'):
             until = parse_datetime(q['until'])
             if until:
                 scans = scans.filter(created_at__lte=until)
-        limit = min(int(q.get('limit', 60)), 100)
-        page = list(scans.order_by('-pk')[:limit + 1])
-        more = len(page) > limit
-        page = page[:limit]
-        used_ids = set()
-        linked_products = {}
-        if page and has_service_key():
-            try:
-                rows = supabase_select('products', {
-                    'source_scan_id': [scan.id for scan in page],
-                }, select='source_scan_id')
-                used_ids = {row['source_scan_id'] for row in rows}
-                linked_ids = sorted({s.product_id for s in page if s.product_id is not None})
-                if linked_ids:
-                    linked_products = {
-                        row['id']: parse_datetime(row['created_at']) for row in
-                        supabase_select('products', {'id': linked_ids}, select='id,created_at')
-                    }
-            except Exception:
-                log.warning('Could not check scan reuse', exc_info=True)
+        try:
+            limit = max(1, min(int(q.get('limit', 60)), 100))
+        except ValueError:
+            raise ValidationError({'limit': 'Enter a valid page size.'})
+        now = timezone.now()
+        candidates = scans.order_by('-pk')
+        chunk_size = limit + 1 if listing == 'all' else 100
         results = []
-        for scan in page:
-            # Automatic camera scans inherit the monitored batch ID. Older, explicitly attached
-            # gallery photos predate their batch; later camera frames are still available to use.
-            batch_created = linked_products.get(scan.product_id)
-            legacy_used = scan.product_id is not None and (
-                scan.source in ('PHONE', 'UPLOAD') or batch_created is None or scan.created_at <= batch_created
-            )
-            results.append({**gallery_json(request, scan), 'used_for_batch': scan.id in used_ids or legacy_used})
-        return Response({'results': results,
-                         'next_before': page[-1].pk if more and page else None})
+        while page := list(candidates[:chunk_size]):
+            try:
+                sources, listed, used = gallery_listing_status(page, now)
+            except Exception:
+                if has_service_key():
+                    log.warning('Could not check scan listing status', exc_info=True)
+                if listing != 'all':
+                    return Response({'detail': 'Listing status is temporarily unavailable.'},
+                                    status=status.HTTP_503_SERVICE_UNAVAILABLE)
+                sources, listed, used = {}, None, set()
+            for scan in page:
+                is_listed = sources.get(scan.id) in listed if listed is not None else None
+                if listing != 'all' and is_listed != (listing == 'listed'):
+                    continue
+                results.append({
+                    **gallery_json(request, scan),
+                    'is_listed': is_listed,
+                    'used_for_batch': scan.id in used,
+                    'listing_expired': now >= listing_deadline(scan),
+                })
+                if len(results) > limit:
+                    return Response({'results': results[:limit], 'next_before': results[limit - 1]['id']})
+            if len(page) < chunk_size:
+                break
+            candidates = scans.filter(pk__lt=page[-1].pk).order_by('-pk')
+        return Response({'results': results, 'next_before': None})
+
+
+class BatchListingScanView(APIView):
+    """Verify the source scan against the hub clock before Supabase can publish a batch."""
+    authentication_classes = [SupabaseAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, product_id):
+        if request.user.role not in ('STALL_OPERATOR', 'ADMIN'):
+            raise PermissionDenied('Only stall operators and administrators can publish batches.')
+        if not has_service_key():
+            return Response({'detail': 'Scan verification is temporarily unavailable.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        operator_id = None if request.user.role == 'ADMIN' else request.user.id
+        product = verified_product(product_id, operator_id)
+        now = timezone.now()
+        scan = DeviceScan.objects.select_related('device').filter(pk=product.get('source_scan_id')).first()
+        valid_scan = (
+            scan and scan.detected and not scan.crop_mismatch and not scan.low_confidence
+            and scan.image and scan.detected_crop == product['crop_type']
+            and (scan.operator_id == product['operator_id']
+                 or operator_devices(product['operator_id']).filter(pk=scan.device_id).exists())
+        )
+        if not valid_scan or not scan.created_at <= now < listing_deadline(scan):
+            # A retry may finish publishing a batch whose marketplace row already exists.
+            active = active_listing_ids(supabase_select('marketplace_listings', {
+                'product_id': product_id, 'listing_status': 'ACTIVE',
+            }, 'product_id,expires_at'), now)
+            if product_id in active:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            if not valid_scan:
+                raise ValidationError({'scan': 'A valid source scan is required to list this batch.'})
+            raise ValidationError({'scan': WINDOW_CLOSED})
+        if scan.product_id is not None and scan.product_id != product_id:
+            previous = supabase_select('products', {'id': scan.product_id}, 'created_at')
+            if previous and is_source_attachment(scan, previous[0]):
+                raise ValidationError({'scan': 'This scan has already been used for another batch.'})
+        supabase_update('products', {'id': product_id}, {
+            'scan_listing_deadline': listing_deadline(scan).isoformat(),
+        })
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ScanBatchLinkView(APIView):

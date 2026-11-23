@@ -88,9 +88,11 @@ class AdminMonitoringTests(TestCase):
                                            image='scans/frame.jpg', source='AUTO', product_id=20, ml_confidence=0.9)
 
         def select(table, match, select):
-            if select == 'source_scan_id':
-                return [{'source_scan_id': photo.pk}]
-            return [{'id': 20, 'created_at': (frame.created_at - timedelta(hours=1)).isoformat()}]
+            if table == 'marketplace_listings':
+                return [{'product_id': 30, 'expires_at': (timezone.now() + timedelta(days=1)).isoformat()}]
+            if 'source_scan_id' in match:
+                return [{'id': 30, 'source_scan_id': photo.pk}]
+            return [{'id': 20, 'source_scan_id': None, 'created_at': (frame.created_at - timedelta(hours=1)).isoformat()}]
 
         with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
                 mock.patch.object(device_views, 'supabase_select', side_effect=select):
@@ -98,6 +100,73 @@ class AdminMonitoringTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual({item['id']: item['used_for_batch'] for item in response.json()['results']},
                          {photo.pk: True, frame.pk: False})
+        self.assertEqual({item['id']: item['is_listed'] for item in response.json()['results']},
+                         {photo.pk: True, frame.pk: False})
+
+    def test_gallery_paginates_matching_listing_status_and_marks_expired_scans(self):
+        now = timezone.now()
+        photos = [
+            DeviceScan.objects.create(device=self.mine, detected=True, image=f'scans/{index}.jpg', ml_confidence=0.9)
+            for index in range(5)
+        ]
+        DeviceScan.objects.filter(pk=photos[2].pk).update(created_at=now - timedelta(hours=5))
+        DeviceScan.objects.filter(pk=photos[1].pk).update(created_at=now - timedelta(days=1))
+
+        def select(table, match, fields):
+            if table == 'products':
+                return [
+                    {'id': scan.pk, 'source_scan_id': scan.pk} for scan in (photos[0], photos[1], photos[3])
+                    if scan.pk in match['source_scan_id']
+                ]
+            return [
+                {'product_id': scan.pk, 'expires_at': expiry.isoformat()}
+                for scan, expiry in ((photos[1], now + timedelta(days=1)), (photos[3], now - timedelta(seconds=1)))
+                if scan.pk in match['product_id']
+            ]
+
+        with as_user(OPERATOR), mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', side_effect=select), \
+                mock.patch.object(device_views.timezone, 'now', return_value=now):
+            listed = self.app.get('/api/scans/?listing=listed').json()
+            first = self.app.get('/api/scans/?listing=not_listed&limit=2').json()
+            second = self.app.get(f"/api/scans/?listing=not_listed&limit=2&before={first['next_before']}").json()
+
+        self.assertEqual([item['id'] for item in listed['results']], [photos[1].pk])
+        self.assertTrue(listed['results'][0]['listing_expired'])
+        self.assertEqual([item['id'] for item in first['results']], [photos[4].pk, photos[3].pk])
+        self.assertEqual([item['id'] for item in second['results']], [photos[2].pk, photos[0].pk])
+        self.assertTrue(second['results'][0]['listing_expired'])
+        self.assertTrue(second['results'][1]['used_for_batch'])
+        self.assertIsNone(second['next_before'])
+
+    def test_listing_verification_uses_the_scan_clock_and_checks_batch_ownership(self):
+        scan = DeviceScan.objects.create(
+            device=self.mine, operator_id=OPERATOR.id, detected=True, detected_crop='CARROT', image='scans/list.jpg',
+            ml_confidence=0.9,
+        )
+        product = {'id': 30, 'operator_id': OPERATOR.id, 'source_scan_id': scan.pk, 'crop_type': 'CARROT'}
+        url = '/api/batches/30/verify-listing-scan/'
+
+        def select(table, match, *args):
+            return [product] if table == 'products' else []
+
+        with mock.patch.object(device_views, 'has_service_key', return_value=True), \
+                mock.patch.object(device_views, 'supabase_select', side_effect=select), \
+                mock.patch.object(device_views, 'supabase_update') as update, \
+                mock.patch.object(device_views.timezone, 'now') as clock:
+            deadline = scan.created_at + timedelta(hours=5)
+            clock.return_value = deadline - timedelta(seconds=1)
+            with as_user(OPERATOR):
+                self.assertEqual(self.app.post(url).status_code, 204)
+                clock.return_value = deadline
+                expired = self.app.post(url)
+                self.assertEqual(expired.status_code, 400)
+                self.assertEqual(expired.json(), {'scan': 'This scan has expired. Run a new scan to publish a listing.'})
+            with as_user(ADMIN):
+                self.assertEqual(self.app.post(url).status_code, 400)
+            with as_user(BUYER):
+                self.assertEqual(self.app.post(url).status_code, 403)
+            update.assert_called_once_with('products', {'id': 30}, {'scan_listing_deadline': deadline.isoformat()})
 
     def test_admin_can_open_any_camera_and_its_history(self):
         with as_user(ADMIN):

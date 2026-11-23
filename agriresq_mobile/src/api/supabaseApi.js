@@ -1,5 +1,6 @@
 import { supabase, BACKEND_URL } from '../lib/supabase'
 import { computeDynamicPrice } from './pricing'
+import { deviceApi } from './deviceApi'
 
 const PRODUCT_SELECT = `
   *,
@@ -273,6 +274,7 @@ export const api = {
     if (product.freshness_status === 'RED' || !(Number(product.quantity_kg) > 0)) {
       throw new Error('This batch is no longer eligible to be listed.')
     }
+    await deviceApi.verifyListingScan(product.id)
     const pricing = computeDynamicPrice(
       product.base_price_per_kg,
       product.quantity_kg,

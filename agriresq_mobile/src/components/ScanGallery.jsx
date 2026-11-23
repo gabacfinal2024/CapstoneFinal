@@ -5,6 +5,7 @@ import { deviceApi, backendAsset } from '../api/deviceApi'
 import { useBackNavigation } from '../context/BackNavigationContext'
 import usePolling from '../hooks/usePolling'
 import { CROP_LABELS, formatDateTime, formatDays } from '../utils/helpers'
+import { scanWindowOpen } from '../utils/scanListing'
 import { ScanChip, isNoVegetable, confidencePct } from './ScanResultCard'
 import ErrorNotice from './ErrorNotice'
 import Skeleton from './Skeleton'
@@ -15,6 +16,13 @@ const SOURCES = { AUTO: 'Stall camera', MANUAL: 'Stall camera', UPLOAD: 'Photo u
 const POLL_MS = 20000
 
 const STATE_LABELS = { fresh: 'Fresh', 'at-risk': 'At-Risk', rotten: 'Rotten' }
+const LISTING_FILTERS = [['all', 'All'], ['listed', 'Listed'], ['not_listed', 'Not Listed']]
+
+function ListingStatus({ scan }) {
+  if (scan.is_listed == null) return <span className="gal-listing">Status unavailable</span>
+  if (scan.is_listed) return <span className="gal-listing gal-listing--active">Listed</span>
+  return <span className="gal-listing">Not Listed{scanWindowOpen(scan) ? '' : ' · Past deadline'}</span>
+}
 
 /** New first page merged into what is already on screen (keeps pages loaded with "Load more"). */
 function mergeNewest(prev, fresh) {
@@ -56,6 +64,7 @@ function ScanModal({ scan, onClose }) {
         </div>
         <div className="gal-modal__body">
           <div className="gal-modal__row"><strong>{formatDateTime(scan.created_at)}</strong><ScanChip scan={scan} /></div>
+          <ListingStatus scan={scan} />
           {scan.message && none && <p className="gal-modal__msg">{scan.message}</p>}
           <div className="info-list">
             <div><span>Capture device</span><strong>{scan.device_name || (scan.source === 'PHONE' ? 'Phone camera' : scan.source === 'UPLOAD' ? 'Uploaded photo' : scan.device_id != null ? `Camera #${scan.device_id}` : '—')}</strong></div>
@@ -103,6 +112,7 @@ function Tile({ scan, showCamera, onOpen }) {
         <strong>{formatDateTime(scan.created_at)}</strong>
         {showCamera && <span className="gal-tile__cam">{scan.device_name || SOURCES[scan.source] || `Camera #${scan.device_id ?? '?'}`}</span>}
         <span className="gal-tile__chip"><ScanChip scan={scan} /></span>
+        <ListingStatus scan={scan} />
         <span className="gal-tile__detail">{detail}</span>
       </span>
     </button>
@@ -117,6 +127,7 @@ function Tile({ scan, showCamera, onOpen }) {
 export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey = 0 }) {
   const navigate = useNavigate()
   const [sourceFilter, setSourceFilter] = useState('ALL')
+  const [listing, setListing] = useState('all')
   const [items, setItems] = useState([])
   const [next, setNext] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -132,7 +143,7 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
 
   const device = deviceId ?? undefined
   const source = sourceFilter === 'ALL' ? undefined : sourceFilter
-  const key = `${device ?? ''}:${sourceFilter}`
+  const key = `${device ?? ''}:${sourceFilter}:${listing}`
   const keyRef = useRef(key)
   keyRef.current = key
   const itemsRef = useRef([])
@@ -141,16 +152,16 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
   const fetchFirst = async (reset) => {
     const myKey = keyRef.current
     try {
-      const page = await deviceApi.gallery({ device, source, limit: pageSize })
+      const page = await deviceApi.gallery({ device, source, listing, limit: pageSize })
       if (keyRef.current !== myKey) return // filter changed while this request was in flight
       const prev = itemsRef.current
       const overlap = page.results.some((s) => prev.some((p) => p.id === s.id))
-      if (reset || prev.length === 0 || (!overlap && page.results.length >= pageSize)) {
+      if (reset || prev.length === 0 || page.next_before == null || (!overlap && page.results.length >= pageSize)) {
         setItems(page.results)
         setNext(page.next_before)
         setMoreError('')
       } else {
-        setItems(mergeNewest(prev, page.results))
+        setItems((current) => mergeNewest(current.filter((scan) => scan.id < page.next_before), page.results))
       }
       setError('')
     } catch (err) {
@@ -186,7 +197,7 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
     setLoadingMore(true)
     setMoreError('')
     try {
-      const page = await deviceApi.gallery({ device, source, before: next, limit: pageSize })
+      const page = await deviceApi.gallery({ device, source, listing, before: next, limit: pageSize })
       if (keyRef.current !== myKey) return
       setItems((prev) => mergeNewest(prev, page.results))
       setNext(page.next_before)
@@ -200,15 +211,23 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
   const showSourceFilter = deviceId == null
   const showCamera = deviceId == null
   const visibleItems = items
-  const emptyText = 'No scans found.'
+  const emptyText = listing === 'listed' ? 'No listed scans found.' : listing === 'not_listed' ? 'No unlisted scans found.' : 'No scans found.'
   const useScanForBatch = (scan) => navigate('/batch/new', { state: { scan } })
 
   return (
     <div className="scan-gallery">
+      <div className="gal-listing-filters" role="group" aria-label="Listing status">
+        {LISTING_FILTERS.map(([value, label]) => (
+          <button key={value} type="button" aria-pressed={listing === value} onClick={() => { setSelected(null); setListing(value) }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="gal-window-hint">Publish within five hours of scanning.</p>
       <div className="gal-filters">
         {showSourceFilter && (
-          <select className="gal-camera" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} aria-label="Photo source">
-            <option value="ALL">All cameras</option>
+          <select className="gal-camera" value={sourceFilter} onChange={(e) => { setSelected(null); setSourceFilter(e.target.value) }} aria-label="Photo source">
+            <option value="ALL">All sources</option>
             <option value="CAMERA">Stall camera</option>
             <option value="PHOTO">Photo camera</option>
           </select>
@@ -232,12 +251,11 @@ export default function ScanGallery({ deviceId = null, pageSize = 12, refreshKey
       {visibleItems.length > 0 && (
         <div className="gal-grid">
           {visibleItems.map((s) => {
-            const age = Date.now() - new Date(s.created_at).getTime()
-            const canList = Number.isFinite(age) && age >= 0 && age < 7 * 60 * 60 * 1000
+            const canList = scanWindowOpen(s) && s.freshness_status !== 'RED'
             return (
               <div className="gal-entry" key={`${s.source}-${s.id}`}>
                 <Tile scan={s} showCamera={showCamera} onOpen={setSelected} />
-                {s.used_for_batch ? <p className="gal-used">Already used for a batch</p> : s.detected && !isNoVegetable(s) && (
+                {!s.used_for_batch && s.detected && !isNoVegetable(s) && !s.crop_mismatch && !s.low_confidence && (
                   <button type="button" className="btn btn-outline gal-list-batch" onClick={() => useScanForBatch(s)}>
                     {canList ? 'Create batch & list' : 'Save to inventory'}
                   </button>

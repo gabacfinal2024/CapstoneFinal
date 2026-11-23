@@ -23,8 +23,10 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from .models import BatchClock, BatchSensorLink, Device, DeviceReading, DeviceScan
+from .scan_listing import active_listing_ids
 from .spoilage_engine import (CROP_CONFIG, calculate_chu_increment, calculate_stress_multiplier, calculate_vpd,
                                classify_status, freshness_percent, predict_spoilage)
 from .supabase_client import (has_service_key, supabase_delete_public_object, supabase_insert,
@@ -185,10 +187,20 @@ def _apply(device, product, status, days, percent, source, ml_confidence=None, d
                     f'About {days} days left. {detail}').strip(),
     })
     if status == 'AMBER':
+        now = timezone.now()
+        deadline = product.get('scan_listing_deadline')
+        if not deadline or now >= parse_datetime(deadline):
+            if not product.get('is_listed'):
+                return
+            active = supabase_select('marketplace_listings', {
+                'product_id': product['id'], 'listing_status': 'ACTIVE',
+            }, 'product_id,expires_at')
+            if product['id'] not in active_listing_ids(active, now):
+                return
         supabase_upsert('marketplace_listings', {
             'product_id': product['id'], 'operator_id': device.operator_id,
             'listed_price': float(current * qty), 'original_price': float(base * qty), 'discount_percent': discount,
-            'listing_status': 'ACTIVE', 'expires_at': (timezone.now() + timedelta(days=2)).isoformat(),
+            'listing_status': 'ACTIVE', 'expires_at': (now + timedelta(days=2)).isoformat(),
         }, on_conflict='product_id')
         supabase_update('products', {'id': product['id']}, {'is_listed': True})
         supabase_insert('notifications', {

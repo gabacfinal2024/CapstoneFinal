@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { PRODUCT_SELECT } from './supabaseApi'
+import { deviceApi } from './deviceApi'
 
 // Admin marketplace operations. They rely on supabase/008 (admin read access) and
 // supabase/009 (deal_history, admin_list_batch, admin_cancel_listing).
@@ -21,6 +22,7 @@ export async function dealHistory() {
 }
 
 export async function adminListBatch(productId, days = 3) {
+  await deviceApi.verifyListingScan(productId)
   const { data, error } = await supabase.rpc('admin_list_batch', { p_product: productId, p_days: days })
   if (error) throw new Error(friendlyRpcError(error, 'Listing a batch'))
   return data
