@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import socket
 import threading
 import time
@@ -35,6 +36,10 @@ def start():
     _started = True
     threading.Thread(target=scheduler_loop, name='agriresq-scheduler', daemon=True).start()
     threading.Thread(target=discovery_loop, name='agriresq-discovery', daemon=True).start()
+    fcm_account = os.environ.get('AGRIRESQ_FCM_SERVICE_ACCOUNT_JSON')
+    if fcm_account:
+        from .android_push import delivery_loop
+        threading.Thread(target=delivery_loop, args=(fcm_account,), name='agriresq-android-push', daemon=True).start()
 
 
 # ── capture scheduler ───────────────────────────────────────────────────────

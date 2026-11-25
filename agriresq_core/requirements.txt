@@ -11,3 +11,4 @@ numpy>=1.26
 onnxruntime>=1.18
 # EMQX listener: python manage.py mqtt_listen
 paho-mqtt>=1.6
+google-auth[requests]>=2.38,<3

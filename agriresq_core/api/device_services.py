@@ -180,12 +180,14 @@ def _apply(device, product, status, days, percent, source, ml_confidence=None, d
         **({'chu_accumulated': float(chu)} if chu is not None else {}), **({'vpd_value': float(vpd)} if vpd is not None else {}),
     })
     crop = product['crop_type'].title()
-    supabase_insert('notifications', {
-        'user_id': device.operator_id, 'product_id': product['id'], 'notification_type': 'STATUS_CHANGE',
-        'title': f'Batch Status: {STATUS_LABEL[status]}',
-        'message': (f'Your {crop} batch #{product["id"]}: {STATUS_LABEL.get(old, old)} → {STATUS_LABEL[status]}. '
-                    f'About {days} days left. {detail}').strip(),
-    })
+    # Supabase emits the AMBER alert for every batch write, including direct mobile updates.
+    if status != 'AMBER':
+        supabase_insert('notifications', {
+            'user_id': device.operator_id, 'product_id': product['id'], 'notification_type': 'STATUS_CHANGE',
+            'title': f'Batch Status: {STATUS_LABEL[status]}',
+            'message': (f'Your {crop} batch #{product["id"]}: {STATUS_LABEL.get(old, old)} → {STATUS_LABEL[status]}. '
+                        f'About {days} days left. {detail}').strip(),
+        })
     if status == 'AMBER':
         now = timezone.now()
         deadline = product.get('scan_listing_deadline')

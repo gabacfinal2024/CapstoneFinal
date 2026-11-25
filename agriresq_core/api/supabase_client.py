@@ -51,6 +51,14 @@ def supabase_insert(table: str, payload: dict) -> dict:
     return data[0] if isinstance(data, list) else data
 
 
+def supabase_rpc(function: str, payload: dict = None):
+    url = f'{settings.SUPABASE_URL}/rest/v1/rpc/{function}'
+    req = urllib.request.Request(
+        url, data=json.dumps(payload or {}).encode(), headers=_headers(), method='POST',
+    )
+    return _send(req)
+
+
 def supabase_upsert(table: str, payload: dict, on_conflict: str) -> dict:
     url = f'{settings.SUPABASE_URL}/rest/v1/{table}?on_conflict={on_conflict}'
     req = urllib.request.Request(
