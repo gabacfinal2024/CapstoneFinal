@@ -211,14 +211,20 @@ export const api = {
       .single()
     if (profileError) throw profileError
 
-    const isOperator = profile?.role === 'STALL_OPERATOR'
-    let query = supabase.from('products').select(PRODUCT_SELECT).order('created_at', { ascending: false })
-    if (profile?.role === 'ADMIN') {
-      query = query.neq('freshness_status', 'RED')       // administrators see every stall
-    } else if (isOperator) {
-      query = query.eq('operator_id', userId).neq('freshness_status', 'RED')
-    } else {
-      query = query.eq('is_listed', true).neq('freshness_status', 'RED').limit(10)
+    const role = profile?.role
+    let query = supabase
+      .from('products')
+      .select(`${PRODUCT_SELECT}, sold_listing:marketplace_listings()`)
+      .neq('freshness_status', 'RED')
+      .gt('quantity_kg', 0)
+      // A sale closes the listing while the batch retains its original quantity for history.
+      .eq('sold_listing.listing_status', 'SOLD')
+      .is('sold_listing', null)
+      .order('created_at', { ascending: false })
+    if (role === 'STALL_OPERATOR') {
+      query = query.eq('operator_id', userId)
+    } else if (role !== 'ADMIN') {
+      query = query.eq('is_listed', true).limit(10)
     }
 
     const { data: active_batches, error } = await query

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import PageTitle from '../components/PageTitle';
 import { Link } from 'react-router-dom';
 import { api } from '../api/supabaseApi';
@@ -78,6 +78,8 @@ const Dashboard = () => {
   const now = useNow(5000);
   const [batches, setBatches] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [batchError, setBatchError] = useState('');
+  const loadingBatches = useRef(false);
   const [devices, setDevices] = useState(null);
   const [sensorNodes, setSensorNodes] = useState(null);
   const [lastDetections, setLastDetections] = useState({});
@@ -111,43 +113,43 @@ const Dashboard = () => {
     api.me().then(setProfile).catch(() => setProfile(null));
   }, []);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        const result = await api.dashboard();
-        const mapped = (result.active_batches || []).map((batch) => {
-          const status = batch.freshness_status || 'UNKNOWN';
-          const statusColor = status === 'AMBER'
-            ? 'bg-amber-100 text-amber-700'
-            : status === 'RED'
-            ? 'bg-rose-100 text-rose-700'
-            : 'bg-emerald-100 text-emerald-700';
+  usePolling(async () => {
+    if (loadingBatches.current) return;
+    loadingBatches.current = true;
+    try {
+      const result = await api.dashboard();
+      const mapped = (result.active_batches || []).map((batch) => {
+        const status = batch.freshness_status || 'UNKNOWN';
+        const statusColor = status === 'AMBER'
+          ? 'bg-amber-100 text-amber-700'
+          : status === 'RED'
+          ? 'bg-rose-100 text-rose-700'
+          : 'bg-emerald-100 text-emerald-700';
 
-          return {
-            id: batch.id,
-            crop: batch.crop_type || batch.crop || 'Unknown',
-            qty: batch.quantity_kg ? `${batch.quantity_kg} kg` : '—',
-            operator: batch.profiles?.full_name || 'Unknown operator',
-            stall: batch.profiles?.stall_number || '',
-            days: batch.predicted_shelf_life != null ? `${batch.predicted_shelf_life} days` : '—',
-            status,
-            statusColor,
-            camConf: cameraConfidencePct(batch),
-            sensor: pairedSensor(batch),
-          };
-        });
+        return {
+          id: batch.id,
+          crop: batch.crop_type || batch.crop || 'Unknown',
+          qty: batch.quantity_kg ? `${batch.quantity_kg} kg` : '—',
+          operator: batch.profiles?.full_name || 'Unknown operator',
+          stall: batch.profiles?.stall_number || '',
+          days: batch.predicted_shelf_life != null ? `${batch.predicted_shelf_life} days` : '—',
+          status,
+          statusColor,
+          camConf: cameraConfidencePct(batch),
+          sensor: pairedSensor(batch),
+        };
+      });
 
-        setBatches(mapped);
-      } catch (error) {
-        console.error("Error loading dashboard data:", error);
-        setBatches([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
+      setBatches(mapped);
+      setBatchError('');
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      setBatchError('Could not refresh active batches.');
+    } finally {
+      loadingBatches.current = false;
+      setIsLoading(false);
+    }
+  }, 15000);
 
   if (isLoading) {
     return (
@@ -182,6 +184,8 @@ const Dashboard = () => {
       <CameraStatusStrip devices={devices} lastDetections={lastDetections} error={deviceError}
                          atRiskBatches={atRiskCount} now={now} />
 
+      {batchError && <p role="alert" className="text-sm text-amber-700">{batchError}</p>}
+
       {/* Top Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
@@ -189,7 +193,7 @@ const Dashboard = () => {
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Active Batches</p>
             <h2 className="text-3xl font-bold text-slate-800">{batches.length}</h2>
           </div>
-          <p className="text-sm text-emerald-600 mt-4 font-medium">Across all stalls, not yet rotten</p>
+          <p className="text-sm text-emerald-600 mt-4 font-medium">Unsold stock across all stalls</p>
         </div>
         <div className="bg-white p-6 rounded-2xl border border-rose-200 shadow-sm flex flex-col justify-between">
           <div>
